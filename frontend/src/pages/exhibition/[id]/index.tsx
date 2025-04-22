@@ -122,7 +122,7 @@ const ExhibitionDetails: React.FC = () => {
     // Count stalls from Redux store
     let stallCount = stalls.length || 0;
     let bookedStallCount = stalls.filter(
-      stall => stall.status === 'booked' || stall.status === 'reserved' || stall.status === 'sold'
+      stall => stall.status === 'booked' || stall.status === 'reserved'
     ).length;
     
     // If no stalls in Redux store, fall back to exhibition data
@@ -130,7 +130,7 @@ const ExhibitionDetails: React.FC = () => {
       if (currentExhibition.stalls && currentExhibition.stalls.length > 0) {
         stallCount = currentExhibition.stalls.length;
         bookedStallCount = currentExhibition.stalls.filter(
-          stall => stall.status === 'booked' || stall.status === 'reserved' || stall.status === 'sold'
+          stall => stall.status === 'booked' || stall.status === 'reserved'
         ).length;
       } else {
         // Last resort - use count stats if available
