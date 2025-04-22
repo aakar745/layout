@@ -1,0 +1,424 @@
+/**
+ * Booking Slice
+ * 
+ * Redux slice for managing booking state in the application.
+ * Handles all booking-related operations including:
+ * - CRUD operations for bookings
+ * - Status management
+ * - Payment processing
+ * - State management for booking lists and current booking
+ */
+
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+
+/**
+ * Exhibition interface
+ * Represents basic exhibition information referenced in bookings
+ */
+export interface Exhibition {
+  _id: string;
+  name: string;
+  venue: string;
+  invoicePrefix?: string;
+  companyName?: string;
+  companyAddress?: string;
+  companyContactNo?: string;
+  companyEmail?: string;
+  companyGST?: string;
+  companyPAN?: string;
+  companySAC?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankIFSC?: string;
+  bankBranch?: string;
+}
+
+/**
+ * Stall interface
+ * Defines the structure of exhibition stalls with dimensions and pricing
+ */
+interface Stall {
+  _id: string;
+  number: string;
+  dimensions: {
+    width: number;
+    height: number;
+  };
+  ratePerSqm: number;
+}
+
+/**
+ * StallDimensions interface
+ * Helper interface for stall dimensions calculations
+ */
+interface StallDimensions {
+  width: number;
+  height: number;
+}
+
+/**
+ * Tax interface
+ * Represents tax calculations applied to bookings
+ */
+interface Tax {
+  name: string;
+  rate: number;
+  amount: number;
+}
+
+/**
+ * Discount interface
+ * Defines discount structure supporting both percentage and fixed amounts
+ */
+interface Discount {
+  name: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  amount: number;
+}
+
+/**
+ * StallCalculation interface
+ * Represents financial calculations for individual stalls
+ */
+interface StallCalculation {
+  stallId: string;
+  number: string;
+  baseAmount: number;
+  discount: Discount | null;
+  amountAfterDiscount: number;
+}
+
+/**
+ * BookingCalculations interface
+ * Comprehensive financial calculations for a booking
+ * Including stall-wise breakdowns, discounts, and taxes
+ */
+interface BookingCalculations {
+  stalls: StallCalculation[];
+  totalBaseAmount: number;
+  totalDiscountAmount: number;
+  totalAmountAfterDiscount: number;
+  taxes: Tax[];
+  totalTaxAmount: number;
+  totalAmount: number;
+}
+
+/**
+ * PaymentDetails interface
+ * Tracks payment information for completed bookings
+ */
+interface PaymentDetails {
+  method: string;
+  transactionId: string;
+  paidAt: string;
+}
+
+/**
+ * Booking interface
+ * Complete booking information including:
+ * - Customer and exhibitor details
+ * - Stall selections
+ * - Financial calculations
+ * - Status tracking
+ * - Payment information
+ */
+export interface Booking {
+  _id: string;
+  exhibitionId: Exhibition;
+  stallIds: Stall[];
+  userId?: string;
+  exhibitorId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  companyName: string;
+  amount: number;
+  calculations: BookingCalculations;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  paymentStatus: 'pending' | 'paid' | 'refunded';
+  paymentDetails?: PaymentDetails;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * CreateBookingData interface
+ * Data structure for creating new bookings
+ * Includes all necessary information for booking creation
+ */
+export interface CreateBookingData {
+  exhibitionId: string;
+  exhibitorId: string;
+  stallIds: string[];
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress: string;
+  companyName: string;
+  discount?: {
+    name: string;
+    type: 'percentage' | 'fixed';
+    value: number;
+  };
+  amount: number;
+  calculations: {
+    stalls: Array<{
+      stallId: string;
+      number: string;
+      baseAmount: number;
+      discount?: {
+        name: string;
+        type: string;
+        value: number;
+        amount: number;
+      };
+      amountAfterDiscount: number;
+    }>;
+    totalBaseAmount: number;
+    totalDiscountAmount: number;
+    totalAmountAfterDiscount: number;
+    taxes: Array<{
+      name: string;
+      rate: number;
+      amount: number;
+    }>;
+    totalTaxAmount: number;
+    totalAmount: number;
+  };
+}
+
+/**
+ * BookingState interface
+ * Redux state structure for booking management
+ */
+interface BookingState {
+  bookings: Booking[];
+  currentBooking: Booking | null;
+  loading: boolean;
+  error: string | null;
+}
+
+// Initial state for the booking slice
+const initialState: BookingState = {
+  bookings: [],
+  currentBooking: null,
+  loading: false,
+  error: null,
+};
+
+/**
+ * Async Thunks
+ * Redux Thunk actions for handling asynchronous booking operations
+ */
+
+/**
+ * Fetches all bookings
+ * Retrieves the complete list of bookings from the API
+ */
+export const fetchBookings = createAsyncThunk(
+  'booking/fetchBookings',
+  async () => {
+    const response = await api.get<Booking[]>('/bookings');
+    return response.data;
+  }
+);
+
+/**
+ * Fetches a single booking by ID
+ * Used for viewing detailed booking information
+ */
+export const fetchBooking = createAsyncThunk(
+  'booking/fetchBooking',
+  async (id: string) => {
+    const response = await api.get<Booking>(`/bookings/${id}`);
+    return response.data;
+  }
+);
+
+/**
+ * Creates a new booking
+ * Handles the creation of bookings with all necessary calculations
+ */
+export const createBooking = createAsyncThunk(
+  'booking/createBooking',
+  async (data: CreateBookingData) => {
+    const response = await api.post<Booking>('/bookings', data);
+    return response.data;
+  }
+);
+
+/**
+ * Updates booking status
+ * Manages transitions between pending, confirmed, cancelled, approved, and rejected states
+ */
+export const updateBookingStatus = createAsyncThunk(
+  'booking/updateStatus',
+  async ({ id, status, rejectionReason }: { 
+    id: string; 
+    status: Booking['status']; 
+    rejectionReason?: string 
+  }) => {
+    const response = await api.patch<Booking>(`/bookings/${id}`, { 
+      status,
+      ...(rejectionReason && { rejectionReason })
+    });
+    return response.data;
+  }
+);
+
+/**
+ * Updates payment status and details
+ * Handles payment processing and status updates
+ */
+export const updatePaymentStatus = createAsyncThunk(
+  'booking/updatePaymentStatus',
+  async ({ id, paymentStatus, paymentDetails }: { 
+    id: string; 
+    paymentStatus: Booking['paymentStatus'];
+    paymentDetails?: PaymentDetails;
+  }) => {
+    const response = await api.patch<Booking>(`/bookings/${id}/payment`, { 
+      paymentStatus,
+      paymentDetails 
+    });
+    return response.data;
+  }
+);
+
+/**
+ * Deletes a booking
+ * Removes booking and updates related resources
+ */
+export const deleteBooking = createAsyncThunk(
+  'booking/deleteBooking',
+  async (id: string) => {
+    await api.delete(`/bookings/${id}`);
+    return id;
+  }
+);
+
+/**
+ * Booking Slice
+ * Redux slice containing reducers and extra reducers for booking state management
+ */
+const bookingSlice = createSlice({
+  name: 'booking',
+  initialState,
+  reducers: {
+    /**
+     * Clears the current booking selection
+     */
+    clearCurrentBooking: (state) => {
+      state.currentBooking = null;
+    },
+    /**
+     * Clears any error messages in the booking state
+     */
+    clearBookingError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch bookings cases
+      .addCase(fetchBookings.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchBookings.fulfilled, (state, action) => {
+        state.loading = false;
+        state.bookings = action.payload;
+      })
+      .addCase(fetchBookings.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch bookings';
+      })
+      // Fetch single booking cases
+      .addCase(fetchBooking.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchBooking.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentBooking = action.payload;
+      })
+      .addCase(fetchBooking.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch booking';
+      })
+      // Create booking cases
+      .addCase(createBooking.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createBooking.fulfilled, (state, action) => {
+        state.loading = false;
+        state.bookings.unshift(action.payload);
+        state.currentBooking = action.payload;
+      })
+      .addCase(createBooking.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to create booking';
+      })
+      // Update booking status cases
+      .addCase(updateBookingStatus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateBookingStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.bookings.findIndex(b => b._id === action.payload._id);
+        if (index !== -1) {
+          state.bookings[index] = action.payload;
+        }
+        if (state.currentBooking?._id === action.payload._id) {
+          state.currentBooking = action.payload;
+        }
+      })
+      .addCase(updateBookingStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to update booking status';
+      })
+      // Update payment status cases
+      .addCase(updatePaymentStatus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updatePaymentStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.bookings.findIndex(b => b._id === action.payload._id);
+        if (index !== -1) {
+          state.bookings[index] = action.payload;
+        }
+        if (state.currentBooking?._id === action.payload._id) {
+          state.currentBooking = action.payload;
+        }
+      })
+      .addCase(updatePaymentStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to update payment status';
+      })
+      // Delete booking
+      .addCase(deleteBooking.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteBooking.fulfilled, (state, action) => {
+        state.loading = false;
+        state.bookings = state.bookings.filter(b => b._id !== action.payload);
+        if (state.currentBooking?._id === action.payload) {
+          state.currentBooking = null;
+        }
+      })
+      .addCase(deleteBooking.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to delete booking';
+      });
+  },
+});
+
+export const { clearCurrentBooking, clearBookingError } = bookingSlice.actions;
+export default bookingSlice.reducer; 

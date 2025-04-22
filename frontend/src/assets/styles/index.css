@@ -1,0 +1,174 @@
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F9FAFB;
+  color: #111827;
+}
+
+/* Layout styles */
+.ant-layout {
+  background: #F9FAFB !important;
+}
+
+.ant-layout-sider {
+  background: #FFFFFF !important;
+}
+
+.ant-menu {
+  font-weight: 500;
+}
+
+.ant-menu-item {
+  border-radius: 8px !important;
+  margin: 4px 0 !important;
+}
+
+.ant-menu-item:hover {
+  background-color: #F3F4F6 !important;
+}
+
+.ant-menu-item-selected {
+  background-color: #F3F4F6 !important;
+  color: #7C3AED !important;
+}
+
+/* Button styles */
+.ant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.ant-btn-primary {
+  background: #7C3AED !important;
+  box-shadow: 0 1px 2px 0 rgb(124 58 237 / 0.05) !important;
+}
+
+.ant-btn-primary:hover {
+  background: #6D28D9 !important;
+}
+
+/* Card styles */
+.ant-card {
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Table styles */
+.ant-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ant-table-thead > tr > th {
+  background: #F9FAFB !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+}
+
+/* Form styles */
+.ant-form-item-label > label {
+  font-weight: 500;
+  color: #374151;
+}
+
+.ant-input, .ant-input-password {
+  border-radius: 8px;
+  border-color: #E5E7EB;
+}
+
+.ant-input:hover, .ant-input-password:hover {
+  border-color: #7C3AED;
+}
+
+.ant-input:focus, .ant-input-password:focus {
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 2px rgb(124 58 237 / 0.1);
+}
+
+/* Dropdown styles */
+.ant-dropdown-menu {
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Badge styles */
+.ant-badge-count {
+  background: #7C3AED !important;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .ant-layout-content {
+    margin: 16px !important;
+    padding: 0px !important;
+  }
+  
+  .ant-layout-header {
+    padding: 0 16px !important;
+  }
+}
+
+/* Sidebar Menu Styles */
+.ant-menu-inline {
+  border-right: none !important;
+}
+
+.ant-menu-item {
+  height: 48px !important;
+  line-height: 48px !important;
+  margin: 4px 0 !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  color: #6B7280 !important;
+  transition: all 0.3s ease !important;
+}
+
+.ant-menu-item:hover {
+  color: #7C3AED !important;
+  background: rgba(124, 58, 237, 0.06) !important;
+}
+
+.ant-menu-item-selected {
+  background: rgba(124, 58, 237, 0.1) !important;
+  color: #7C3AED !important;
+  font-weight: 500 !important;
+}
+
+.ant-menu-item-selected::after {
+  display: none !important;
+}
+
+.ant-menu-item .anticon {
+  font-size: 18px !important;
+  margin-right: 12px !important;
+}
+
+.ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Add hover effect to the logo area */
+.ant-layout-sider .logo-container:hover {
+  background: rgba(124, 58, 237, 0.02);
+}
+
+/* Smooth transition for collapsing */
+.ant-layout-sider {
+  transition: all 0.2s ease-in-out !important;
+} 

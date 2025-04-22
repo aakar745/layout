@@ -1,0 +1,238 @@
+/* Notification bell dropdown */
+.notification-dropdown {
+  width: 380px;
+  max-height: 500px;
+  overflow: auto;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  background-color: white;
+  z-index: 1100;
+}
+
+.notification-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fafafa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.notification-footer {
+  padding: 12px 16px;
+  text-align: center;
+  background-color: #fafafa;
+  border-top: 1px solid #f0f0f0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+.notification-tabs {
+  padding: 0 16px;
+  margin-top: 8px;
+  background-color: white;
+  position: sticky;
+  top: 44px; /* Height of header */
+  z-index: 9;
+}
+
+.notification-list {
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: white;
+}
+
+.notification-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  gap: 10px;
+  background-color: white;
+}
+
+.notification-empty {
+  margin: 30px 0;
+}
+
+.notification-item {
+  transition: background-color 0.3s;
+  animation: fade-in 0.3s ease-out;
+  background-color: white;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.notification-item:hover {
+  background-color: #f5f5f5;
+}
+
+.header-btn {
+  transition: all 0.3s;
+}
+
+.header-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+}
+
+/* Enhanced animations */
+@keyframes bell-shake {
+  0% { transform: rotate(0); }
+  10% { transform: rotate(5deg); }
+  20% { transform: rotate(-5deg); }
+  30% { transform: rotate(4deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(3deg); }
+  60% { transform: rotate(-3deg); }
+  70% { transform: rotate(2deg); }
+  80% { transform: rotate(-2deg); }
+  90% { transform: rotate(1deg); }
+  100% { transform: rotate(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notification-btn {
+  transition: all 0.3s;
+}
+
+.notification-btn-highlight {
+  transition: all 0.3s;
+}
+
+.notification-btn-highlight:hover {
+  background-color: rgba(245, 34, 45, 0.05);
+}
+
+.notification-bell-container {
+  display: inline-block;
+  position: relative;
+  cursor: pointer;
+}
+
+/* Improved bell animation */
+.notification-bell-container:hover .bell-icon {
+  animation: refined-bell-swing 0.5s ease-in-out;
+  transform-origin: top center;
+}
+
+@keyframes refined-bell-swing {
+  0% { transform: rotate(0); }
+  20% { transform: rotate(8deg); }
+  40% { transform: rotate(-8deg); }
+  60% { transform: rotate(5deg); }
+  80% { transform: rotate(-5deg); }
+  100% { transform: rotate(0); }
+}
+
+/* Ensure animation only triggers on actual new notifications */
+.has-new-notification .bell-icon {
+  animation: refined-bell-swing 1s ease-in-out;
+  transform-origin: top center;
+}
+
+/* Enhanced badge pulse animation */
+.badge-pulse {
+  position: relative;
+}
+
+/* Better badge pulse effect with proper circular animation */
+.badge-pulse .ant-badge-count {
+  animation: badge-pulse-effect 2s infinite ease-in-out;
+  box-shadow: 0 0 0 0 rgba(245, 34, 45, 0.7);
+}
+
+@keyframes badge-pulse-effect {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 34, 45, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(245, 34, 45, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 34, 45, 0);
+  }
+}
+
+/* Add a sparkle effect for more visual appeal */
+.badge-pulse .ant-badge-count::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  animation: sparkle 2s infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* Remove the older animations that used opacity */
+@keyframes enhanced-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Replace with the new badge pulse animation */
+.badge-pulse {
+  animation: none; /* Remove the old opacity animation */
+}
+
+/* IMPROVED BELL ICON STYLES */
+.notification-bell-btn {
+  height: 40px !important;
+  width: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  transition: all 0.3s !important;
+  position: relative !important;
+}
+
+.notification-bell-btn:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  transform: scale(1.05);
+}
+
+.notification-bell-btn:active {
+  background: rgba(0, 0, 0, 0.08) !important;
+  transform: scale(0.95);
+}
+
+.bell-icon {
+  font-size: 18px !important;
+  position: relative !important;
+}
+
+.notification-bell-container.bell-animate {
+  animation: refined-bell-swing 1s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  transform-origin: center top;
+} 

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice</title>
+    <style>
+        /* Ensure everything is visible in PDF */
+        body { background-color: white !important; color: #333 !important; }
+        * { visibility: visible !important; opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div class="invoice-container" style="background-color: white;">
+        <div class="proforma-invoice" style="background-color: white; color: #333;">
+            <div class="header-section" style="background-color: white;">
+                <div class="logo-cell" style="background-color: white; color: #333;">Logo</div>
+                <div class="title-company" style="background-color: white;">
+                    <div class="title-cell" style="background-color: white; color: #333;">PROFORMA INVOICE</div>
+                    <div class="company-cell" style="background-color: white; color: #333;">{{exhibition.companyName}}</div>
+                </div>
+            </div>
+
+            <div class="bill-to-section">
+                <div class="bill-to-cell" style="color: #333;">Bill To</div>
+                <div class="bill-to-info">
+                    <div class="info-row">
+                        <div class="label-cell" style="background-color: #f5f5f5; color: #333;">Company Name</div>
+                        <div class="value-cell" style="color: #333;">{{bookingId.companyName}}</div>
+                        <div class="date-label-cell" style="background-color: #f5f5f5; color: #333;">Date</div>
+                        <div class="date-value-cell" style="color: #333;">{{formatDate invoice.date}}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="label-cell" style="background-color: #f5f5f5; color: #333;">Phone No.</div>
+                        <div class="value-cell" style="color: #333;">{{bookingId.customerPhone}}</div>
+                        <div class="date-label-cell" style="background-color: #f5f5f5; color: #333;">Time</div>
+                        <div class="date-value-cell" style="color: #333;">{{formatTime invoice.time}}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="label-cell" style="background-color: #f5f5f5; color: #333;">GST No.</div>
+                        <div class="value-cell" style="color: #333;">{{bookingId.customerGSTIN}}</div>
+                        <div class="date-label-cell" style="background-color: #f5f5f5; color: #333;">Invoice No</div>
+                        <div class="date-value-cell" style="color: #333;">{{invoice.invoiceNumber}}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="label-cell" style="background-color: #f5f5f5; color: #333;">Address</div>
+                        <div class="value-cell" style="color: #333;">{{bookingId.customerAddress}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="expo-venue-section">
+                <div class="expo-column">
+                    <div class="heading" style="background-color: #f5f5f5; color: #333;">Expo Name</div>
+                    <div class="content" style="color: #333;">{{formatExhibitionName exhibition.name exhibition.startDate exhibition.endDate}}</div>
+                </div>
+                <div class="venue-column">
+                    <div class="heading" style="background-color: #f5f5f5; color: #333;">Venue</div>
+                    <div class="content" style="color: #333;">{{exhibition.venue}}</div>
+                </div>
+            </div>
+
+            <div class="section-header stall-summary-header" style="background-color: #f5f5f5; color: #333;">Stall Summary</div>
+
+            <div class="stall-table">
+                <div class="stall-header" style="background-color: #f5f5f5;">
+                    <div class="stall-header-cell" style="color: #333;">S/N</div>
+                    <div class="stall-header-cell" style="color: #333;">Stall No.</div>
+                    <div class="stall-header-cell" style="color: #333;">Stall Type</div>
+                    <div class="stall-header-cell" style="color: #333;">Dimensions</div>
+                    <div class="stall-header-cell" style="color: #333;">Area (sqm)</div>
+                    <div class="stall-header-cell" style="color: #333;">Rate (per sqm)</div>
+                    <div class="stall-header-cell" style="color: #333;">Amount</div>
+                </div>
+                {{#each stalls}}
+                <div class="stall-row">
+                    <div class="stall-cell" style="color: #333;">{{index}}</div>
+                    <div class="stall-cell" style="color: #333;">{{stallNo}}</div>
+                    <div class="stall-cell" style="color: #333;">{{stallType}}</div>
+                    <div class="stall-cell" style="color: #333;">{{dimensions}}</div>
+                    <div class="stall-cell" style="color: #333;">{{area}}</div>
+                    <div class="stall-cell" style="color: #333;">{{formatCurrency rate}}</div>
+                    <div class="stall-cell" style="color: #333;">{{formatCurrency amount}}</div>
+                </div>
+                {{/each}}
+            </div>
+
+            <div class="section-header" style="background-color: #f5f5f5; color: #333;">Calculation Summary</div>
+
+            <div class="calc-table">
+                <div class="calc-row">
+                    <div class="calc-label" style="color: #333;">Total Basic Amount</div>
+                    <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.totalBaseAmount}}</div>
+                </div>
+                {{#if calculations.discountPercentage}}
+                <div class="calc-row">
+                    <div class="calc-label" style="color: #333;">Discount ({{calculations.discountPercentage}}%)</div>
+                    <div class="calc-value" style="color: #333;">-₹{{formatCurrency calculations.discountAmount}}</div>
+                </div>
+                {{/if}}
+                <div class="calc-row">
+                    <div class="calc-label" style="color: #333;">{{#if calculations.discountPercentage}}Amount after Discount{{else}}Net Amount{{/if}}</div>
+                    <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.amountAfterDiscount}}</div>
+                </div>
+                <div class="calc-row">
+                    <div class="calc-label" style="color: #333;">GST ({{calculations.gstPercentage}}%)</div>
+                    <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.gstAmount}}</div>
+                </div>
+                <div class="calc-row total-row">
+                    <div class="calc-label" style="color: #333;">Total Amount</div>
+                    <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.totalAmount}}</div>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <div class="bank-details">
+                    <div class="details-header" style="background-color: #f5f5f5; color: #333;">Bank Details</div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Bank Name</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.bankName}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Account No.</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.bankAccount}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Name</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.bankAccountName}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Branch</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.bankBranch}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">IFSC CODE</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.bankIFSC}}</div>
+                    </div>
+                </div>
+
+                <div class="company-details">
+                    <div class="details-header" style="background-color: #f5f5f5; color: #333;">Company Details</div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">CIN No.</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyCIN}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Pan No.</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyPAN}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">SAC CODE</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companySAC}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">GST No.</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyGST}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Email</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyEmail}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Website</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyWebsite}}</div>
+                    </div>
+                    <div class="details-row">
+                        <div class="detail-label" style="background-color: #f5f5f5; color: #333;">Address</div>
+                        <div class="detail-value" style="color: #333;">{{exhibition.companyAddress}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="instruction-section">
+                <div class="instruction-header" style="background-color: #f5f5f5; color: #333;">PI Instruction</div>
+                <div class="instruction-content" style="color: #333;">
+                    {{{piInstructions}}}
+                </div>
+            </div>
+
+            <div class="instruction-section">
+                <div class="instruction-header" style="background-color: #f5f5f5; color: #333;">Terms & Conditions</div>
+                <div class="instruction-content" style="color: #333;">
+                    {{{terms}}}
+                </div>
+            </div>
+
+            <div class="signature-section">
+                <div class="signature-text" style="color: #333;">Authorised Signature</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
