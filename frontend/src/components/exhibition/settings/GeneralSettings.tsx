@@ -6,6 +6,7 @@ import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Editor } from '@tinymce/tinymce-react';
 import { Exhibition } from '../../../services/exhibition';
 import stallService, { StallType } from '../../../services/stall';
+import { tinyMCEApiKey } from '../../../config';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -25,7 +26,7 @@ const RichTextEditor: React.FC<{
   
   return (
     <Editor
-      apiKey={import.meta.env.VITE_TINYMCE_API_KEY as string}
+      apiKey={tinyMCEApiKey}
       onInit={(evt, editor) => {
         editorRef.current = editor;
       }}
