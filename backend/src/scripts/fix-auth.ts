@@ -19,29 +19,41 @@ async function fixAuth() {
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB');
     
-    // First, check if there's an admin role or create one
+    // First, check if there's an admin role or create one with specific permissions
     const RoleCollection = mongoose.connection.collection('roles');
     
-    let adminRole = await RoleCollection.findOne({ name: 'Admin' });
-    if (!adminRole) {
-      console.log('Admin role not found, creating new admin role...');
-      adminRole = {
-        _id: new mongoose.Types.ObjectId(),
-        name: 'Admin',
-        description: 'Administrator with full access',
-        permissions: ['all'],
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      await RoleCollection.insertOne(adminRole);
-      console.log('Admin role created with ID:', adminRole._id);
-    } else {
-      console.log('Found existing admin role with ID:', adminRole._id);
-    }
+    // Define comprehensive permissions for admin
+    const adminPermissions = [
+      'view_users', 'create_user', 'edit_user', 'delete_user',
+      'view_roles', 'create_role', 'edit_role', 'delete_role',
+      'view_exhibitions', 'create_exhibition', 'edit_exhibition', 'delete_exhibition',
+      'view_stalls', 'create_stall', 'edit_stall', 'delete_stall',
+      'view_bookings', 'create_booking', 'edit_booking', 'delete_booking',
+      'view_invoices', 'create_invoice', 'edit_invoice', 'delete_invoice',
+      'view_exhibitors', 'edit_exhibitor', 'delete_exhibitor',
+      'view_settings', 'edit_settings',
+      'manage_all', 'all' // Fallback permissions
+    ];
     
-    // Delete any existing admin users to avoid conflicts - use $or to match either username or email
+    // Delete any existing Admin role
+    await RoleCollection.deleteMany({ name: 'Admin' });
+    console.log('Cleared existing admin roles');
+    
+    // Create fresh Admin role
+    const adminRole = {
+      _id: new mongoose.Types.ObjectId(),
+      name: 'Admin',
+      description: 'Administrator with full access to all features',
+      permissions: adminPermissions,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    await RoleCollection.insertOne(adminRole);
+    console.log('Admin role created with ID:', adminRole._id);
+    
+    // Delete any existing admin users to avoid conflicts
     const UserCollection = mongoose.connection.collection('users');
     const deleteResult = await UserCollection.deleteMany({ 
       $or: [
