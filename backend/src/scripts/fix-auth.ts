@@ -41,10 +41,15 @@ async function fixAuth() {
       console.log('Found existing admin role with ID:', adminRole._id);
     }
     
-    // Delete any existing admin users to avoid conflicts
+    // Delete any existing admin users to avoid conflicts - use $or to match either username or email
     const UserCollection = mongoose.connection.collection('users');
-    await UserCollection.deleteMany({ username: 'admin' });
-    console.log('Cleared any existing admin users');
+    const deleteResult = await UserCollection.deleteMany({ 
+      $or: [
+        { username: 'admin' },
+        { email: 'admin@example.com' }
+      ]
+    });
+    console.log(`Cleared ${deleteResult.deletedCount} existing admin user(s)`);
     
     // Create the admin user with correct structure
     const salt = await bcrypt.genSalt(10);
