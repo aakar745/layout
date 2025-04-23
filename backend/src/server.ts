@@ -318,6 +318,14 @@ app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
 // MongoDB connection
 connectDB();
 
+// Serve static files from the React frontend app
+app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
+// Anything that doesn't match the above routes, send back the index.html file
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
