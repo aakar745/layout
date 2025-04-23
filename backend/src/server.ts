@@ -106,8 +106,13 @@ app.use('/api/uploads', (err: any, req: any, res: any, next: any) => {
   }
 });
 
-// Root route
-app.get('/', (req, res) => {
+// Root route - REMOVING THIS TO ALLOW FRONTEND TO BE SERVED AT ROOT
+// app.get('/', (req, res) => {
+//   res.json({ message: 'Exhibition Management API is running' });
+// });
+
+// Move the status endpoint to a dedicated API route
+app.get('/api/status', (req, res) => {
   res.json({ message: 'Exhibition Management API is running' });
 });
 
