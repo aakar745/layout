@@ -19,6 +19,7 @@ async function fixAuth() {
     
     await User.insertOne({
       name: 'Administrator',
+      username: 'admin',
       email: 'admin@example.com',
       password: hashedPassword,
       isActive: true,
@@ -28,7 +29,7 @@ async function fixAuth() {
     });
     
     console.log('Admin user created successfully');
-    console.log('Email: admin@example.com');
+    console.log('Username: admin');
     console.log('Password: Admin@123');
   } catch (error) {
     console.error('Error:', error);
