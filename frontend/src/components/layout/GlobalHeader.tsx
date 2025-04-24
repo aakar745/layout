@@ -557,10 +557,11 @@ const GlobalHeader: React.FC = () => {
       // Reset OTP state
       resetOtpState();
       
-      // Automatically show login modal after successful registration using Redux action
+      // Use the direct state setter instead of dispatch to ensure modal shows properly
       setTimeout(() => {
+        setLoginModalVisible(true);
         dispatch(showLoginModal(undefined));
-      }, 300);
+      }, 500);
     } catch (error: any) {
       console.error('Registration error:', error);
       console.error('Response data:', error.response?.data);
