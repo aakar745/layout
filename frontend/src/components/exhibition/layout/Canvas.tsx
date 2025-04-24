@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Stage, Layer } from 'react-konva';
 import { Button, Space } from 'antd';
 import { ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
@@ -61,7 +61,8 @@ const Canvas: React.FC<CanvasProps> = ({
   isStallMode = false,
   isFixtureMode = false
 }) => {
-  const stageRef = React.useRef<any>(null);
+  const stageRef = useRef<any>(null);
+  const layerRef = useRef<any>(null);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isStageHovered, setIsStageHovered] = useState(false);
@@ -73,6 +74,20 @@ const Canvas: React.FC<CanvasProps> = ({
   });
   const [isExhibitionSelected, setIsExhibitionSelected] = useState(false);
   const [isExhibitionFormVisible, setIsExhibitionFormVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   const handleWheel = useCallback((e: any) => {
     e.evt.preventDefault();
@@ -145,27 +160,42 @@ const Canvas: React.FC<CanvasProps> = ({
   }, [scale, position]);
 
   const handleDragStart = useCallback((e: any) => {
-    // Make sure this is a stage drag, not a hall or fixture drag
     if (e.target === stageRef.current) {
-      // Always hide context menu when starting to drag
       setContextMenu({ ...contextMenu, visible: false });
       setIsDragging(true);
+      
+      if (layerRef.current && isMobile) {
+        layerRef.current.hitGraphEnabled(false);
+      }
     }
-  }, [contextMenu]);
+  }, [contextMenu, isMobile]);
+
+  const handleDragMove = useCallback((e: any) => {
+    if (e.target === stageRef.current) {
+      if (isMobile && layerRef.current) {
+        e.cancelBubble = true;
+      }
+    }
+  }, [isMobile]);
 
   const handleDragEnd = useCallback((e: any) => {
-    // Make sure this is a stage drag, not a hall or fixture drag
     if (e.target === stageRef.current) {
       setPosition({
         x: e.target.x(),
         y: e.target.y()
       });
       
-      // Make sure to redraw to avoid visual glitches
-      stageRef.current?.batchDraw();
+      if (layerRef.current && isMobile) {
+        layerRef.current.hitGraphEnabled(true);
+      }
+      
+      if (stageRef.current) {
+        stageRef.current.batchDraw();
+      }
+      
       setIsDragging(false);
     }
-  }, []);
+  }, [isMobile]);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -178,31 +208,23 @@ const Canvas: React.FC<CanvasProps> = ({
   }, []);
 
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    // Get the target's class name
     const targetClass = e.target.getClassName();
     
-    // If the click is directly on the stage or on the layer
-    // allow dragging and just hide context menu
     if (targetClass === 'Stage' || targetClass === 'Layer') {
       setContextMenu({ ...contextMenu, visible: false });
       return;
     }
     
-    // If we get here, we clicked on some object within the stage
-    
-    // Deselect halls/fixtures if clicking on exhibition space (not halls/fixtures)
     if (targetClass === 'Group' || targetClass === 'Rect') {
       onSelectHall(null);
       onSelectFixture(null);
       
-      // Only show context menu if click is within exhibition boundaries
       const pointerPosition = stageRef.current?.getPointerPosition();
       if (pointerPosition && isWithinExhibitionBounds(pointerPosition)) {
         const { x, y } = pointerPosition;
         const { x: stageX, y: stageY } = stageRef.current?.position() || { x: 0, y: 0 };
         const { x: scaleX, y: scaleY } = stageRef.current?.scale() || { x: 1, y: 1 };
         
-        // Convert screen coordinates to stage coordinates
         const menuX = (x - stageX) / scaleX;
         const menuY = (y - stageY) / scaleY;
         
@@ -211,7 +233,6 @@ const Canvas: React.FC<CanvasProps> = ({
         setContextMenu({ ...contextMenu, visible: false });
       }
     } else {
-      // Hide context menu when clicking on specific elements (Hall, Fixture, etc.)
       setContextMenu({ ...contextMenu, visible: false });
     }
   };
@@ -223,13 +244,11 @@ const Canvas: React.FC<CanvasProps> = ({
     const { x: stageX, y: stageY } = stageRef.current.position();
     const { x: scaleX } = stageRef.current.scale();
     
-    // Convert screen coordinates to stage coordinates
     const stagePoint = {
       x: (x - stageX) / scaleX,
       y: (y - stageY) / scaleX,
     };
     
-    // Check if point is within exhibition boundaries
     return (
       stagePoint.x >= 0 &&
       stagePoint.x <= exhibitionWidth &&
@@ -267,27 +286,20 @@ const Canvas: React.FC<CanvasProps> = ({
     setContextMenu({ ...contextMenu, visible: false });
   };
 
-  // Center the exhibition space initially and when dimensions change
   useEffect(() => {
     if (width > 0 && height > 0 && exhibitionWidth > 0 && exhibitionHeight > 0) {
-      // Fixed padding for all modes (smaller for stall mode)
       const padding = isStallMode ? 20 : 40;
       
-      // Calculate available space
       const availableWidth = width - padding * 2;
       const availableHeight = height - padding * 2;
       
-      // Calculate scale to fit the exhibition in the available space
       const scaleX = availableWidth / exhibitionWidth;
       const scaleY = availableHeight / exhibitionHeight;
       
-      // Use the minimum scale to ensure the entire exhibition fits
       const fitScale = Math.min(scaleX, scaleY);
       
-      // Set the scale
       const newScale = fitScale;
       
-      // Center the layout
       const centerX = (width - exhibitionWidth * newScale) / 2;
       const centerY = (height - exhibitionHeight * newScale) / 2;
       
@@ -300,7 +312,6 @@ const Canvas: React.FC<CanvasProps> = ({
     }
   }, [width, height, exhibitionWidth, exhibitionHeight, isStallMode]);
 
-  // Clone children and pass scale and position props
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement<CanvasChildProps>(child)) {
       return React.cloneElement(child, {
@@ -310,6 +321,32 @@ const Canvas: React.FC<CanvasProps> = ({
     }
     return child;
   });
+
+  useEffect(() => {
+    if (stageRef.current && layerRef.current) {
+      const stage = stageRef.current;
+      const layer = layerRef.current;
+      
+      let lastDragTime = 0;
+      const dragThrottleDelay = isMobile ? 30 : 15;
+      
+      const throttledDragMove = (e: any) => {
+        const now = Date.now();
+        if (now - lastDragTime < dragThrottleDelay) {
+          e.cancelBubble = true;
+          return;
+        }
+        
+        lastDragTime = now;
+      };
+      
+      stage.on('dragmove', throttledDragMove);
+      
+      return () => {
+        stage.off('dragmove', throttledDragMove);
+      };
+    }
+  }, [isDragging, isMobile]);
 
   if (width <= 0 || height <= 0 || exhibitionWidth <= 0 || exhibitionHeight <= 0) {
     return (
@@ -389,6 +426,7 @@ const Canvas: React.FC<CanvasProps> = ({
         onClick={handleStageClick}
         draggable={true}
         onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -397,8 +435,11 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
+        perfectDrawEnabled={true}
+        hitGraphEnabled={!isDragging}
+        pixelRatio={isMobile ? Math.min(1.5, window.devicePixelRatio || 1) : window.devicePixelRatio || 1}
       >
-        <Layer>
+        <Layer ref={layerRef}>
           <ExhibitionSpace
             width={exhibitionWidth}
             height={exhibitionHeight}
@@ -426,10 +467,9 @@ const Canvas: React.FC<CanvasProps> = ({
             
             {stalls.map((stall) => {
               const stallId = stall._id || stall.id;
-              // Find the hall this stall belongs to
               const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
               
-              if (!hall) return null; // Skip if hall not found
+              if (!hall) return null;
               
               return (
                 <Stall
@@ -449,7 +489,6 @@ const Canvas: React.FC<CanvasProps> = ({
             })}
             
             {fixtures.map((fixture) => {
-              // Normalize IDs for consistency
               const fixtureId = fixture._id || fixture.id;
               const selectedId = selectedFixture?._id || selectedFixture?.id;
               const isFixtureSelected = selectedId === fixtureId;

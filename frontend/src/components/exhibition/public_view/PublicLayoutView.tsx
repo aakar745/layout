@@ -23,7 +23,7 @@
  * - canvasSize: Manages responsive canvas dimensions
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Card, Space, Tag, Tooltip, Modal, Button, Form, Input, message, Spin, Alert, Row, Col, Descriptions, Empty, Result, Typography, Badge, Affix, Layout, notification, Image, Divider } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import publicExhibitionService, { PublicLayout } from '../../../services/publicExhibition';
@@ -88,56 +88,90 @@ const PublicLayoutView: React.FC = () => {
   const [selectedStallDetails, setSelectedStallDetails] = useState<any>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 }); // Default size
+  const [isMobile, setIsMobile] = useState(false);
   const [form] = Form.useForm();
   
   // Get exhibitor auth state from Redux
   const { isAuthenticated } = useSelector((state: RootState) => state.exhibitorAuth);
 
+  // Detect mobile devices
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
   // Check if stall is already booked
-  const isStallBooked = (stall: any) => {
+  const isStallBooked = useCallback((stall: any) => {
     return stall.status === 'booked' || stall.status === 'reserved';
-  };
+  }, []);
 
   /**
    * Updates canvas dimensions based on container size
    * Ensures responsive layout while maintaining minimum dimensions
+   * Optimized with throttling to prevent excessive updates
    */
-  const updateCanvasSize = () => {
+  const updateCanvasSize = useCallback(() => {
     if (canvasContainerRef.current) {
       const { clientWidth, clientHeight } = canvasContainerRef.current;
-      const width = Math.max(clientWidth || 800, 800);
-      const height = Math.max(clientHeight || 600, 600);
+      
+      // Use device-specific min dimensions
+      const minWidth = isMobile ? 320 : 800;
+      const minHeight = isMobile ? 480 : 600;
+      
+      const width = Math.max(clientWidth || minWidth, minWidth);
+      const height = Math.max(clientHeight || minHeight, minHeight);
       
       // Only update if dimensions have actually changed
-      if (width !== canvasSize.width || height !== canvasSize.height) {
+      if (Math.abs(width - canvasSize.width) > 5 || Math.abs(height - canvasSize.height) > 5) {
         setCanvasSize({ width, height });
       }
     }
-  };
+  }, [canvasSize.width, canvasSize.height, isMobile]);
 
   /**
    * Effect: Handle canvas size updates
-   * Sets up resize observer and window resize listener
-   * Cleans up listeners on unmount
+   * Sets up resize observer with throttling for better performance
    */
   useEffect(() => {
+    let resizeTimeout: number | null = null;
+    const throttledResize = () => {
+      if (resizeTimeout === null) {
+        resizeTimeout = window.setTimeout(() => {
+          resizeTimeout = null;
+          updateCanvasSize();
+        }, isMobile ? 100 : 50); // More throttling on mobile
+      }
+    };
+
+    // Initial size update
     updateCanvasSize();
 
-    const resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(updateCanvasSize);
-    });
+    // Use ResizeObserver with throttling
+    const resizeObserver = new ResizeObserver(throttledResize);
 
     if (canvasContainerRef.current) {
       resizeObserver.observe(canvasContainerRef.current);
     }
 
-    window.addEventListener('resize', updateCanvasSize);
+    // Window resize event with throttling
+    window.addEventListener('resize', throttledResize);
     
     return () => {
+      if (resizeTimeout !== null) {
+        window.clearTimeout(resizeTimeout);
+      }
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateCanvasSize);
+      window.removeEventListener('resize', throttledResize);
     };
-  }, []);
+  }, [updateCanvasSize, isMobile]);
 
   /**
    * Effect: Fetch exhibition layout data
@@ -198,20 +232,15 @@ const PublicLayoutView: React.FC = () => {
     }
   }, [isAuthenticated]);
 
-  // Replace with actual authentication check using Redux state
-  const checkExhibitorAuth = () => {
-    return isAuthenticated;
-  };
-
-  // Handle stall click to show booking form for that stall
-  const handleStallClick = async (stall: any) => {
+  // Handle stall click with improved performance
+  const handleStallClick = useCallback(async (stall: any) => {
     if (isStallBooked(stall)) {
       message.info(`This stall (${stall.stallNumber}) is already booked.`);
       return;
     }
 
     // Check if user is authenticated
-    const isLoggedIn = checkExhibitorAuth();
+    const isLoggedIn = isAuthenticated;
     if (!isLoggedIn) {
       // Show the global login modal with stall booking context
       dispatch(showLoginModal("stall-booking"));
@@ -220,16 +249,18 @@ const PublicLayoutView: React.FC = () => {
 
     // Toggle selection of the stall
     const stallId = stall._id || stall.id;
-    if (selectedStalls.includes(stallId)) {
-      // Remove stall from selection
-      setSelectedStalls(prevSelected => prevSelected.filter(id => id !== stallId));
-      message.info(`Stall ${stall.stallNumber} removed from selection`);
-    } else {
-      // Add stall to selection
-      setSelectedStalls(prevSelected => [...prevSelected, stallId]);
-      message.success(`Stall ${stall.stallNumber} added to selection`);
-    }
-  };
+    setSelectedStalls(prevSelected => {
+      if (prevSelected.includes(stallId)) {
+        // Remove stall from selection
+        message.info(`Stall ${stall.stallNumber} removed from selection`);
+        return prevSelected.filter(id => id !== stallId);
+      } else {
+        // Add stall to selection
+        message.success(`Stall ${stall.stallNumber} added to selection`);
+        return [...prevSelected, stallId];
+      }
+    });
+  }, [isStallBooked, isAuthenticated, dispatch]);
 
   const handleBookStall = async (values: any) => {
     try {
@@ -343,11 +374,79 @@ const PublicLayoutView: React.FC = () => {
   };
 
   // Prevent context menu and admin actions in public view
-  const handleStageClick = (e: any) => {
+  const handleStageClick = useCallback((e: any) => {
     // Allow only stall selection in public view
     // This effectively prevents the context menu
     e.cancelBubble = true;
-  };
+  }, []);
+
+  // Memoize the layout halls and stalls for better rendering performance
+  const memoizedLayout = useMemo(() => {
+    if (!layout) return null;
+    
+    return {
+      halls: layout.layout.map(hall => (
+        <Hall
+          key={hall.id}
+          hall={{
+            ...hall,
+            exhibitionId: id || ''
+          }}
+          isSelected={false}
+          onSelect={() => {}}
+          isStallMode={true}
+        />
+      )),
+      stalls: layout.layout.flatMap(hall => 
+        hall.stalls.map(stall => (
+          <Stall
+            key={stall.id}
+            stall={{
+              ...stall,
+              hallId: hall.id,
+              hallName: hall.name,
+              isSelected: selectedStalls.includes(stall.id),
+              stallTypeId: 'default',
+              number: stall.stallNumber,
+              typeName: stall.type || 'Standard',
+              ratePerSqm: stall.price || 0,
+              rotation: 0, // Force rotation to 0 to fix diamond shape
+              dimensions: {
+                x: stall.position?.x || 0,
+                y: stall.position?.y || 0,
+                width: stall.dimensions?.width || 0,
+                height: stall.dimensions?.height || 0
+              },
+              status: stall.status === 'maintenance' ? 'booked' : stall.status
+            }}
+            isSelected={selectedStall === stall.id || selectedStalls.includes(stall.id)}
+            onSelect={stall.status === 'available' ? () => handleStallClick(stall) : undefined}
+            hallWidth={hall.dimensions?.width || 0}
+            hallHeight={hall.dimensions?.height || 0}
+            hallX={hall.dimensions?.x || 0}
+            hallY={hall.dimensions?.y || 0}
+          />
+        ))
+      ),
+      fixtures: layout.fixtures?.map(fixture => (
+        <Fixture
+          key={fixture.id || fixture._id}
+          fixture={{
+            ...fixture,
+            id: fixture.id || fixture._id,
+            _id: fixture._id || fixture.id,
+            exhibitionId: id || '',
+            isActive: true,
+            zIndex: 5 // Ensure fixtures appear on top
+          }}
+          scale={1}
+          position={{ x: 0, y: 0 }}
+          exhibitionWidth={layout.exhibition.dimensions?.width || 0}
+          exhibitionHeight={layout.exhibition.dimensions?.height || 0}
+        />
+      ))
+    };
+  }, [layout, id, selectedStall, selectedStalls, handleStallClick]);
 
   if (loading) {
     return (
@@ -561,7 +660,8 @@ const PublicLayoutView: React.FC = () => {
               overflow: 'hidden',
               position: 'relative',
               border: '1px solid rgba(230, 235, 245, 0.8)',
-              boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.03)'
+              boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.03)',
+              willChange: 'transform' // Hint for browser optimization
             }}
           >
             {/* CSS to hide context menu in public view */}
@@ -571,14 +671,19 @@ const PublicLayoutView: React.FC = () => {
                 .konvajs-content .ant-menu {
                   display: none !important;
                 }
+                
+                /* Optimize rendering */
+                .konvajs-content {
+                  will-change: transform;
+                }
               `}
             </style>
             <Canvas
               width={canvasSize.width}
               height={canvasSize.height}
-              exhibitionWidth={layout.exhibition.dimensions?.width || 0}
-              exhibitionHeight={layout.exhibition.dimensions?.height || 0}
-              halls={layout.layout}
+              exhibitionWidth={layout?.exhibition.dimensions?.width || 0}
+              exhibitionHeight={layout?.exhibition.dimensions?.height || 0}
+              halls={layout?.layout || []}
               selectedHall={null}
               onSelectHall={() => {}}
               isStallMode={true}
@@ -587,68 +692,9 @@ const PublicLayoutView: React.FC = () => {
               onAddFixture={() => {}}
               onExhibitionChange={() => {}}
             >
-              {layout.layout.map(hall => (
-                <Hall
-                  key={hall.id}
-                  hall={{
-                    ...hall,
-                    exhibitionId: id || ''
-                  }}
-                  isSelected={false}
-                  onSelect={() => {}}
-                  isStallMode={true}
-                />
-              ))}
-              {layout.layout.flatMap(hall => 
-                hall.stalls.map(stall => (
-                  <Stall
-                    key={stall.id}
-                    stall={{
-                      ...stall,
-                      hallId: hall.id,
-                      hallName: hall.name,
-                      isSelected: selectedStalls.includes(stall.id),
-                      stallTypeId: 'default',
-                      number: stall.stallNumber,
-                      typeName: stall.type || 'Standard',
-                      ratePerSqm: stall.price || 0,
-                      rotation: 0, // Force rotation to 0 to fix diamond shape
-                      dimensions: {
-                        x: stall.position?.x || 0,
-                        y: stall.position?.y || 0,
-                        width: stall.dimensions?.width || 0,
-                        height: stall.dimensions?.height || 0
-                      },
-                      status: stall.status === 'maintenance' ? 'booked' : stall.status
-                    }}
-                    isSelected={selectedStall === stall.id || selectedStalls.includes(stall.id)}
-                    onSelect={stall.status === 'available' ? () => handleStallClick(stall) : undefined}
-                    hallWidth={hall.dimensions?.width || 0}
-                    hallHeight={hall.dimensions?.height || 0}
-                    hallX={hall.dimensions?.x || 0}
-                    hallY={hall.dimensions?.y || 0}
-                  />
-                ))
-              )}
-              
-              {/* Render fixtures for navigation points */}
-              {layout.fixtures?.map(fixture => (
-                <Fixture
-                  key={fixture.id || fixture._id}
-                  fixture={{
-                    ...fixture,
-                    id: fixture.id || fixture._id,
-                    _id: fixture._id || fixture.id,
-                    exhibitionId: id || '',
-                    isActive: true,
-                    zIndex: 5 // Ensure fixtures appear on top
-                  }}
-                  scale={1}
-                  position={{ x: 0, y: 0 }}
-                  exhibitionWidth={layout.exhibition.dimensions?.width || 0}
-                  exhibitionHeight={layout.exhibition.dimensions?.height || 0}
-                />
-              ))}
+              {memoizedLayout?.halls}
+              {memoizedLayout?.stalls}
+              {memoizedLayout?.fixtures}
             </Canvas>
           </div>
         </Card>
@@ -706,4 +752,5 @@ const PublicLayoutView: React.FC = () => {
   );
 };
 
-export default PublicLayoutView; 
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(PublicLayoutView); 

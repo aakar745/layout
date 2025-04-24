@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Group, Rect, Text, Circle, Label, Tag } from 'react-konva';
 import { Stall as StallType } from '../../../services/exhibition';
 import Konva from 'konva';
@@ -36,35 +36,54 @@ const Stall: React.FC<StallProps> = ({
   hallY = 0,
   scale = 1
 }) => {
-  const shapeRef = React.useRef<Konva.Group>(null);
+  const shapeRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [tooltipOpacity, setTooltipOpacity] = useState(0);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
-  // Animation effect for the tooltip
+  // Detect mobile for optimizations
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768);
+    
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Optimize tooltip visibility with debouncing
   useEffect(() => {
     if (isHovered) {
-      setTooltipOpacity(1);
+      // Show tooltip immediately when hovered
+      setTooltipVisible(true);
     } else {
-      setTooltipOpacity(0);
+      // Delay hiding tooltip slightly for better UX
+      const timer = setTimeout(() => {
+        setTooltipVisible(false);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isHovered]);
 
-  // Move tooltip to top layer when hovered
+  // Optimize top layer management
   useEffect(() => {
     if (isHovered && shapeRef.current) {
-      // Find the parent layer and move this group to the top
+      // On mobile, only move to top if actually selected
+      if (isMobile && !isSelected) return;
+      
       const stage = shapeRef.current.getStage();
       if (stage) {
-        // Move the group to the top when hovered
         shapeRef.current.moveToTop();
       }
     }
-  }, [isHovered]);
+  }, [isHovered, isSelected, isMobile]);
 
   // Use either the prop or the stall object's isSelected property
   const isStallSelected = isSelected || stall.isSelected;
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'available':
         return '#52c41a';
@@ -75,9 +94,9 @@ const Stall: React.FC<StallProps> = ({
       default:
         return '#d9d9d9';
     }
-  };
+  }, []);
 
-  const getStatusFillColor = (status: string) => {
+  const getStatusFillColor = useCallback((status: string) => {
     switch (status) {
       case 'available':
         return 'rgba(82, 196, 26, 0.2)'; // Light green
@@ -88,9 +107,9 @@ const Stall: React.FC<StallProps> = ({
       default:
         return 'rgba(217, 217, 217, 0.2)'; // Light gray
     }
-  };
+  }, []);
 
-  const handleDragMove = (e: Konva.KonvaEventObject<DragEvent>) => {
+  const handleDragMove = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
     
     const node = e.target;
@@ -106,10 +125,12 @@ const Stall: React.FC<StallProps> = ({
     // Update node position immediately
     node.x(Math.round(boundedX + hallX));
     node.y(Math.round(boundedY + hallY));
-  };
+  }, [hallX, hallY, hallWidth, hallHeight, stall.dimensions.width, stall.dimensions.height]);
 
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+  const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
+    
+    if (!onChange) return;
     
     const node = e.target;
     
@@ -121,31 +142,39 @@ const Stall: React.FC<StallProps> = ({
     const boundedX = Math.max(0, Math.min(localX, hallWidth - stall.dimensions.width));
     const boundedY = Math.max(0, Math.min(localY, hallHeight - stall.dimensions.height));
 
-    if (onChange) {
-      // Preserve both id and _id in the update
-      onChange({
-        ...stall,
-        id: stall.id || stall._id,
-        _id: stall._id || stall.id,
-        dimensions: {
-          ...stall.dimensions,
-          x: Math.round(boundedX),
-          y: Math.round(boundedY)
-        }
-      });
-    }
-  };
+    // Preserve both id and _id in the update
+    onChange({
+      ...stall,
+      id: stall.id || stall._id,
+      _id: stall._id || stall.id,
+      dimensions: {
+        ...stall.dimensions,
+        x: Math.round(boundedX),
+        y: Math.round(boundedY)
+      }
+    });
+  }, [onChange, hallX, hallY, hallWidth, hallHeight, stall]);
 
-  const handleDragStart = (e: Konva.KonvaEventObject<DragEvent>) => {
+  const handleDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
-  };
+  }, []);
 
-  const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
     if (onSelect) {
       onSelect();
     }
-  };
+  }, [onSelect]);
+  
+  // Optimize hover behavior especially for mobile
+  const handleMouseEnter = useCallback(() => {
+    if (isMobile && !isStallSelected) return; // On mobile, only show hover effects for selected stalls
+    setIsHovered(true);
+  }, [isMobile, isStallSelected]);
+  
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+  }, []);
 
   const defaultDimensions = {
     x: 0,
@@ -170,6 +199,13 @@ const Stall: React.FC<StallProps> = ({
 
   // Always reset rotation to 0 regardless of what's passed in
   const stallRotation = 0;
+  
+  // Optimize tooltip content with memoization
+  const tooltipText = useMemo(() => {
+    return stall.status !== 'available' && stall.companyName 
+      ? `${stallType} - ${dimensions.width}×${dimensions.height}m - ${stall.companyName}`
+      : `${stallType} - ${dimensions.width}×${dimensions.height}m`;
+  }, [stallType, dimensions.width, dimensions.height, stall.status, stall.companyName]);
 
   return (
     <Group
@@ -186,8 +222,10 @@ const Stall: React.FC<StallProps> = ({
       onDragEnd={handleDragEnd}
       opacity={stall.status === 'available' ? 1 : 0.7}
       cursor={stall.status === 'available' ? 'pointer' : 'default'}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      listening={!isMobile || stall.status === 'available'} // Reduce event handling on mobile for non-interactive stalls
+      transformsEnabled={isMobile ? 'position' : 'all'} // Optimize transforms on mobile
     >
       <Rect
         width={dimensions.width}
@@ -196,10 +234,13 @@ const Stall: React.FC<StallProps> = ({
         stroke={isStallSelected ? "#1890ff" : getStatusColor(stall.status)}
         strokeWidth={isStallSelected ? 2 / scale : 1 / scale}
         shadowColor="rgba(0,0,0,0.1)"
-        shadowBlur={3}
+        shadowBlur={isMobile ? 2 : 3} // Reduce shadow complexity on mobile
         shadowOffset={{ x: 1, y: 1 }}
         shadowOpacity={0.3}
         rotation={stallRotation}
+        perfectDrawEnabled={true}
+        transformsEnabled="all"
+        cornerRadius={0.05} // Slight corner rounding for better appearance
       />
       <Text
         text={stall.number}
@@ -209,6 +250,9 @@ const Stall: React.FC<StallProps> = ({
         height={dimensions.height}
         align="center"
         verticalAlign="middle"
+        transformsEnabled="position"
+        perfectDrawEnabled={true}
+        fontStyle="bold" // Make text more readable
       />
       
       {/* Selection indicator */}
@@ -220,11 +264,12 @@ const Stall: React.FC<StallProps> = ({
           fill="#1890ff"
           stroke="#ffffff"
           strokeWidth={0.3 / scale}
+          transformsEnabled="position"
         />
       )}
 
       {/* Tooltip with Label which has built-in positioning */}
-      {isHovered && (
+      {tooltipVisible && (
         <Label
           x={dimensions.width / 2}
           y={0}
@@ -240,9 +285,7 @@ const Stall: React.FC<StallProps> = ({
             y={-7}
           />
           <Text
-            text={stall.status !== 'available' && stall.companyName 
-              ? `${stallType} - ${dimensions.width}×${dimensions.height}m - ${stall.companyName}`
-              : `${stallType} - ${dimensions.width}×${dimensions.height}m`}
+            text={tooltipText}
             fontSize={1.2}
             fill="#ffffff"
             align="center"
@@ -250,9 +293,7 @@ const Stall: React.FC<StallProps> = ({
             y={-7}
             offsetY={0}
             width={Math.max(
-              stall.status !== 'available' && stall.companyName
-                ? `${stallType} - ${dimensions.width}×${dimensions.height}m - ${stall.companyName}`.length * 0.7
-                : `${stallType} - ${dimensions.width}×${dimensions.height}m`.length * 0.7,
+              tooltipText.length * 0.7,
               25
             )}
             height={3}
@@ -264,4 +305,5 @@ const Stall: React.FC<StallProps> = ({
   );
 };
 
-export default Stall; 
+// Use memo to prevent unnecessary re-renders
+export default memo(Stall); 
