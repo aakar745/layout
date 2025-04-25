@@ -59,13 +59,9 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Exhibitor not found' });
     }
 
-    console.log('[DEBUG] Discount from request:', discountId);
-    console.log('[DEBUG] Exhibition publicDiscountConfig:', exhibition.publicDiscountConfig);
-    
     // Find selected discount if any - IMPORTANT: Use publicDiscountConfig for exhibitor bookings from frontend
     const selectedDiscount = discountId ? exhibition.publicDiscountConfig?.find(
       d => {
-        console.log('[DEBUG] Checking discount:', d.name, 'against request:', discountId.name);
         // Handle both full discount objects and simple name-only objects
         if (discountId.name && discountId.type && discountId.value) {
           return d.name === discountId.name && 
@@ -79,8 +75,6 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
         return false;
       }
     ) : undefined;
-
-    console.log('[DEBUG] Selected discount:', selectedDiscount);
 
     if (discountId && !selectedDiscount) {
       return res.status(400).json({ message: 'Invalid discount selected' });
@@ -193,7 +187,6 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
 
     res.status(201).json(booking);
   } catch (error) {
-    console.error('Error creating exhibitor booking:', error);
     res.status(500).json({ message: 'Error creating exhibitor booking', error });
   }
 };
@@ -217,7 +210,6 @@ export const getExhibitorBookings = async (req: Request, res: Response) => {
     
     res.json(bookings);
   } catch (error) {
-    console.error('Error fetching exhibitor bookings:', error);
     res.status(500).json({ message: 'Error fetching exhibitor bookings', error });
   }
 };
@@ -246,7 +238,6 @@ export const getExhibitorBooking = async (req: Request, res: Response) => {
 
     res.json(booking);
   } catch (error) {
-    console.error('Error fetching exhibitor booking:', error);
     res.status(500).json({ message: 'Error fetching exhibitor booking', error });
   }
 };
@@ -286,7 +277,6 @@ export const cancelExhibitorBooking = async (req: Request, res: Response) => {
 
     res.json({ message: 'Booking cancelled successfully', booking });
   } catch (error) {
-    console.error('Error cancelling exhibitor booking:', error);
     res.status(500).json({ message: 'Error cancelling exhibitor booking', error });
   }
 };
@@ -316,21 +306,11 @@ export const getExhibitorBookingInvoice = async (req: Request, res: Response) =>
     const invoice = await Invoice.findOne({ bookingId: booking._id })
       .populate({
         path: 'bookingId',
-        select: '_id exhibitionId stallIds customerName customerEmail customerPhone companyName calculations amount status createdAt updatedAt',
+        select: '_id exhibitionId stallIds customerName customerEmail customerPhone customerGSTIN customerAddress companyName calculations amount status createdAt updatedAt',
         populate: [
-          { 
-            path: 'exhibitionId', 
-            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName'
-          },
-          { 
-            path: 'stallIds',
-            select: 'number dimensions ratePerSqm stallTypeId',
-            populate: {
-              path: 'stallTypeId',
-              select: 'name'
-            }
-          }
-        ]
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+        ],
       });
     
     if (!invoice) {
@@ -350,7 +330,6 @@ export const getExhibitorBookingInvoice = async (req: Request, res: Response) =>
 
     res.json(invoice);
   } catch (error) {
-    console.error('Error fetching exhibitor booking invoice:', error);
     res.status(500).json({ message: 'Error fetching exhibitor booking invoice', error });
   }
 };
@@ -380,6 +359,7 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
     const invoice = await Invoice.findOne({ bookingId: booking._id })
       .populate({
         path: 'bookingId',
+        select: '_id exhibitionId stallIds customerName customerEmail customerPhone customerGSTIN customerAddress companyName calculations amount status createdAt updatedAt',
         populate: [
           { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
           { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
@@ -397,7 +377,6 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error downloading exhibitor booking invoice:', error);
     res.status(500).json({ message: 'Error downloading exhibitor booking invoice', error });
   }
 };
@@ -461,7 +440,6 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
     unlinkSync(pdfPath);
     res.json({ message: 'Invoice shared via email successfully' });
   } catch (error) {
-    console.error('Error sharing invoice via email:', error);
     res.status(500).json({ message: 'Error sharing invoice via email', error });
   }
 };
@@ -532,7 +510,6 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
     unlinkSync(pdfPath);
     res.json({ message: 'Invoice shared successfully via WhatsApp' });
   } catch (error) {
-    console.error('Error sharing invoice via WhatsApp:', error);
     res.status(500).json({ message: 'Error sharing invoice via WhatsApp', error });
   }
 }; 

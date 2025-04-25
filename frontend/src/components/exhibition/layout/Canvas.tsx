@@ -75,7 +75,7 @@ const Canvas: React.FC<CanvasProps> = ({
   const [isExhibitionSelected, setIsExhibitionSelected] = useState(false);
   const [isExhibitionFormVisible, setIsExhibitionFormVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
+  
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);

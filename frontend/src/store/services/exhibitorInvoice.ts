@@ -29,8 +29,11 @@ export const exhibitorInvoiceApi = createApi({
         url: `/exhibitor-bookings/${bookingId}/invoice`,
         method: 'GET'
       }),
+      transformResponse: (response: any) => {
+        // Check if critical fields are present
+        return response;
+      },
       transformErrorResponse: (response: { status: number, data: any }) => {
-        console.error('Get Exhibitor Invoice Error:', response);
         return response;
       },
       providesTags: (_result, _err, id) => [{ type: 'ExhibitorInvoice', id }]

@@ -185,23 +185,28 @@ const ExhibitorInvoiceDetails: React.FC = () => {
 
         <InvoiceTemplate booking={{
           ...invoice.bookingId,
-          customerGSTIN: invoice.bookingId.exhibitionId.companyGST || '',
+          customerGSTIN: invoice.bookingId?.customerGSTIN || invoice.bookingId?.customerGSTIN === '' ? 
+                          invoice.bookingId.customerGSTIN : 
+                          'N/A',
+          customerAddress: invoice.bookingId?.customerAddress || invoice.bookingId?.customerAddress === '' ? 
+                           invoice.bookingId.customerAddress : 
+                           'N/A',
           invoiceNumber: invoice.invoiceNumber,
           exhibitionId: {
             ...invoice.bookingId.exhibitionId,
-            companyName: invoice.bookingId.exhibitionId.companyName || '',
-            bankName: invoice.bookingId.exhibitionId.bankName || '',
-            bankAccount: invoice.bookingId.exhibitionId.bankAccount || '',
-            bankAccountName: invoice.bookingId.exhibitionId.bankAccountName || '',
-            bankBranch: invoice.bookingId.exhibitionId.bankBranch || '',
-            bankIFSC: invoice.bookingId.exhibitionId.bankIFSC || '',
-            companyCIN: invoice.bookingId.exhibitionId.companyCIN || '',
-            companyPAN: invoice.bookingId.exhibitionId.companyPAN || '',
-            companySAC: invoice.bookingId.exhibitionId.companySAC || '',
-            companyGST: invoice.bookingId.exhibitionId.companyGST || '',
-            companyEmail: invoice.bookingId.exhibitionId.companyEmail || '',
-            companyWebsite: invoice.bookingId.exhibitionId.companyWebsite || '',
-            companyAddress: invoice.bookingId.exhibitionId.companyAddress || ''
+            companyName: invoice.bookingId.exhibitionId?.companyName || '',
+            bankName: invoice.bookingId.exhibitionId?.bankName || '',
+            bankAccount: invoice.bookingId.exhibitionId?.bankAccount || '',
+            bankAccountName: invoice.bookingId.exhibitionId?.bankAccountName || '',
+            bankBranch: invoice.bookingId.exhibitionId?.bankBranch || '',
+            bankIFSC: invoice.bookingId.exhibitionId?.bankIFSC || '',
+            companyCIN: invoice.bookingId.exhibitionId?.companyCIN || '',
+            companyPAN: invoice.bookingId.exhibitionId?.companyPAN || '',
+            companySAC: invoice.bookingId.exhibitionId?.companySAC || '',
+            companyGST: invoice.bookingId.exhibitionId?.companyGST || '',
+            companyEmail: invoice.bookingId.exhibitionId?.companyEmail || '',
+            companyWebsite: invoice.bookingId.exhibitionId?.companyWebsite || '',
+            companyAddress: invoice.bookingId.exhibitionId?.companyAddress || ''
           }
         } as BookingExtended} />
       </Card>

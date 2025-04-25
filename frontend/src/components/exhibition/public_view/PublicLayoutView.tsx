@@ -251,14 +251,14 @@ const PublicLayoutView: React.FC = () => {
     const stallId = stall._id || stall.id;
     setSelectedStalls(prevSelected => {
       if (prevSelected.includes(stallId)) {
-        // Remove stall from selection
-        message.info(`Stall ${stall.stallNumber} removed from selection`);
+      // Remove stall from selection
+      message.info(`Stall ${stall.stallNumber} removed from selection`);
         return prevSelected.filter(id => id !== stallId);
-      } else {
-        // Add stall to selection
-        message.success(`Stall ${stall.stallNumber} added to selection`);
+    } else {
+      // Add stall to selection
+      message.success(`Stall ${stall.stallNumber} added to selection`);
         return [...prevSelected, stallId];
-      }
+    }
     });
   }, [isStallBooked, isAuthenticated, dispatch]);
 
