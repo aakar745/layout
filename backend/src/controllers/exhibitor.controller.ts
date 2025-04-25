@@ -14,6 +14,9 @@ const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
 // In-memory OTP storage (in a production environment, this would be in Redis or another datastore)
 const otpStorage: Record<string, { otp: string; expiresAt: Date }> = {};
 
+// In-memory password reset OTP storage
+const passwordResetOtpStorage: Record<string, { otp: string; expiresAt: Date }> = {};
+
 /**
  * Generate and send OTP for exhibitor registration
  * POST /api/exhibitors/send-otp
@@ -131,6 +134,136 @@ export const verifyOTP = async (req: Request, res: Response) => {
 };
 
 /**
+ * Request password reset - send OTP for verification
+ * POST /api/exhibitors/forgot-password
+ * Public route
+ */
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    // Check if email exists in the system
+    const existingExhibitor = await Exhibitor.findOne({ email });
+    if (!existingExhibitor) {
+      // For security reasons, don't reveal that the email doesn't exist
+      // Instead, pretend we sent an email anyway
+      return res.status(200).json({ 
+        message: 'If an account with that email exists, a password reset code has been sent' 
+      });
+    }
+    
+    // Generate a 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    
+    // Store OTP with 10-minute expiration
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    passwordResetOtpStorage[email] = { otp, expiresAt };
+    
+    // Always log the OTP in development for testing purposes
+    console.log(`[Password Reset OTP for ${email}]: ${otp}`);
+    
+    // Send email with OTP
+    try {
+      // Get email transport configuration
+      const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
+      
+      // Send mail with defined transport object
+      const info = await transporter.sendMail({
+        from: emailConfig.from,
+        to: email,
+        subject: 'Password Reset Code',
+        text: `Your password reset code is: ${otp}. It will expire in 10 minutes.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <h1 style="color: #333; text-align: center;">Password Reset</h1>
+            <p style="font-size: 16px; line-height: 1.5;">You requested a password reset for your Exhibition Management System account. Please use the following code to reset your password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">${otp}</div>
+            </div>
+            <p style="font-size: 16px; line-height: 1.5;">This code will expire in 10 minutes.</p>
+            <p style="font-size: 14px; color: #777; margin-top: 30px;">If you didn't request this code, you can safely ignore this email.</p>
+          </div>
+        `
+      });
+      
+      // Log test message URL if in test mode
+      if (isTestMode && getTestMessageUrl) {
+        console.log('Preview URL: %s', getTestMessageUrl(info));
+      }
+    } catch (emailError) {
+      console.error('Error sending email:', emailError);
+      // Don't fail the request if email sending fails in development
+    }
+    
+    res.status(200).json({
+      message: 'Password reset code sent successfully',
+      expiresAt
+    });
+  } catch (error) {
+    console.error('Error sending password reset code:', error);
+    res.status(500).json({ message: 'Server error while processing your request' });
+  }
+};
+
+/**
+ * Reset password with OTP verification
+ * POST /api/exhibitors/reset-password
+ * Public route
+ */
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+    }
+    
+    // Check if OTP exists for this email
+    const storedData = passwordResetOtpStorage[email];
+    if (!storedData) {
+      return res.status(400).json({ message: 'Reset code not found or expired. Please request a new one.' });
+    }
+    
+    // Check if OTP has expired
+    if (new Date() > storedData.expiresAt) {
+      delete passwordResetOtpStorage[email];
+      return res.status(400).json({ message: 'Reset code has expired. Please request a new one.' });
+    }
+    
+    // Check if OTP matches
+    if (storedData.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid reset code. Please try again.' });
+    }
+    
+    // Find exhibitor by email
+    const exhibitor = await Exhibitor.findOne({ email });
+    if (!exhibitor) {
+      return res.status(404).json({ message: 'Exhibitor not found' });
+    }
+    
+    // Update password
+    exhibitor.password = newPassword;
+    await exhibitor.save();
+    
+    // OTP is valid and password updated - remove OTP from storage to prevent reuse
+    delete passwordResetOtpStorage[email];
+    
+    res.status(200).json({ 
+      message: 'Password has been reset successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ message: 'Server error while resetting password' });
+  }
+};
+
+/**
  * Register a new exhibitor
  * POST /api/exhibitors/register
  * Public route
@@ -206,7 +339,7 @@ export const login = async (req: Request, res: Response) => {
     const exhibitor = await Exhibitor.findOne({ email }).select('+password');
     
     if (!exhibitor) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Email is not registered. Please register first.' });
     }
 
     // Check if exhibitor is active
@@ -228,7 +361,7 @@ export const login = async (req: Request, res: Response) => {
     // Check if password matches
     const isMatch = await exhibitor.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Invalid password. Please try again.' });
     }
 
     // Create JWT token

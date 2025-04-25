@@ -5,6 +5,7 @@ interface ExhibitorAuthState {
   exhibitor: any | null;
   token: string | null;
   showLoginModal: boolean;
+  showForgotPasswordModal: boolean;
   loginContext: string | null;
 }
 
@@ -17,6 +18,7 @@ const initialState: ExhibitorAuthState = {
   exhibitor: storedExhibitor,
   token: storedToken,
   showLoginModal: false,
+  showForgotPasswordModal: false,
   loginContext: null,
 };
 
@@ -42,14 +44,29 @@ const exhibitorAuthSlice = createSlice({
     },
     showLoginModal: (state, action: PayloadAction<string | undefined>) => {
       state.showLoginModal = true;
+      state.showForgotPasswordModal = false;
       state.loginContext = action.payload || null;
     },
     hideLoginModal: (state) => {
       state.showLoginModal = false;
       state.loginContext = null;
     },
+    showForgotPasswordModal: (state) => {
+      state.showForgotPasswordModal = true;
+      state.showLoginModal = false;
+    },
+    hideForgotPasswordModal: (state) => {
+      state.showForgotPasswordModal = false;
+    },
   },
 });
 
-export const { setExhibitorCredentials, exhibitorLogout, showLoginModal, hideLoginModal } = exhibitorAuthSlice.actions;
+export const { 
+  setExhibitorCredentials, 
+  exhibitorLogout, 
+  showLoginModal, 
+  hideLoginModal,
+  showForgotPasswordModal,
+  hideForgotPasswordModal 
+} = exhibitorAuthSlice.actions;
 export default exhibitorAuthSlice.reducer;

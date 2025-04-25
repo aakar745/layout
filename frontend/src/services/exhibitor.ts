@@ -89,6 +89,22 @@ export interface OTPVerificationData {
 }
 
 /**
+ * Password reset request data
+ */
+export interface PasswordResetRequestData {
+  email: string;
+}
+
+/**
+ * Password reset completion data
+ */
+export interface PasswordResetData {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+/**
  * Exhibitor Service
  * 
  * Provides API methods for exhibitor-related operations
@@ -128,6 +144,24 @@ const exhibitorService = {
    */
   login: async (data: ExhibitorLoginData) => {
     return await publicApi.post('/exhibitors/login', data);
+  },
+  
+  /**
+   * Request password reset (sends OTP to email)
+   * @param data Email address for password reset
+   * @returns API response
+   */
+  requestPasswordReset: async (data: PasswordResetRequestData) => {
+    return await publicApi.post('/exhibitors/forgot-password', data);
+  },
+  
+  /**
+   * Reset password using OTP and new password
+   * @param data Email, OTP and new password
+   * @returns API response
+   */
+  resetPassword: async (data: PasswordResetData) => {
+    return await publicApi.post('/exhibitors/reset-password', data);
   },
   
   /**
@@ -198,13 +232,13 @@ const exhibitorService = {
   },
   
   /**
-   * Delete an exhibitor (admin only)
+   * Delete exhibitor (admin only)
    * @param id Exhibitor ID
-   * @returns Deletion confirmation
+   * @returns Deletion status
    */
   deleteExhibitor: async (id: string) => {
     return await adminApi.delete(`/exhibitors/admin/exhibitors/${id}`);
-  },
+  }
 };
 
 export default exhibitorService;

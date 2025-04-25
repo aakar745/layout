@@ -10,7 +10,9 @@ import {
   updateExhibitorDetails,
   testRoute,
   sendOTP,
-  verifyOTP
+  verifyOTP,
+  forgotPassword,
+  resetPassword
 } from '../controllers/exhibitor.controller';
 import { authenticateExhibitor } from '../middleware/exhibitorAuth';
 import { authenticate } from '../middleware/auth';
@@ -25,6 +27,8 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 // Protected exhibitor routes (require exhibitor auth)
 router.get('/profile', authenticateExhibitor, getProfile);
