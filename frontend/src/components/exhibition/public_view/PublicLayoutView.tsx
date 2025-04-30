@@ -673,15 +673,20 @@ const PublicLayoutView: React.FC = () => {
                   display: none !important;
                 }
                 
-                /* Optimize rendering */
+                /* Optimize rendering without affecting appearance */
                 .konvajs-content {
                   will-change: transform;
                 }
                 
-                /* Optimize for fast dragging */
+                /* Fast layer for static background */
+                .public-canvas-container .konvajs-content canvas:first-child {
+                  image-rendering: auto;
+                }
+                
+                /* Very subtle drag optimization for smoother experience */
                 .public-canvas-container canvas {
-                  will-change: transform;
-                  image-rendering: optimizeSpeed;
+                  backface-visibility: hidden;
+                  -webkit-backface-visibility: hidden;
                 }
               `}
             </style>

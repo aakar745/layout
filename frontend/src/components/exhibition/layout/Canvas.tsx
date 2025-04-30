@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, FastLayer } from 'react-konva';
 import { Button, Space } from 'antd';
 import { ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
 import { Hall as HallType, Fixture as FixtureType, Stall as StallType } from '../../../services/exhibition';
@@ -65,6 +65,7 @@ const Canvas: React.FC<CanvasProps> = ({
 }) => {
   const stageRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
+  const fastLayerRef = useRef<any>(null);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isStageHovered, setIsStageHovered] = useState(false);
@@ -166,29 +167,43 @@ const Canvas: React.FC<CanvasProps> = ({
       setContextMenu({ ...contextMenu, visible: false });
       setIsDragging(true);
       
-      // Optimize for public view drag operations
       if (layerRef.current) {
-        // Disable hit detection during drag for all views
+        // Disable hit detection during drag for better performance
         layerRef.current.hitGraphEnabled(false);
         
-        // For public view, also reduce drawing quality during drag
-        if (isPublicView && stageRef.current) {
-          // Set a fast dragging mode
-          stageRef.current.batchDraw();
+        // Apply performance optimizations for public view
+        if (isPublicView) {
+          // Set lower quality settings for faster dragging
+          if (stageRef.current) {
+            stageRef.current.container().style.cursor = 'grabbing';
+            
+            // Set all Konva nodes to use lower quality settings
+            const nodes = layerRef.current.getChildren();
+            nodes.forEach((node: any) => {
+              if (node.shadowForStrokeEnabled) {
+                node._savedShadowForStroke = node.shadowForStrokeEnabled();
+                node.shadowForStrokeEnabled(false);
+              }
+              if (node.perfectDrawEnabled) {
+                node._savedPerfectDraw = node.perfectDrawEnabled();
+                node.perfectDrawEnabled(false);
+              }
+            });
+          }
         }
       }
     }
   }, [contextMenu, isPublicView]);
 
+  // Optimize drag move by avoiding re-renders
   const handleDragMove = useCallback((e: any) => {
+    // Skip processing in public view for maximum performance
+    if (isPublicView && e.target === stageRef.current) {
+      return; // Just let the drag happen naturally without any additional processing
+    }
+    
+    // For non-public view, maintain existing behavior
     if (e.target === stageRef.current) {
-      // For public view, skip throttling completely to maximize responsiveness
-      if (isPublicView) {
-        // Just let the drag happen without any intervention
-        return;
-      }
-      
-      // For other views, maintain existing behavior
       if (isMobile && layerRef.current) {
         e.cancelBubble = true;
       }
@@ -203,18 +218,39 @@ const Canvas: React.FC<CanvasProps> = ({
         y: e.target.y()
       });
       
-      // Re-enable hit detection and restore drawing quality
+      // Re-enable hit detection
       if (layerRef.current) {
         layerRef.current.hitGraphEnabled(true);
+        
+        // Restore quality settings in public view
+        if (isPublicView) {
+          if (stageRef.current) {
+            stageRef.current.container().style.cursor = '';
+            
+            // Restore quality settings of Konva nodes
+            const nodes = layerRef.current.getChildren();
+            nodes.forEach((node: any) => {
+              if (node._savedShadowForStroke !== undefined) {
+                node.shadowForStrokeEnabled(node._savedShadowForStroke);
+                delete node._savedShadowForStroke;
+              }
+              if (node._savedPerfectDraw !== undefined) {
+                node.perfectDrawEnabled(node._savedPerfectDraw);
+                delete node._savedPerfectDraw;
+              }
+            });
+          }
+        }
       }
       
+      // Draw everything at full quality after drag ends
       if (stageRef.current) {
         stageRef.current.batchDraw();
       }
       
       setIsDragging(false);
     }
-  }, []);
+  }, [isPublicView]);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -341,38 +377,19 @@ const Canvas: React.FC<CanvasProps> = ({
     return child;
   });
 
-  // Remove throttling during drag for public view
-  useEffect(() => {
-    if (stageRef.current) {
-      const stage = stageRef.current;
-      
-      // For public view, skip all throttling
-      if (isPublicView) {
-        // No additional event handlers needed
-        return;
-      }
-      
-      // For other views, maintain existing throttling behavior
-      let lastDragTime = 0;
-      const dragThrottleDelay = isMobile ? 30 : 15;
-      
-      const throttledDragMove = (e: any) => {
-        const now = Date.now();
-        if (now - lastDragTime < dragThrottleDelay) {
-          e.cancelBubble = true;
-          return;
-        }
-        
-        lastDragTime = now;
-      };
-      
-      stage.on('dragmove', throttledDragMove);
-      
-      return () => {
-        stage.off('dragmove', throttledDragMove);
-      };
-    }
-  }, [isMobile, isPublicView]);
+  // Create the background exhibition space element for FastLayer
+  const backgroundExhibitionSpace = (
+    <ExhibitionSpace
+      width={exhibitionWidth}
+      height={exhibitionHeight}
+      scale={scale}
+      position={{ x: 0, y: 0 }}
+      isSelected={false}
+      onSelect={undefined}
+      onChange={undefined}
+      isEditable={false}
+    />
+  );
 
   if (width <= 0 || height <= 0 || exhibitionWidth <= 0 || exhibitionHeight <= 0) {
     return (
@@ -461,91 +478,104 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
-        perfectDrawEnabled={!isDragging || !isPublicView} // Disable perfect drawing during public view drag
-        hitGraphEnabled={!isDragging} 
-        dragDistance={isPublicView ? 0 : 3} // Remove drag threshold for public view
-        pixelRatio={isMobile ? Math.min(1.5, window.devicePixelRatio || 1) : window.devicePixelRatio || 1}
+        perfectDrawEnabled={!isDragging && !isPublicView} // Disable perfect drawing during drag in public view
+        hitGraphEnabled={!isDragging} // Disable hit detection during drag
+        pixelRatio={Math.min(1.5, window.devicePixelRatio || 1)} // Limit pixel ratio for better performance
+        dragDistance={isPublicView ? 0 : 3} // Optimize drag threshold for public view
       >
+        {/* FastLayer for static background in public view */}
+        {isPublicView && (
+          <FastLayer 
+            ref={fastLayerRef}
+            listening={false} // FastLayer doesn't support events
+          >
+            {backgroundExhibitionSpace}
+          </FastLayer>
+        )}
+
         <Layer 
           ref={layerRef}
           imageSmoothingEnabled={!isDragging || !isPublicView} // Disable image smoothing during public view drag
         >
-          <ExhibitionSpace
-            width={exhibitionWidth}
-            height={exhibitionHeight}
-            scale={scale}
-            position={{ x: 0, y: 0 }}
-            isSelected={isExhibitionSelected}
-            onSelect={isFixtureMode ? undefined : handleExhibitionSelect}
-            onChange={isStallMode || isFixtureMode ? undefined : onExhibitionChange}
-            isEditable={!isStallMode && !isFixtureMode}
-          >
-            {halls.map((hall) => (
-              <Hall
-                key={hall._id || hall.id}
-                hall={hall}
-                isSelected={selectedHall?.id === hall.id}
-                onSelect={() => onSelectHall(hall)}
-                onChange={isStallMode || isFixtureMode ? undefined : onHallChange}
+          {/* Only render ExhibitionSpace in Layer if not using FastLayer */}
+          {!isPublicView && (
+            <ExhibitionSpace
+              width={exhibitionWidth}
+              height={exhibitionHeight}
+              scale={scale}
+              position={{ x: 0, y: 0 }}
+              isSelected={isExhibitionSelected}
+              onSelect={isFixtureMode ? undefined : handleExhibitionSelect}
+              onChange={isStallMode || isFixtureMode ? undefined : onExhibitionChange}
+              isEditable={!isStallMode && !isFixtureMode}
+            />
+          )}
+
+          {halls.map((hall) => (
+            <Hall
+              key={hall._id || hall.id}
+              hall={hall}
+              isSelected={selectedHall?.id === hall.id}
+              onSelect={() => onSelectHall(hall)}
+              onChange={isStallMode || isFixtureMode ? undefined : onHallChange}
+              scale={scale}
+              position={{ x: 0, y: 0 }}
+              exhibitionWidth={exhibitionWidth}
+              exhibitionHeight={exhibitionHeight}
+              isStallMode={isStallMode || isFixtureMode}
+            />
+          ))}
+          
+          {stalls.map((stall) => {
+            const stallId = stall._id || stall.id;
+            const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
+            
+            if (!hall) return null;
+            
+            return (
+              <Stall
+                key={stallId}
+                stall={{
+                  ...stall,
+                  _id: stallId,
+                  id: stallId
+                }}
+                hallX={hall.dimensions.x}
+                hallY={hall.dimensions.y}
+                hallWidth={hall.dimensions.width}
+                hallHeight={hall.dimensions.height}
+                scale={scale}
+                isDragging={isDragging && isPublicView}
+              />
+            );
+          })}
+          
+          {fixtures.map((fixture) => {
+            const fixtureId = fixture._id || fixture.id;
+            const selectedId = selectedFixture?._id || selectedFixture?.id;
+            const isFixtureSelected = selectedId === fixtureId;
+            
+            return (
+              <Fixture
+                key={fixtureId}
+                fixture={{
+                  ...fixture,
+                  _id: fixtureId,
+                  id: fixtureId
+                }}
+                isSelected={isFixtureSelected}
+                onSelect={() => onSelectFixture(fixture)}
+                onChange={isFixtureMode ? onFixtureChange : undefined}
                 scale={scale}
                 position={{ x: 0, y: 0 }}
                 exhibitionWidth={exhibitionWidth}
                 exhibitionHeight={exhibitionHeight}
-                isStallMode={isStallMode || isFixtureMode}
+                isEditable={isFixtureMode}
               />
-            ))}
-            
-            {stalls.map((stall) => {
-              const stallId = stall._id || stall.id;
-              const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
-              
-              if (!hall) return null;
-              
-              return (
-                <Stall
-                  key={stallId}
-                  stall={{
-                    ...stall,
-                    _id: stallId,
-                    id: stallId
-                  }}
-                  hallX={hall.dimensions.x}
-                  hallY={hall.dimensions.y}
-                  hallWidth={hall.dimensions.width}
-                  hallHeight={hall.dimensions.height}
-                  scale={scale}
-                  isDragging={isDragging && isPublicView}
-                />
-              );
-            })}
-            
-            {fixtures.map((fixture) => {
-              const fixtureId = fixture._id || fixture.id;
-              const selectedId = selectedFixture?._id || selectedFixture?.id;
-              const isFixtureSelected = selectedId === fixtureId;
-              
-              return (
-                <Fixture
-                  key={fixtureId}
-                  fixture={{
-                    ...fixture,
-                    _id: fixtureId,
-                    id: fixtureId
-                  }}
-                  isSelected={isFixtureSelected}
-                  onSelect={() => onSelectFixture(fixture)}
-                  onChange={isFixtureMode ? onFixtureChange : undefined}
-                  scale={scale}
-                  position={{ x: 0, y: 0 }}
-                  exhibitionWidth={exhibitionWidth}
-                  exhibitionHeight={exhibitionHeight}
-                  isEditable={isFixtureMode}
-                />
-              );
-            })}
-            
-            {childrenWithProps}
-          </ExhibitionSpace>
+            );
+          })}
+          
+          {childrenWithProps}
         </Layer>
       </Stage>
 
