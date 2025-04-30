@@ -663,6 +663,7 @@ const PublicLayoutView: React.FC = () => {
               boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.03)',
               willChange: 'transform' // Hint for browser optimization
             }}
+            className="public-canvas-container"
           >
             {/* CSS to hide context menu in public view */}
             <style>
@@ -675,6 +676,12 @@ const PublicLayoutView: React.FC = () => {
                 /* Optimize rendering */
                 .konvajs-content {
                   will-change: transform;
+                }
+                
+                /* Optimize for fast dragging */
+                .public-canvas-container canvas {
+                  will-change: transform;
+                  image-rendering: optimizeSpeed;
                 }
               `}
             </style>
@@ -691,6 +698,7 @@ const PublicLayoutView: React.FC = () => {
               onAddStall={() => {}}
               onAddFixture={() => {}}
               onExhibitionChange={() => {}}
+              isPublicView={true}
             >
               {memoizedLayout?.halls}
               {memoizedLayout?.stalls}

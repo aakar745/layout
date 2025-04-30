@@ -23,6 +23,7 @@ interface StallProps {
   hallX?: number;
   hallY?: number;
   scale?: number;
+  isDragging?: boolean;
 }
 
 const Stall: React.FC<StallProps> = ({
@@ -34,7 +35,8 @@ const Stall: React.FC<StallProps> = ({
   hallHeight = 0,
   hallX = 0,
   hallY = 0,
-  scale = 1
+  scale = 1,
+  isDragging = false
 }) => {
   const shapeRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -55,21 +57,27 @@ const Stall: React.FC<StallProps> = ({
   
   // Optimize tooltip visibility with debouncing
   useEffect(() => {
-    if (isHovered) {
-      // Show tooltip immediately when hovered
+    if (isHovered && !isDragging) {
+      // Show tooltip immediately when hovered (but not during dragging)
       setTooltipVisible(true);
     } else {
-      // Delay hiding tooltip slightly for better UX
-      const timer = setTimeout(() => {
+      // Hide tooltip immediately during dragging
+      if (isDragging) {
         setTooltipVisible(false);
-      }, 100);
-      return () => clearTimeout(timer);
+      } else {
+        // Normal behavior when not dragging
+        const timer = setTimeout(() => {
+          setTooltipVisible(false);
+        }, 100);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isHovered]);
+  }, [isHovered, isDragging]);
 
   // Optimize top layer management
   useEffect(() => {
-    if (isHovered && shapeRef.current) {
+    if (isHovered && shapeRef.current && !isDragging) {
+      // Skip during dragging for better performance
       // On mobile, only move to top if actually selected
       if (isMobile && !isSelected) return;
       
@@ -78,7 +86,7 @@ const Stall: React.FC<StallProps> = ({
         shapeRef.current.moveToTop();
       }
     }
-  }, [isHovered, isSelected, isMobile]);
+  }, [isHovered, isSelected, isMobile, isDragging]);
 
   // Use either the prop or the stall object's isSelected property
   const isStallSelected = isSelected || stall.isSelected;
@@ -161,16 +169,16 @@ const Stall: React.FC<StallProps> = ({
 
   const handleClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
-    if (onSelect) {
+    if (onSelect && !isDragging) {
       onSelect();
     }
-  }, [onSelect]);
+  }, [onSelect, isDragging]);
   
   // Optimize hover behavior especially for mobile
   const handleMouseEnter = useCallback(() => {
-    if (isMobile && !isStallSelected) return; // On mobile, only show hover effects for selected stalls
+    if ((isMobile && !isStallSelected) || isDragging) return;
     setIsHovered(true);
-  }, [isMobile, isStallSelected]);
+  }, [isMobile, isStallSelected, isDragging]);
   
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
@@ -224,8 +232,8 @@ const Stall: React.FC<StallProps> = ({
       cursor={stall.status === 'available' ? 'pointer' : 'default'}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      listening={!isMobile || stall.status === 'available'} // Reduce event handling on mobile for non-interactive stalls
-      transformsEnabled={isMobile ? 'position' : 'all'} // Optimize transforms on mobile
+      listening={isDragging ? false : (!isMobile || stall.status === 'available')} // Disable listening during drag
+      transformsEnabled={isDragging ? 'position' : (isMobile ? 'position' : 'all')} // Simplify transforms during drag
     >
       <Rect
         width={dimensions.width}
@@ -234,12 +242,12 @@ const Stall: React.FC<StallProps> = ({
         stroke={isStallSelected ? "#1890ff" : getStatusColor(stall.status)}
         strokeWidth={isStallSelected ? 2 / scale : 1 / scale}
         shadowColor="rgba(0,0,0,0.1)"
-        shadowBlur={isMobile ? 2 : 3} // Reduce shadow complexity on mobile
+        shadowBlur={isDragging ? 0 : (isMobile ? 2 : 3)} // Disable shadows during dragging for better performance
         shadowOffset={{ x: 1, y: 1 }}
-        shadowOpacity={0.3}
+        shadowOpacity={isDragging ? 0 : 0.3} // Disable shadows during dragging
         rotation={stallRotation}
-        perfectDrawEnabled={true}
-        transformsEnabled="all"
+        perfectDrawEnabled={!isDragging} // Disable perfect drawing during dragging
+        transformsEnabled={isDragging ? 'position' : 'all'} // Simplify transforms during drag
         cornerRadius={0.05} // Slight corner rounding for better appearance
       />
       <Text
@@ -251,12 +259,13 @@ const Stall: React.FC<StallProps> = ({
         align="center"
         verticalAlign="middle"
         transformsEnabled="position"
-        perfectDrawEnabled={true}
+        perfectDrawEnabled={!isDragging} // Disable perfect drawing during dragging
         fontStyle="bold" // Make text more readable
+        listening={false} // Text doesn't need to listen for events
       />
       
-      {/* Selection indicator */}
-      {isStallSelected && (
+      {/* Only show selection indicator when not dragging */}
+      {isStallSelected && !isDragging && (
         <Circle
           x={dimensions.width - 2}
           y={2}
@@ -265,15 +274,17 @@ const Stall: React.FC<StallProps> = ({
           stroke="#ffffff"
           strokeWidth={0.3 / scale}
           transformsEnabled="position"
+          listening={false} // Circle doesn't need to listen for events
         />
       )}
 
-      {/* Tooltip with Label which has built-in positioning */}
-      {tooltipVisible && (
+      {/* Only show tooltip when not dragging */}
+      {tooltipVisible && !isDragging && (
         <Label
           x={dimensions.width / 2}
           y={0}
           opacity={1}
+          listening={false} // Label doesn't need to listen for events
         >
           <Tag
             fill="rgba(0, 0, 0, 1.0)"
@@ -283,6 +294,7 @@ const Stall: React.FC<StallProps> = ({
             pointerHeight={2}
             lineJoin="round"
             y={-7}
+            listening={false} // Tag doesn't need to listen for events
           />
           <Text
             text={tooltipText}
@@ -298,6 +310,7 @@ const Stall: React.FC<StallProps> = ({
             )}
             height={3}
             verticalAlign="middle"
+            listening={false} // Text doesn't need to listen for events
           />
         </Label>
       )}

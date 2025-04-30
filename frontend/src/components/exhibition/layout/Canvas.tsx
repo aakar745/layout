@@ -32,6 +32,7 @@ interface CanvasProps {
   children?: React.ReactNode;
   isStallMode?: boolean;
   isFixtureMode?: boolean;
+  isPublicView?: boolean; // Flag for public view optimizations
 }
 
 interface CanvasChildProps {
@@ -59,7 +60,8 @@ const Canvas: React.FC<CanvasProps> = ({
   onAddFixture = () => {},
   children,
   isStallMode = false,
-  isFixtureMode = false
+  isFixtureMode = false,
+  isPublicView = false
 }) => {
   const stageRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
@@ -164,28 +166,45 @@ const Canvas: React.FC<CanvasProps> = ({
       setContextMenu({ ...contextMenu, visible: false });
       setIsDragging(true);
       
-      if (layerRef.current && isMobile) {
+      // Optimize for public view drag operations
+      if (layerRef.current) {
+        // Disable hit detection during drag for all views
         layerRef.current.hitGraphEnabled(false);
+        
+        // For public view, also reduce drawing quality during drag
+        if (isPublicView && stageRef.current) {
+          // Set a fast dragging mode
+          stageRef.current.batchDraw();
+        }
       }
     }
-  }, [contextMenu, isMobile]);
+  }, [contextMenu, isPublicView]);
 
   const handleDragMove = useCallback((e: any) => {
     if (e.target === stageRef.current) {
+      // For public view, skip throttling completely to maximize responsiveness
+      if (isPublicView) {
+        // Just let the drag happen without any intervention
+        return;
+      }
+      
+      // For other views, maintain existing behavior
       if (isMobile && layerRef.current) {
         e.cancelBubble = true;
       }
     }
-  }, [isMobile]);
+  }, [isMobile, isPublicView]);
 
   const handleDragEnd = useCallback((e: any) => {
     if (e.target === stageRef.current) {
+      // Update position state only at the end of drag
       setPosition({
         x: e.target.x(),
         y: e.target.y()
       });
       
-      if (layerRef.current && isMobile) {
+      // Re-enable hit detection and restore drawing quality
+      if (layerRef.current) {
         layerRef.current.hitGraphEnabled(true);
       }
       
@@ -195,7 +214,7 @@ const Canvas: React.FC<CanvasProps> = ({
       
       setIsDragging(false);
     }
-  }, [isMobile]);
+  }, []);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -322,11 +341,18 @@ const Canvas: React.FC<CanvasProps> = ({
     return child;
   });
 
+  // Remove throttling during drag for public view
   useEffect(() => {
-    if (stageRef.current && layerRef.current) {
+    if (stageRef.current) {
       const stage = stageRef.current;
-      const layer = layerRef.current;
       
+      // For public view, skip all throttling
+      if (isPublicView) {
+        // No additional event handlers needed
+        return;
+      }
+      
+      // For other views, maintain existing throttling behavior
       let lastDragTime = 0;
       const dragThrottleDelay = isMobile ? 30 : 15;
       
@@ -346,7 +372,7 @@ const Canvas: React.FC<CanvasProps> = ({
         stage.off('dragmove', throttledDragMove);
       };
     }
-  }, [isDragging, isMobile]);
+  }, [isMobile, isPublicView]);
 
   if (width <= 0 || height <= 0 || exhibitionWidth <= 0 || exhibitionHeight <= 0) {
     return (
@@ -435,11 +461,15 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
-        perfectDrawEnabled={true}
-        hitGraphEnabled={!isDragging}
+        perfectDrawEnabled={!isDragging || !isPublicView} // Disable perfect drawing during public view drag
+        hitGraphEnabled={!isDragging} 
+        dragDistance={isPublicView ? 0 : 3} // Remove drag threshold for public view
         pixelRatio={isMobile ? Math.min(1.5, window.devicePixelRatio || 1) : window.devicePixelRatio || 1}
       >
-        <Layer ref={layerRef}>
+        <Layer 
+          ref={layerRef}
+          imageSmoothingEnabled={!isDragging || !isPublicView} // Disable image smoothing during public view drag
+        >
           <ExhibitionSpace
             width={exhibitionWidth}
             height={exhibitionHeight}
@@ -484,6 +514,7 @@ const Canvas: React.FC<CanvasProps> = ({
                   hallWidth={hall.dimensions.width}
                   hallHeight={hall.dimensions.height}
                   scale={scale}
+                  isDragging={isDragging && isPublicView}
                 />
               );
             })}
