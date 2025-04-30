@@ -97,7 +97,8 @@ const ReviewStep: React.FC<StepProps> = ({
         size: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
         area: stall.dimensions.width * stall.dimensions.height,
         rate: stall.ratePerSqm,
-        price: stall.price || stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height
+        price: stall.price || stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height,
+        type: stall.typeName || stall.type || 'Standard'
       }));
       
       setFormattedStallDetails(formatted);
@@ -203,6 +204,14 @@ const ReviewStep: React.FC<StepProps> = ({
       title: 'Hall',
       dataIndex: 'hallName',
       key: 'hallName',
+    },
+    {
+      title: 'Stall Type',
+      dataIndex: 'type',
+      key: 'type',
+      render: (type: string) => (
+        <Tag color="purple">{type}</Tag>
+      )
     },
     {
       title: 'Size',
@@ -345,6 +354,11 @@ const ReviewStep: React.FC<StepProps> = ({
                 <Text type="danger">- {formatCurrency(discount.amount)}</Text>
               </div>
             ))}
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text>Amount after Discount:</Text>
+              <Text>{formatCurrency(bookingSummary.amountAfterDiscount)}</Text>
+            </div>
           </>
         )}
         

@@ -13,6 +13,12 @@ export interface StallDetails {
   status: 'available' | 'booked' | 'reserved';
   hallId: string;
   hallName?: string;
+  type?: string;
+  typeName?: string;
+  stallType?: {
+    name: string;
+    description?: string;
+  };
 }
 
 export interface PublicStallBookingFormProps {

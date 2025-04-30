@@ -1,16 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Form, Input, Select, message, Card, Table, Empty, Checkbox } from 'antd';
-import { SearchOutlined, CheckCircleFilled, AppstoreOutlined, CheckOutlined, CheckCircleOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { Form, Select, message, Empty, Table, Tag, Button, Space, Tooltip } from 'antd';
+import { CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import { StepProps } from '../types';
 import { PublicDiscount } from '../../../../../services/publicExhibition';
 import { 
   StepContent, 
   PageTitle,
   PageSubtitle,
-  FilterBar,
-  StallTabsContainer,
-  StallGrid,
-  StallCard,
   BookingSummaryCard
 } from '../styles';
 
@@ -26,13 +22,9 @@ const StallDetailsStep: React.FC<StepProps> = ({
   stallDetails = [],
   selectedStallId,
   selectedStallIds = [],
-  selectedStallsCount = 0,
   exhibition
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedHall, setSelectedHall] = useState<string | null>(null);
   const [internalSelectedStallIds, setInternalSelectedStallIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'selected' | 'available'>('selected');
 
   // Initialize selected stalls from form, selectedStallId, or selectedStallIds
   useEffect(() => {
@@ -102,33 +94,6 @@ const StallDetailsStep: React.FC<StepProps> = ({
       }
     }
   }, [internalSelectedStallIds, form]);
-
-  // Get unique hall IDs
-  const halls = useMemo(() => {
-    if (!stallDetails || stallDetails.length === 0) {
-      return [];
-    }
-    
-    const uniqueHalls = new Set(stallDetails.map(stall => stall.hallId));
-    return Array.from(uniqueHalls).map(hallId => ({
-      value: hallId,
-      label: stallDetails.find(s => s.hallId === hallId)?.hallName || `Hall - ${hallId}`
-    }));
-  }, [stallDetails]);
-
-  // Filter stalls based on search and hall selection
-  const filteredStalls = useMemo(() => {
-    if (!stallDetails || stallDetails.length === 0) {
-      return [];
-    }
-    
-    return stallDetails
-      .filter(stall => stall.status === 'available')
-      .filter(stall => 
-        (!searchQuery || stall.number?.toLowerCase().includes(searchQuery.toLowerCase())) &&
-        (!selectedHall || stall.hallId === selectedHall)
-      );
-  }, [stallDetails, searchQuery, selectedHall]);
 
   // Get selected stalls
   const selectedStalls = useMemo(() => {
@@ -208,20 +173,17 @@ const StallDetailsStep: React.FC<StepProps> = ({
     // Check if the stall is already selected using string comparison
     const isSelected = internalSelectedStallIds.some(id => String(id) === normalizedStallId);
     
-    // Create a new selection array, normalizing all IDs to strings
-    const newSelection = isSelected
-      ? internalSelectedStallIds.filter(id => String(id) !== normalizedStallId)
-      : [...internalSelectedStallIds, normalizedStallId];
-    
-    // Update internal state and form values
-    setInternalSelectedStallIds(newSelection);
-    form.setFieldsValue({ selectedStalls: newSelection });
-    
-    // Show user feedback
+    // Only allow removal of stalls, not adding new ones
     if (isSelected) {
+      // Create a new selection array, normalizing all IDs to strings
+      const newSelection = internalSelectedStallIds.filter(id => String(id) !== normalizedStallId);
+      
+      // Update internal state and form values
+      setInternalSelectedStallIds(newSelection);
+      form.setFieldsValue({ selectedStalls: newSelection });
+      
+      // Show user feedback
       message.info(`Stall removed from selection`);
-    } else {
-      message.success(`Stall added to selection`);
     }
   };
 
@@ -232,27 +194,10 @@ const StallDetailsStep: React.FC<StepProps> = ({
 
   return (
     <StepContent>
-      <PageTitle>Select Your Stalls</PageTitle>
+      <PageTitle>Your Selected Stalls</PageTitle>
       <PageSubtitle>
-        Click on stalls to select or deselect them. You can select multiple stalls for booking.
+        Review your selected stalls. You can remove a stall by clicking the delete button.
       </PageSubtitle>
-      
-      <FilterBar>
-        <Input
-          placeholder="Search by stall number"
-          prefix={<SearchOutlined />}
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="search-input"
-        />
-        <Select
-          placeholder="Filter by hall"
-          allowClear
-          className="filter-select"
-          options={halls}
-          onChange={value => setSelectedHall(value)}
-        />
-      </FilterBar>
       
       {/* Hide the actual form field but keep it for validation */}
       <Form.Item
@@ -268,150 +213,228 @@ const StallDetailsStep: React.FC<StepProps> = ({
         <Select mode="multiple" />
       </Form.Item>
       
-      <StallTabsContainer>
-        <div className="tab-header">
-          <div 
-            className={`tab-item ${activeTab === 'selected' ? 'active' : ''}`}
-            onClick={() => setActiveTab('selected')}
-          >
-            <CheckCircleOutlined />
-            <span>Selected Stalls</span>
-            <span className={`badge ${activeTab === 'selected' ? 'active' : ''}`}>
-              {internalSelectedStallIds.length}
-            </span>
-          </div>
-          <div 
-            className={`tab-item ${activeTab === 'available' ? 'active' : ''}`}
-            onClick={() => setActiveTab('available')}
-          >
-            <ShoppingCartOutlined />
-            <span>Available Stalls</span>
-          </div>
+      {/* Selected Stalls as List View */}
+      {selectedStalls.length > 0 ? (
+        <div style={{ 
+          marginBottom: 24, 
+          background: '#fff', 
+          borderRadius: '8px', 
+          padding: '16px', 
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)' 
+        }}>
+          <Table
+            dataSource={selectedStalls.map(stall => ({
+              ...stall,
+              key: stall.id,
+              price: stall.price || (stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height),
+              area: stall.dimensions.width * stall.dimensions.height,
+              dimensions: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
+              size: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
+              stallType: stall.stallType || { 
+                name: stall.typeName || stall.type || 'Standard' 
+              },
+              type: stall.typeName || stall.type || 'Standard'
+            }))}
+            pagination={false}
+            size="middle"
+            rowClassName={() => 'stall-table-row'}
+            className="selected-stalls-table"
+            style={{ 
+              borderRadius: '6px',
+              overflow: 'hidden'
+            }}
+            columns={[
+              {
+                title: 'Stall',
+                dataIndex: 'number',
+                key: 'number',
+                render: (number, record: any) => (
+                  <span style={{ fontWeight: 600, fontSize: '15px' }}>
+                    Stall {number || record.stallNumber}
+                  </span>
+                )
+              },
+              {
+                title: 'Hall',
+                dataIndex: 'hallName',
+                key: 'hallName',
+                render: (hallName, record: any) => (
+                  <Tag color="blue" style={{ borderRadius: '4px' }}>
+                    {hallName || `Hall ${record.hallId}`}
+                  </Tag>
+                )
+              },
+              {
+                title: 'Stall Type',
+                dataIndex: 'stallType',
+                key: 'stallType',
+                align: 'center',
+                render: (_, record: any) => {
+                  const typeName = record.stallType?.name || record.type || 'Standard';
+                  return (
+                    <Tag color="purple" style={{ borderRadius: '4px', padding: '2px 8px' }}>
+                      {typeName}
+                    </Tag>
+                  );
+                }
+              },
+              {
+                title: 'Dimensions',
+                dataIndex: 'dimensions',
+                key: 'dimensions',
+                align: 'center',
+                render: (dims, record: any) => (
+                  <Space direction="vertical" size={0}>
+                    <span style={{ fontWeight: 500 }}>{dims}</span>
+                    <span style={{ color: '#888', fontSize: '13px' }}>{record.area} sqm</span>
+                  </Space>
+                )
+              },
+              {
+                title: 'Rate',
+                dataIndex: 'ratePerSqm',
+                key: 'ratePerSqm',
+                align: 'right',
+                render: (rate, record: any) => (
+                  <span style={{ color: '#555' }}>
+                    ₹{(record.ratePerSqm || 0).toLocaleString('en-IN')}/sqm
+                  </span>
+                )
+              },
+              {
+                title: 'Price',
+                dataIndex: 'price',
+                key: 'price',
+                align: 'right',
+                render: (price) => (
+                  <span style={{ 
+                    fontWeight: 600, 
+                    color: '#1890ff',
+                    fontSize: '15px',
+                    display: 'block',
+                    padding: '4px 8px',
+                    background: 'rgba(24, 144, 255, 0.1)',
+                    borderRadius: '4px',
+                    textAlign: 'right' 
+                  }}>
+                    {formatCurrency(price)}
+                  </span>
+                )
+              },
+              {
+                title: '',
+                key: 'action',
+                width: 70,
+                align: 'center' as 'center',
+                render: (_, record: any) => (
+                  <Tooltip title="Remove from selection">
+                    <Button 
+                      type="text" 
+                      danger 
+                      icon={<DeleteOutlined />} 
+                      onClick={() => handleStallSelection(record.id)}
+                      size="middle"
+                      style={{
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </Tooltip>
+                )
+              }
+            ]}
+          />
         </div>
-        
-        {/* Selected Stalls Tab */}
-        {activeTab === 'selected' && (
-          <>
-            {selectedStalls.length > 0 ? (
-              <StallGrid>
-                {selectedStalls.map(stall => (
-                  <StallCard
-                    key={stall.id}
-                    selected={true}
-                    onClick={() => handleStallSelection(stall.id)}
-                  >
-                    <div className="selection-indicator">
-                      <CheckOutlined />
-                    </div>
-                    <div className="stall-price">
-                      {formatCurrency(stall.price || (stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height))}
-                    </div>
-                    <div className="stall-number">
-                      Stall {stall.number || stall.stallNumber}
-                      <span className="hall-label">Hall - {stall.hallName || stall.hallId}</span>
-                    </div>
-                    <div className="stall-details">
-                      <div className="detail-item">
-                        <div className="label">Area</div>
-                        <div className="value">{stall.dimensions.width * stall.dimensions.height} sq.m</div>
-                      </div>
-                      <div className="detail-item">
-                        <div className="label">Dimensions</div>
-                        <div className="value">{stall.dimensions.width}m × {stall.dimensions.height}m</div>
-                      </div>
-                    </div>
-                  </StallCard>
-                ))}
-              </StallGrid>
-            ) : (
-              <Empty
-                description="No stalls selected yet"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ margin: '32px 0' }}
-              />
-            )}
-          </>
-        )}
-        
-        {/* Available Stalls Tab */}
-        {activeTab === 'available' && (
-          <StallGrid>
-            {filteredStalls.map(stall => (
-              <StallCard
-                key={stall.id}
-                selected={internalSelectedStallIds.includes(stall.id)}
-                onClick={() => handleStallSelection(stall.id)}
-              >
-                <div className="selection-indicator">
-                  {internalSelectedStallIds.includes(stall.id) && <CheckOutlined />}
-                </div>
-                <div className="stall-price">
-                  {formatCurrency(stall.price || (stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height))}
-                </div>
-                <div className="stall-number">
-                  Stall {stall.number || stall.stallNumber}
-                  <span className="hall-label">Hall - {stall.hallName || stall.hallId}</span>
-                </div>
-                <div className="stall-details">
-                  <div className="detail-item">
-                    <div className="label">Area</div>
-                    <div className="value">{stall.dimensions.width * stall.dimensions.height} sq.m</div>
-                  </div>
-                  <div className="detail-item">
-                    <div className="label">Dimensions</div>
-                    <div className="value">{stall.dimensions.width}m × {stall.dimensions.height}m</div>
-                  </div>
-                </div>
-              </StallCard>
-            ))}
-          </StallGrid>
-        )}
-        
-        {/* Booking Summary */}
-        {internalSelectedStallIds.length > 0 && (
-          <BookingSummaryCard title="Booking Summary">
-            <div className="summary-row">
-              <div className="label">Selected Stalls</div>
-              <div className="value">{internalSelectedStallIds.length} stall(s) selected</div>
+      ) : (
+        <Empty
+          description="No stalls selected yet. Please select stalls from the layout."
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ margin: '32px 0' }}
+        />
+      )}
+      
+      {/* Booking Summary */}
+      {internalSelectedStallIds.length > 0 && (
+        <BookingSummaryCard 
+          title={<span style={{ fontSize: '16px', fontWeight: 600 }}>Booking Summary</span>}
+          style={{ 
+            borderRadius: '8px', 
+            overflow: 'hidden',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)'
+          }}
+          headStyle={{ 
+            background: '#f6f8fa',
+            borderBottom: '1px solid #eee'
+          }}
+          bodyStyle={{ 
+            padding: '16px 24px' 
+          }}
+        >
+          <div className="summary-row">
+            <div className="label">Selected Stalls</div>
+            <div className="value">{internalSelectedStallIds.length} stall(s) selected</div>
+          </div>
+          <div className="summary-row">
+            <div className="label">Stall Numbers</div>
+            <div className="value" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>
+              {calculations.selectedStallNumbers}
             </div>
-            <div className="summary-row">
-              <div className="label">Stall Numbers</div>
-              <div className="value">{calculations.selectedStallNumbers}</div>
-            </div>
-            <div className="summary-row">
-              <div className="label">Base Amount</div>
-              <div className="value">{formatCurrency(calculations.baseAmount)}</div>
-            </div>
-            
-            {calculations.discounts.map((discount, index) => (
-              <div className="summary-row discount" key={`discount-${index}`}>
-                <div className="label">
-                  Discount ({discount.name})
-                  {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
-                </div>
-                <div className="value">- {formatCurrency(discount.amount)}</div>
+          </div>
+          <div className="summary-row">
+            <div className="label">Base Amount</div>
+            <div className="value">{formatCurrency(calculations.baseAmount)}</div>
+          </div>
+          
+          {calculations.discounts.map((discount, index) => (
+            <div className="summary-row discount" key={`discount-${index}`}>
+              <div className="label">
+                {discount.name}
+                {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
               </div>
-            ))}
-            
-            <div className="summary-row">
-              <div className="label">Amount after Discount</div>
-              <div className="value">{formatCurrency(calculations.amountAfterDiscount)}</div>
-            </div>
-            
-            {calculations.taxes.map((tax, index) => (
-              <div className="summary-row" key={`tax-${index}`}>
-                <div className="label">{tax.name} ({tax.rate}%)</div>
-                <div className="value">{formatCurrency(tax.amount)}</div>
+              <div className="value" style={{ color: '#52c41a' }}>
+                - {formatCurrency(discount.amount)}
               </div>
-            ))}
-            
-            <div className="summary-row total">
-              <div className="label">Total</div>
-              <div className="value">{formatCurrency(calculations.total)}</div>
             </div>
-          </BookingSummaryCard>
-        )}
-      </StallTabsContainer>
+          ))}
+          
+          <div className="summary-row">
+            <div className="label">Amount after Discount</div>
+            <div className="value" style={{ fontWeight: 500 }}>
+              {formatCurrency(calculations.amountAfterDiscount)}
+            </div>
+          </div>
+          
+          {calculations.taxes.map((tax, index) => (
+            <div className="summary-row" key={`tax-${index}`}>
+              <div className="label">
+                {tax.name} ({tax.rate}%)
+              </div>
+              <div className="value" style={{ color: '#faad14' }}>
+                + {formatCurrency(tax.amount)}
+              </div>
+            </div>
+          ))}
+          
+          <div className="summary-row total" style={{ 
+            marginTop: '16px', 
+            paddingTop: '16px',
+            borderTop: '1px solid #f0f0f0' 
+          }}>
+            <div className="label" style={{ fontSize: '16px', fontWeight: 600 }}>Total</div>
+            <div className="value" style={{ 
+              fontSize: '18px', 
+              fontWeight: 700,
+              color: '#1890ff' 
+            }}>
+              {formatCurrency(calculations.total)}
+            </div>
+          </div>
+        </BookingSummaryCard>
+      )}
     </StepContent>
   );
 };

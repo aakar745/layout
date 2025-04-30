@@ -329,7 +329,9 @@ const PublicLayoutView: React.FC = () => {
           dimensions: s.dimensions,
           status: s.status,
           hallId: hall.id,
-          hallName: hall.name
+          hallName: hall.name,
+          type: s.type || 'Standard',
+          typeName: s.typeName || s.type || 'Standard'
         }))
       ) || [];
       
