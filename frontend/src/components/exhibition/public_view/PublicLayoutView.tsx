@@ -216,8 +216,6 @@ const PublicLayoutView: React.FC = () => {
    */
   useEffect(() => {
     // When auth state changes, check if we need to update UI
-    console.log("Authentication state changed:", isAuthenticated);
-    
     // If the user just logged in and there are stalls in the layout, update the canvas
     if (isAuthenticated && layout) {
       // Reset selection state when authentication changes
@@ -266,28 +264,19 @@ const PublicLayoutView: React.FC = () => {
     try {
       setBookingLoading(true);
       
-      // Log all form values to debug
-      console.log('BOOKING - Form values:', JSON.stringify(values, null, 2));
-      console.log('BOOKING - DiscountId:', values.discountId);
-      console.log('BOOKING - Selected stalls:', values.selectedStalls);
-      
       const bookingData = {
         ...values,
         exhibitionId: layout?.exhibition._id,
         stallIds: values.selectedStalls // Add stallIds property which the backend expects
       };
       
-      console.log('BOOKING - Final data being sent:', JSON.stringify(bookingData, null, 2));
-      
       // If user is authenticated as an exhibitor, use the authenticated booking endpoint
       if (isAuthenticated) {
         const response = await publicExhibitionService.exhibitorBookStalls(bookingData);
-        console.log('BOOKING - Response:', response.data);
         message.success('Your booking request has been submitted successfully! It is pending review by the admin.');
       } else {
         // Use the public/guest booking endpoint
         const response = await publicExhibitionService.bookMultipleStalls(id!, bookingData);
-        console.log('BOOKING - Response:', response.data);
         message.success('Your booking request has been submitted successfully!');
       }
       
@@ -300,7 +289,6 @@ const PublicLayoutView: React.FC = () => {
         try {
           const response = await publicExhibitionService.getLayout(id);
           setLayout(response.data);
-          console.log('Layout refreshed with updated stall statuses');
         } catch (error) {
           console.error('Error refreshing layout data:', error);
         }
@@ -365,7 +353,6 @@ const PublicLayoutView: React.FC = () => {
       publicExhibitionService.getLayout(id)
         .then(response => {
           setLayout(response.data);
-          console.log('Layout refreshed with updated stall statuses');
         })
         .catch(error => {
           console.error('Error refreshing layout data:', error);
