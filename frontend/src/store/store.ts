@@ -5,6 +5,8 @@ import bookingReducer from './slices/bookingSlice';
 import exhibitorAuthReducer from './slices/exhibitorAuthSlice';
 import exhibitorReducer from './slices/exhibitorSlice';
 import settingsReducer from './slices/settingsSlice';
+import roleReducer from './slices/roleSlice';
+import userReducer from './slices/userSlice';
 import { bookingApi } from './services/booking';
 import { invoiceApi } from './services/invoice';
 import { exhibitorInvoiceApi } from './services/exhibitorInvoice';
@@ -17,6 +19,8 @@ export const store = configureStore({
     booking: bookingReducer,
     exhibitor: exhibitorReducer,
     settings: settingsReducer,
+    role: roleReducer,
+    user: userReducer,
     [bookingApi.reducerPath]: bookingApi.reducer,
     [invoiceApi.reducerPath]: invoiceApi.reducer,
     [exhibitorInvoiceApi.reducerPath]: exhibitorInvoiceApi.reducer,

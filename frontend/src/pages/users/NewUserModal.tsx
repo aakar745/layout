@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { createUser, CreateUserData } from '../../services/user.service';
-import { getAllRoles, Role } from '../../services/role.service';
-import { Modal, Form, Input, Select, Switch, Button, message } from 'antd';
+import { Modal, Form, Input, Select, Switch, Button, App, Divider, Typography } from 'antd';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../../store/store';
+import { CreateUserData } from '../../services/user.service';
+import { fetchRoles } from '../../store/slices/roleSlice';
+import { addUser } from '../../store/slices/userSlice';
 
 const { Option } = Select;
+const { Text } = Typography;
 
 interface NewUserModalProps {
   visible: boolean;
@@ -16,40 +20,35 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [submitting, setSubmitting] = useState(false);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch<AppDispatch>();
+  
+  // Get roles and loading state from Redux
+  const { roles, loading: rolesLoading } = useSelector((state: RootState) => state.role);
+  const { loading: usersLoading } = useSelector((state: RootState) => state.user);
 
   // Fetch roles when modal becomes visible
   useEffect(() => {
     if (visible) {
-      fetchRoles();
+      dispatch(fetchRoles());
     }
-  }, [visible]);
+  }, [visible, dispatch]);
 
-  const fetchRoles = async () => {
-    try {
-      setLoading(true);
-      const rolesData = await getAllRoles();
-      setRoles(rolesData);
-    } catch (error) {
-      console.error('Failed to fetch roles:', error);
-      message.error('Failed to load roles');
-    } finally {
-      setLoading(false);
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      form.resetFields();
     }
-  };
+  }, [visible, form]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       
-      setSubmitting(true);
-      
       // Transform form values to match API expectations
       const userData: CreateUserData = {
-        username: values.name.replace(/\s+/g, '_').toLowerCase(), // Generate username from name
+        username: values.username,
         name: values.name,
         email: values.email,
         password: values.password,
@@ -57,20 +56,19 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
         isActive: values.status
       };
       
-      await createUser(userData);
-      message.success('User created successfully');
-      form.resetFields();
-      onSuccess();
-      onClose();
+      dispatch(addUser(userData))
+        .unwrap()
+        .then((response) => {
+          message.success('User created successfully');
+          form.resetFields();
+          onSuccess();
+          onClose();
+        })
+        .catch((err: any) => {
+          message.error(`Failed to create user: ${err}`);
+        });
     } catch (error) {
-      if (error instanceof Error) {
-        message.error(`Failed to create user: ${error.message}`);
-      } else {
-        message.error('Failed to create user');
-      }
-      console.error('Create user error:', error);
-    } finally {
-      setSubmitting(false);
+      console.error('Validation error:', error);
     }
   };
 
@@ -79,6 +77,7 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
       title="Create New User"
       open={visible}
       onCancel={onClose}
+      width={600}
       footer={[
         <Button key="cancel" onClick={onClose}>
           Cancel
@@ -86,7 +85,7 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
         <Button 
           key="submit" 
           type="primary" 
-          loading={submitting} 
+          loading={usersLoading} 
           onClick={handleSubmit}
         >
           Create User
@@ -98,6 +97,14 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
         layout="vertical"
         requiredMark={false}
       >
+        <Form.Item
+          name="username"
+          label="Username"
+          rules={[{ required: true, message: 'Please enter a username' }]}
+        >
+          <Input placeholder="Username" />
+        </Form.Item>
+        
         <Form.Item
           name="name"
           label="Name"
@@ -128,6 +135,8 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
           <Input.Password placeholder="Enter password" />
         </Form.Item>
         
+        <Divider />
+        
         <Form.Item
           name="role"
           label="Role"
@@ -135,7 +144,7 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
         >
           <Select 
             placeholder="Select role"
-            loading={loading}
+            loading={rolesLoading}
           >
             {roles.length > 0 ? (
               roles.map(role => (

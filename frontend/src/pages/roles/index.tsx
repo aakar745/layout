@@ -1,52 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleFilled, CloseCircleFilled, ExclamationCircleOutlined } from '@ant-design/icons';
-import { Button, Table, Card, Typography, Tag, Avatar, Switch, Space, Modal, Tooltip, Badge, Input, Row, Col } from 'antd';
+import { Button, Table, Card, Typography, Tag, Avatar, Switch, Space, Modal, Tooltip, Badge, Input, Row, Col, App } from 'antd';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState, AppDispatch } from '../../store/store';
+import { fetchRoles, addRole, modifyRole, removeRole, setSelectedRole } from '../../store/slices/roleSlice';
+import { Role, CreateRoleData } from '../../services/role.service';
+import RoleModal from './RoleModal';
 
 const { Title, Paragraph, Text } = Typography;
 const { confirm } = Modal;
-
-interface Role {
-  id: number;
-  name: string;
-  description: string;
-  userCount: number;
-  permissions: {
-    read: boolean;
-    write: boolean;
-    delete: boolean;
-  };
-}
-
-const DUMMY_ROLES: Role[] = [
-  {
-    id: 1,
-    name: 'Administrator',
-    description: 'Full access to all resources',
-    userCount: 3,
-    permissions: { read: true, write: true, delete: true },
-  },
-  {
-    id: 2,
-    name: 'Editor',
-    description: 'Can edit and publish content',
-    userCount: 8,
-    permissions: { read: true, write: true, delete: false },
-  },
-  {
-    id: 3,
-    name: 'Viewer',
-    description: 'Can view content only',
-    userCount: 15,
-    permissions: { read: true, write: false, delete: false },
-  },
-  {
-    id: 4,
-    name: 'Analyst',
-    description: 'Can view and analyze data',
-    userCount: 7,
-    permissions: { read: true, write: false, delete: false },
-  },
-];
 
 function PermissionIcon({ allowed }: { allowed: boolean }) {
   return allowed ? (
@@ -56,19 +18,83 @@ function PermissionIcon({ allowed }: { allowed: boolean }) {
   );
 }
 
+// Helper function to check if a role has a specific permission
+const hasPermission = (role: Role, permissionKey: string): boolean => {
+  return role.permissions.includes(permissionKey);
+};
+
 export default function RolesPage() {
+  const { message, notification } = App.useApp();
+  const dispatch = useDispatch<AppDispatch>();
+  const { roles, loading, error } = useSelector((state: RootState) => state.role);
   const [searchText, setSearchText] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
   
-  const showDeleteConfirm = (roleName: string) => {
+  useEffect(() => {
+    dispatch(fetchRoles());
+  }, [dispatch]);
+  
+  useEffect(() => {
+    if (error) {
+      notification.error({
+        message: 'Error',
+        description: error,
+      });
+    }
+  }, [error, notification]);
+  
+  const handleAddRole = () => {
+    setEditingRole(null);
+    setModalVisible(true);
+  };
+  
+  const handleEditRole = (role: Role) => {
+    setEditingRole(role);
+    setModalVisible(true);
+  };
+  
+  const handleSaveRole = (roleData: CreateRoleData) => {
+    if (editingRole) {
+      dispatch(modifyRole({ id: editingRole._id, roleData }))
+        .unwrap()
+        .then(() => {
+          setModalVisible(false);
+          message.success('Role updated successfully');
+        })
+        .catch((err: any) => {
+          message.error(`Failed to update role: ${err.message}`);
+        });
+    } else {
+      dispatch(addRole(roleData))
+        .unwrap()
+        .then(() => {
+          setModalVisible(false);
+          message.success('Role created successfully');
+        })
+        .catch((err: any) => {
+          message.error(`Failed to create role: ${err.message}`);
+        });
+    }
+  };
+  
+  const showDeleteConfirm = (role: Role) => {
     confirm({
       title: 'Are you sure you want to delete this role?',
       icon: <ExclamationCircleOutlined />,
-      content: `This will permanently delete the ${roleName} role. This action cannot be undone.`,
+      content: `This will permanently delete the ${role.name} role. This action cannot be undone.`,
       okText: 'Yes, delete it',
       okType: 'danger',
       cancelText: 'Cancel',
       onOk() {
-        console.log('Deleting role:', roleName);
+        dispatch(removeRole(role._id))
+          .unwrap()
+          .then(() => {
+            message.success(`${role.name} role deleted successfully`);
+          })
+          .catch((err: any) => {
+            message.error(`Failed to delete role: ${err.message}`);
+          });
       },
     });
   };
@@ -82,9 +108,7 @@ export default function RolesPage() {
         <Space>
           <Avatar 
             style={{ 
-              backgroundColor: record.id === 1 ? '#1677ff' : 
-                              record.id === 2 ? '#52c41a' : 
-                              record.id === 3 ? '#faad14' : '#f5222d'
+              backgroundColor: getAvatarColor(record.name)
             }}
           >
             {text.charAt(0).toUpperCase()}
@@ -100,33 +124,22 @@ export default function RolesPage() {
       render: (text: string) => <Text type="secondary">{text}</Text>,
     },
     {
-      title: 'Users',
-      dataIndex: 'userCount',
-      key: 'userCount',
-      render: (count: number) => (
-        <Badge count={count} color="#1677ff" showZero />
-      ),
-    },
-    {
       title: 'Read',
-      dataIndex: ['permissions', 'read'],
       key: 'read',
       align: 'center' as const,
-      render: (allowed: boolean) => <PermissionIcon allowed={allowed} />,
+      render: (_: any, record: Role) => <PermissionIcon allowed={hasGeneralReadPermission(record)} />,
     },
     {
       title: 'Write',
-      dataIndex: ['permissions', 'write'],
       key: 'write',
       align: 'center' as const,
-      render: (allowed: boolean) => <PermissionIcon allowed={allowed} />,
+      render: (_: any, record: Role) => <PermissionIcon allowed={hasGeneralWritePermission(record)} />,
     },
     {
       title: 'Delete',
-      dataIndex: ['permissions', 'delete'],
       key: 'delete',
       align: 'center' as const,
-      render: (allowed: boolean) => <PermissionIcon allowed={allowed} />,
+      render: (_: any, record: Role) => <PermissionIcon allowed={hasGeneralDeletePermission(record)} />,
     },
     {
       title: 'Actions',
@@ -140,7 +153,7 @@ export default function RolesPage() {
               shape="circle" 
               icon={<EditOutlined />} 
               size="small"
-              onClick={() => console.log('Edit role:', record.name)} 
+              onClick={() => handleEditRole(record)} 
             />
           </Tooltip>
           <Tooltip title="Delete role">
@@ -149,7 +162,8 @@ export default function RolesPage() {
               shape="circle" 
               icon={<DeleteOutlined />} 
               size="small"
-              onClick={() => showDeleteConfirm(record.name)} 
+              onClick={() => showDeleteConfirm(record)} 
+              disabled={record.name === 'Administrator'} // Prevent deletion of Administrator role
             />
           </Tooltip>
         </Space>
@@ -157,7 +171,29 @@ export default function RolesPage() {
     },
   ];
 
-  const filteredRoles = DUMMY_ROLES.filter(
+  // Helper functions to determine general permissions
+  const hasGeneralReadPermission = (role: Role) => {
+    return role.permissions.some(perm => perm.endsWith('_view'));
+  };
+  
+  const hasGeneralWritePermission = (role: Role) => {
+    return role.permissions.some(perm => perm.endsWith('_create') || perm.endsWith('_edit'));
+  };
+  
+  const hasGeneralDeletePermission = (role: Role) => {
+    return role.permissions.some(perm => perm.endsWith('_delete'));
+  };
+  
+  const getAvatarColor = (name: string) => {
+    const colors = ['#1677ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const filteredRoles = roles.filter(
     role => role.name.toLowerCase().includes(searchText.toLowerCase()) || 
            role.description.toLowerCase().includes(searchText.toLowerCase())
   );
@@ -171,6 +207,7 @@ export default function RolesPage() {
 
       <Card 
         style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.09)' }}
+        loading={loading && roles.length === 0}
       >
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={16}>
@@ -187,6 +224,7 @@ export default function RolesPage() {
               type="primary" 
               icon={<PlusOutlined />}
               style={{ borderRadius: 6 }}
+              onClick={handleAddRole}
             >
               Add Role
             </Button>
@@ -196,13 +234,14 @@ export default function RolesPage() {
         <Table 
           columns={columns} 
           dataSource={filteredRoles}
-          rowKey="id"
+          rowKey="_id"
           pagination={{ 
             pageSize: 10,
             showSizeChanger: true,
             showTotal: (total, range) => `Showing ${range[0]}-${range[1]} of ${total} roles`,
           }}
           style={{ marginTop: 8 }}
+          loading={loading && roles.length > 0}
         />
       </Card>
 
@@ -227,6 +266,14 @@ export default function RolesPage() {
           </Space>
         </div>
       </Card>
+      
+      <RoleModal
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        onSave={handleSaveRole}
+        role={editingRole}
+        loading={loading}
+      />
     </div>
   );
 } 

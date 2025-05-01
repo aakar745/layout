@@ -17,7 +17,7 @@ declare global {
  */
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { username, email, password, role: roleInput, isActive } = req.body;
+    const { username, name, email, password, role: roleInput, isActive } = req.body;
 
     console.log('Create user request:', { 
       username, 
@@ -95,6 +95,7 @@ export const createUser = async (req: Request, res: Response) => {
     // Create user
     const user = await User.create({
       username,
+      name,
       email,
       password,
       role: role._id,
@@ -146,6 +147,91 @@ export const getUsers = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error fetching users', error });
   }
 }; 
+
+/**
+ * Update a user by ID
+ * This endpoint is for managing admin panel users only
+ */
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { username, email, name, role: roleInput, isActive, password } = req.body;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Process role if provided
+    let roleId = user.role;
+    if (roleInput) {
+      try {
+        // First try direct match with role name strings
+        if (typeof roleInput === 'string') {
+          const roleByName = await Role.findOne({ 
+            name: { $regex: new RegExp(`^${roleInput}$`, 'i') } 
+          });
+          
+          if (roleByName) {
+            roleId = roleByName._id;
+          } else {
+            // Try to find by ID
+            const roleById = await Role.findById(roleInput);
+            if (roleById) {
+              roleId = roleById._id;
+            }
+          }
+        } else if (roleInput && typeof roleInput === 'object' && roleInput._id) {
+          // If it's an object with _id
+          roleId = roleInput._id;
+        }
+      } catch (error) {
+        console.error('Error finding role during user update:', error);
+        // Continue with existing role if there's an error
+      }
+    }
+    
+    // Update user fields
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (name) {
+      // Handle name as a property on the user object or add it as a custom property
+      if ('name' in user) {
+        (user as any).name = name;
+      } else {
+        // If name isn't part of the schema, we can still update it directly
+        (user as any).name = name;
+      }
+    }
+    if (roleId) user.role = roleId;
+    if (isActive !== undefined) user.isActive = isActive;
+    
+    // Only update password if it's provided
+    if (password) {
+      user.password = password;
+    }
+    
+    // Save updated user
+    await user.save();
+    
+    // Populate role for response
+    const updatedUser = await User.findById(userId).populate('role').select('-password');
+    
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating user',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
 
 /**
  * Delete a user by ID

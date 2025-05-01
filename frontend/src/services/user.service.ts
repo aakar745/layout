@@ -1,23 +1,17 @@
 import api from './api';
 
 /**
- * User interface aligned with backend model
+ * User interface
  */
 export interface User {
-  id: string;
+  _id: string;
   username: string;
-  name: string;
+  name?: string;
   email: string;
-  role: {
-    _id: string;
-    name: string;
-  } | string;
+  role: any; // Role or role ID
   isActive: boolean;
-  status: 'active' | 'inactive'; // Used for UI display
-  department: string;
-  avatar?: string;
-  lastLogin?: string;
-  createdAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -25,27 +19,20 @@ export interface User {
  */
 export interface CreateUserData {
   username: string;
-  name: string;
+  name?: string;
   email: string;
   password: string;
-  role: string;
+  role: string; // Role ID
   isActive?: boolean;
 }
 
 /**
- * Get all users (admin users only)
+ * Get all users (admin panel users)
  */
 export const getAllUsers = async (): Promise<User[]> => {
   try {
     const response = await api.get('/users');
-    // Format response to match UI expectations
-    return response.data.map((user: any) => ({
-      ...user,
-      id: user._id,
-      name: user.name || user.username, // Fallback to username if name not provided
-      status: user.isActive ? 'active' : 'inactive',
-      department: user.department || 'General' // Default department
-    }));
+    return response.data;
   } catch (error) {
     console.error('Error fetching users:', error);
     throw error;
@@ -53,18 +40,12 @@ export const getAllUsers = async (): Promise<User[]> => {
 };
 
 /**
- * Get a single user by ID
+ * Get a user by ID
  */
 export const getUserById = async (userId: string): Promise<User> => {
   try {
     const response = await api.get(`/users/${userId}`);
-    return {
-      ...response.data,
-      id: response.data._id,
-      name: response.data.name || response.data.username,
-      status: response.data.isActive ? 'active' : 'inactive',
-      department: response.data.department || 'General'
-    };
+    return response.data;
   } catch (error) {
     console.error('Error fetching user:', error);
     throw error;
@@ -76,25 +57,8 @@ export const getUserById = async (userId: string): Promise<User> => {
  */
 export const createUser = async (userData: CreateUserData): Promise<User> => {
   try {
-    // Create the payload in the format expected by the backend
-    const payload = {
-      username: userData.username,
-      email: userData.email,
-      password: userData.password,
-      role: userData.role,
-      isActive: userData.isActive
-    };
-    
-    const response = await api.post('/users', payload);
-    
-    // Map the response to our User interface
-    return {
-      ...response.data,
-      id: response.data._id,
-      name: userData.name || response.data.username,
-      status: response.data.isActive ? 'active' : 'inactive',
-      department: response.data.department || 'General'
-    };
+    const response = await api.post('/users', userData);
+    return response.data;
   } catch (error) {
     console.error('Error creating user:', error);
     throw error;
@@ -102,28 +66,12 @@ export const createUser = async (userData: CreateUserData): Promise<User> => {
 };
 
 /**
- * Update user information
+ * Update a user
  */
-export const updateUser = async (
-  userId: string, 
-  userData: Partial<User>
-): Promise<User> => {
-  // Convert status back to isActive if provided
-  const apiData = { ...userData };
-  if (userData.status) {
-    apiData.isActive = userData.status === 'active';
-    delete apiData.status;
-  }
-
+export const updateUser = async (userId: string, userData: Partial<CreateUserData>): Promise<User> => {
   try {
-    const response = await api.put(`/users/${userId}`, apiData);
-    return {
-      ...response.data,
-      id: response.data._id,
-      name: response.data.name || response.data.username,
-      status: response.data.isActive ? 'active' : 'inactive',
-      department: response.data.department || 'General'
-    };
+    const response = await api.put(`/users/${userId}`, userData);
+    return response.data;
   } catch (error) {
     console.error('Error updating user:', error);
     throw error;
@@ -131,12 +79,11 @@ export const updateUser = async (
 };
 
 /**
- * Delete a user by ID
+ * Delete a user
  */
-export const deleteUser = async (userId: string): Promise<any> => {
+export const deleteUser = async (userId: string): Promise<void> => {
   try {
-    const response = await api.delete(`/users/${userId}`);
-    return response.data;
+    await api.delete(`/users/${userId}`);
   } catch (error) {
     console.error('Error deleting user:', error);
     throw error;

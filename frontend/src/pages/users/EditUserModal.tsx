@@ -1,73 +1,107 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Switch, Button, message } from 'antd';
-import { User, updateUser, getRoleId } from '../../services/user.service';
+import React, { useEffect } from 'react';
+import { Modal, Form, Input, Select, Switch, Button, App, Divider, Typography } from 'antd';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../../store/store';
+import { User } from '../../services/user.service';
+import { fetchRoles } from '../../store/slices/roleSlice';
+import { modifyUser } from '../../store/slices/userSlice';
 
 const { Option } = Select;
+const { Text } = Typography;
 
 interface EditUserModalProps {
-  user: User | null;
   visible: boolean;
+  user: User | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ 
-  user, 
-  visible, 
+const EditUserModal: React.FC<EditUserModalProps> = ({
+  visible,
+  user,
   onClose,
-  onSuccess
+  onSuccess,
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [submitting, setSubmitting] = useState(false);
+  const dispatch = useDispatch<AppDispatch>();
+  
+  // Get roles from Redux store
+  const { roles, loading: rolesLoading } = useSelector((state: RootState) => state.role);
+  const { loading: usersLoading } = useSelector((state: RootState) => state.user);
 
   // Reset form when user changes
   useEffect(() => {
-    if (user && visible) {
+    if (visible && user) {
       form.setFieldsValue({
-        name: user.name,
+        username: user.username,
+        name: user.name || '',
         email: user.email,
-        role: getRoleId(user.role),
-        status: user.status === 'active'
+        role: typeof user.role === 'object' ? user.role._id : user.role,
+        isActive: user.isActive
       });
     }
-  }, [user, visible, form]);
+  }, [visible, user, form]);
+
+  // Fetch roles when modal becomes visible
+  useEffect(() => {
+    if (visible) {
+      dispatch(fetchRoles());
+    }
+  }, [visible, dispatch]);
 
   const handleSubmit = async () => {
+    if (!user) return;
+    
     try {
       const values = await form.validateFields();
-      if (!user) return;
       
-      setSubmitting(true);
-      
-      // Transform form values to match API expectations
-      const userData = {
+      // Prepare update data (omit empty password)
+      const updateData: any = {
+        username: values.username,
         name: values.name,
         email: values.email,
         role: values.role,
-        status: values.status ? 'active' : 'inactive' as 'active' | 'inactive'
+        isActive: values.isActive
       };
       
-      await updateUser(user.id, userData);
-      message.success('User updated successfully');
-      onSuccess();
-      onClose();
-    } catch (error) {
-      if (error instanceof Error) {
-        message.error(`Failed to update user: ${error.message}`);
-      } else {
-        message.error('Failed to update user');
+      // Only include password if it's provided
+      if (values.password && values.password.trim() !== '') {
+        updateData.password = values.password;
       }
-      console.error('Update user error:', error);
-    } finally {
-      setSubmitting(false);
+      
+      dispatch(modifyUser({ 
+        id: user._id, 
+        userData: updateData
+      }))
+        .unwrap()
+        .then(() => {
+          message.success('User updated successfully');
+          onSuccess();
+          onClose();
+        })
+        .catch((err: any) => {
+          message.error(`Failed to update user: ${err}`);
+        });
+    } catch (error) {
+      console.error('Validation error:', error);
     }
   };
+
+  // Helper function to get role name
+  const getRoleName = (role: any): string => {
+    return typeof role === 'string' ? role : 
+           (role && typeof role === 'object' && role.name) ? role.name : 'Unknown';
+  };
+
+  if (!user) return null;
 
   return (
     <Modal
       title="Edit User"
       open={visible}
       onCancel={onClose}
+      width={600}
       footer={[
         <Button key="cancel" onClick={onClose}>
           Cancel
@@ -75,22 +109,29 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         <Button 
           key="submit" 
           type="primary" 
-          loading={submitting} 
+          loading={usersLoading} 
           onClick={handleSubmit}
         >
-          Save Changes
+          Update User
         </Button>
       ]}
     >
       <Form
         form={form}
         layout="vertical"
-        requiredMark={false}
       >
+        <Form.Item
+          name="username"
+          label="Username"
+          rules={[{ required: true, message: 'Please enter a username' }]}
+        >
+          <Input placeholder="Username" />
+        </Form.Item>
+      
         <Form.Item
           name="name"
           label="Name"
-          rules={[{ required: true, message: 'Please enter the user name' }]}
+          rules={[{ required: true, message: 'Please enter a name' }]}
         >
           <Input placeholder="Full name" />
         </Form.Item>
@@ -99,27 +140,54 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           name="email"
           label="Email"
           rules={[
-            { required: true, message: 'Please enter email' },
+            { required: true, message: 'Please enter an email' },
             { type: 'email', message: 'Please enter a valid email' }
           ]}
         >
           <Input placeholder="Email address" />
         </Form.Item>
         
+        <Divider>
+          <Text type="secondary">Change Password (Optional)</Text>
+        </Divider>
+        
+        <Form.Item
+          name="password"
+          label="New Password"
+          extra="Leave blank to keep the current password"
+          rules={[
+            { min: 6, message: 'Password must be at least 6 characters' }
+          ]}
+        >
+          <Input.Password placeholder="New password (optional)" />
+        </Form.Item>
+        
+        <Divider />
+        
         <Form.Item
           name="role"
           label="Role"
           rules={[{ required: true, message: 'Please select a role' }]}
         >
-          <Select placeholder="Select role">
-            <Option value="admin">Admin</Option>
-            <Option value="manager">Manager</Option>
-            <Option value="agent">Agent</Option>
+          <Select loading={rolesLoading}>
+            {roles.length > 0 ? (
+              roles.map(role => (
+                <Option key={role._id} value={role._id}>
+                  {role.name}
+                </Option>
+              ))
+            ) : (
+              <>
+                <Option value="admin">Admin</Option>
+                <Option value="manager">Manager</Option>
+                <Option value="agent">Agent</Option>
+              </>
+            )}
           </Select>
         </Form.Item>
         
         <Form.Item
-          name="status"
+          name="isActive"
           label="Status"
           valuePropName="checked"
         >

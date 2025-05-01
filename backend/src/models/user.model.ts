@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
   username: string;
+  name?: string;
   email: string;
   password: string;
   role: mongoose.Types.ObjectId;
@@ -15,6 +16,10 @@ const userSchema = new Schema({
     type: String,
     required: true,
     unique: true,
+    trim: true,
+  },
+  name: {
+    type: String,
     trim: true,
   },
   email: {

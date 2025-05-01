@@ -1,18 +1,23 @@
 import React from 'react';
-import { Modal, Descriptions, Avatar, Tag, Badge, Typography, Divider } from 'antd';
-import { UserOutlined, MailOutlined, IdcardOutlined, TeamOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import { User, getRoleName } from '../../services/user.service';
+import { Modal, Descriptions, Avatar, Tag, Divider, Space, Typography } from 'antd';
+import { UserOutlined } from '@ant-design/icons';
+import { User } from '../../services/user.service';
 
 const { Text } = Typography;
 
 interface ViewUserModalProps {
-  user: User | null;
   visible: boolean;
+  user: User | null;
   onClose: () => void;
 }
 
-const ViewUserModal: React.FC<ViewUserModalProps> = ({ user, visible, onClose }) => {
+const ViewUserModal: React.FC<ViewUserModalProps> = ({ visible, user, onClose }) => {
   if (!user) return null;
+  
+  const getRoleName = (role: any): string => {
+    return typeof role === 'string' ? role : 
+           (role && typeof role === 'object' && role.name) ? role.name : 'Unknown';
+  };
 
   return (
     <Modal
@@ -22,56 +27,39 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({ user, visible, onClose })
       footer={null}
       width={600}
     >
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
         <Avatar 
-          src={user.avatar} 
-          icon={!user.avatar && <UserOutlined />} 
           size={64} 
+          icon={<UserOutlined />}
+          style={{ backgroundColor: '#1677ff' }}
         />
-        <div style={{ marginLeft: 16 }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>{user.name}</Typography.Title>
-          <Text type="secondary">{user.email}</Text>
+        <div style={{ marginLeft: 20 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold' }}>{user.name || user.username}</Text>
+          <div>
+            <Tag color={user.isActive ? 'success' : 'default'}>
+              {user.isActive ? 'Active' : 'Inactive'}
+            </Tag>
+            <Tag color="blue">{getRoleName(user.role)}</Tag>
+          </div>
         </div>
       </div>
-
+      
       <Divider />
-
+      
       <Descriptions bordered column={1}>
-        <Descriptions.Item label={<><IdcardOutlined /> Role</>}>
-          {(() => {
-            const roleName = getRoleName(user.role);
-            const color = roleName.toLowerCase() === 'admin' ? '#1677ff' : 
-                         roleName.toLowerCase() === 'manager' ? '#52c41a' : '#faad14';
-            return (
-              <Tag color={color}>
-                {roleName.toUpperCase()}
-              </Tag>
-            );
-          })()}
-        </Descriptions.Item>
-        
-        <Descriptions.Item label={<><TeamOutlined /> Department</>}>
-          {user.department}
-        </Descriptions.Item>
-        
-        <Descriptions.Item label={<><MailOutlined /> Email</>}>
-          {user.email}
-        </Descriptions.Item>
-        
+        <Descriptions.Item label="Username">{user.username}</Descriptions.Item>
+        <Descriptions.Item label="Email">{user.email}</Descriptions.Item>
+        <Descriptions.Item label="Role">{getRoleName(user.role)}</Descriptions.Item>
         <Descriptions.Item label="Status">
-          {user.status === 'active' ? (
-            <Badge status="success" text={<Text style={{ color: '#52c41a' }}>Active</Text>} />
-          ) : (
-            <Badge status="default" text={<Text type="secondary">Inactive</Text>} />
-          )}
+          <Tag color={user.isActive ? 'success' : 'default'}>
+            {user.isActive ? 'Active' : 'Inactive'}
+          </Tag>
         </Descriptions.Item>
-        
-        <Descriptions.Item label={<><ClockCircleOutlined /> Last Login</>}>
-          {user.lastLogin}
+        <Descriptions.Item label="Created At">
+          {new Date(user.createdAt).toLocaleString()}
         </Descriptions.Item>
-        
-        <Descriptions.Item label="Created On">
-          {user.createdAt || 'Not available'}
+        <Descriptions.Item label="Updated At">
+          {new Date(user.updatedAt).toLocaleString()}
         </Descriptions.Item>
       </Descriptions>
     </Modal>
