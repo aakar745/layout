@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { Modal, Form, Input, Checkbox, Button, Row, Col, Card, Divider, Typography } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Modal, Form, Input, Checkbox, Button, Row, Col, Card, Divider, Typography, Space } from 'antd';
 import { Role, CreateRoleData } from '../../services/role.service';
 
 const { Text } = Typography;
+const CheckboxGroup = Checkbox.Group;
 
 interface RoleModalProps {
   visible: boolean;
@@ -82,6 +83,30 @@ const RoleModal: React.FC<RoleModalProps> = ({ visible, onCancel, onSave, role, 
     });
   };
   
+  // Function to check if all permissions in a group are selected
+  const areAllGroupPermissionsSelected = (group: string) => {
+    const allPermissionKeys = form.getFieldValue('permissions') || [];
+    const groupPermissionKeys = groupedPermissions[group].map(p => p.key);
+    return groupPermissionKeys.every(key => allPermissionKeys.includes(key));
+  };
+  
+  // Function to toggle all permissions in a group
+  const toggleGroupPermissions = (group: string, checked: boolean) => {
+    const currentPermissions = form.getFieldValue('permissions') || [];
+    const groupPermissionKeys = groupedPermissions[group].map(p => p.key);
+    
+    let newPermissions;
+    if (checked) {
+      // Add all group permissions
+      newPermissions = [...new Set([...currentPermissions, ...groupPermissionKeys])];
+    } else {
+      // Remove all group permissions
+      newPermissions = currentPermissions.filter((key: string) => !groupPermissionKeys.includes(key));
+    }
+    
+    form.setFieldsValue({ permissions: newPermissions });
+  };
+  
   return (
     <Modal
       title={isEditing ? 'Edit Role' : 'Add New Role'}
@@ -133,34 +158,38 @@ const RoleModal: React.FC<RoleModalProps> = ({ visible, onCancel, onSave, role, 
         <Divider plain>Permissions</Divider>
         
         <Form.Item name="permissions">
-          <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '0 8px' }}>
-            {Object.entries(groupedPermissions).map(([group, permissions]) => (
-              <Card
-                key={group}
-                size="small"
-                title={group}
-                style={{ marginBottom: 16 }}
-              >
-                <Row gutter={[16, 12]}>
-                  {permissions.map(permission => (
-                    <Col span={12} key={permission.key}>
-                      <Form.Item
-                        name={['permissions']}
-                        valuePropName="checked"
-                        noStyle
+          <Checkbox.Group style={{ width: '100%' }}>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '0 8px' }}>
+              {Object.entries(groupedPermissions).map(([group, permissions]) => (
+                <Card
+                  key={group}
+                  size="small"
+                  title={
+                    <Space>
+                      <Text strong>{group}</Text>
+                      <Checkbox
+                        checked={areAllGroupPermissionsSelected(group)}
+                        onChange={(e) => toggleGroupPermissions(group, e.target.checked)}
                       >
-                        <Checkbox
-                          value={permission.key}
-                        >
+                        Select All
+                      </Checkbox>
+                    </Space>
+                  }
+                  style={{ marginBottom: 16 }}
+                >
+                  <Row gutter={[16, 12]}>
+                    {permissions.map(permission => (
+                      <Col span={12} key={permission.key}>
+                        <Checkbox value={permission.key}>
                           <Text>{permission.label}</Text>
                         </Checkbox>
-                      </Form.Item>
-                    </Col>
-                  ))}
-                </Row>
-              </Card>
-            ))}
-          </div>
+                      </Col>
+                    ))}
+                  </Row>
+                </Card>
+              ))}
+            </div>
+          </Checkbox.Group>
         </Form.Item>
       </Form>
     </Modal>
