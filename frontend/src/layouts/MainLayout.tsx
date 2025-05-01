@@ -172,11 +172,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       key: 'profile',
       label: 'Profile',
       icon: <UserOutlined />,
+      onClick: () => navigate('/account'),
     },
     {
       key: 'settings',
       label: 'Settings',
       icon: <SettingOutlined />,
+      onClick: () => navigate('/settings'),
     },
     {
       key: 'divider',

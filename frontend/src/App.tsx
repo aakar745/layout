@@ -12,6 +12,7 @@ import ExhibitorBookings from './pages/exhibitor/Bookings';
 import ExhibitorBookingDetails from './pages/exhibitor/BookingDetails';
 import ExhibitorProfile from './pages/exhibitor/Profile';
 import ExhibitorInvoiceDetails from './pages/exhibitor/InvoiceDetails';
+import Profile from './pages/account/Profile';
 import Settings from './pages/settings/Settings';
 import Roles from './pages/roles/index';
 import Users from './pages/users/index';
@@ -132,6 +133,18 @@ function App() {
                 <PrivateRoute>
                   <MainLayout>
                     <Dashboard />
+                  </MainLayout>
+                </PrivateRoute>
+              }
+            />
+            
+            {/* Account Profile Route */}
+            <Route
+              path="/account"
+              element={
+                <PrivateRoute>
+                  <MainLayout>
+                    <Profile />
                   </MainLayout>
                 </PrivateRoute>
               }

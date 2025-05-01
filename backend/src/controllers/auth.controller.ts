@@ -108,4 +108,44 @@ export const getMe = async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ message: 'Error getting user profile', error });
   }
+};
+
+/**
+ * Change password for logged-in user
+ * POST /api/auth/change-password
+ * Private route (requires authentication)
+ */
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    
+    // Find user by ID (from auth middleware)
+    const user = await User.findById(req.user?._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Update password
+    user.password = newPassword;
+    await user.save();
+    
+    res.status(200).json({ 
+      message: 'Password has been changed successfully',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Server error while changing password' });
+  }
 }; 

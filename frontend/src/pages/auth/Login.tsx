@@ -8,6 +8,7 @@ import { RootState, AppDispatch } from '../../store/store';
 import api from '../../services/api';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
+import authService from '../../services/auth';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -542,7 +543,7 @@ const Login: React.FC = () => {
       setError(null);
       setLoading(true);
       
-      const response = await api.post('/auth/login', {
+      const response = await authService.login({
         username: values.username,
         password: values.password
       });
@@ -857,7 +858,7 @@ const Login: React.FC = () => {
               )}
             </StyledFormItem>
             
-            <div style={{ 
+            {/* <div style={{ 
               background: '#f6f6f6', 
               padding: '12px 16px', 
               borderRadius: '8px',
@@ -872,7 +873,7 @@ const Login: React.FC = () => {
                   <Text strong>Password:</Text> <Text code>admin123</Text>
                 </div>
               </div>
-            </div>
+            </div> */}
           </Form>
         </LoginForm>
       </FormSection>
