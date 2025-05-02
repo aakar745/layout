@@ -147,13 +147,14 @@ export default function RolesPage() {
       align: 'right' as const,
       render: (_: any, record: Role) => (
         <Space>
-          <Tooltip title="Edit role">
+          <Tooltip title={record.name === 'Administrator' ? 'Administrator role cannot be edited' : 'Edit role'}>
             <Button 
               type="primary" 
               shape="circle" 
               icon={<EditOutlined />} 
               size="small"
-              onClick={() => handleEditRole(record)} 
+              onClick={() => handleEditRole(record)}
+              disabled={record.name === 'Administrator'} // Prevent editing of Administrator role
             />
           </Tooltip>
           <Tooltip title="Delete role">

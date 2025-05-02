@@ -3,7 +3,6 @@ import { Modal, Form, Input, Checkbox, Button, Row, Col, Card, Divider, Typograp
 import { Role, CreateRoleData } from '../../services/role.service';
 
 const { Text } = Typography;
-const CheckboxGroup = Checkbox.Group;
 
 interface RoleModalProps {
   visible: boolean;
@@ -62,22 +61,30 @@ const groupedPermissions = AVAILABLE_PERMISSIONS.reduce<Record<string, Array<{ke
 const RoleModal: React.FC<RoleModalProps> = ({ visible, onCancel, onSave, role, loading }) => {
   const [form] = Form.useForm();
   const isEditing = !!role;
+  // Store all selected permissions
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   
   useEffect(() => {
     if (visible) {
       if (role) {
+        const permissions = role.permissions || [];
         form.setFieldsValue({
           name: role.name,
           description: role.description,
-          permissions: role.permissions,
+          permissions: permissions,
         });
+        setSelectedPermissions(permissions);
       } else {
         form.resetFields();
+        setSelectedPermissions([]);
       }
     }
   }, [visible, role, form]);
   
   const handleSubmit = () => {
+    // Update form with current selected permissions before submit
+    form.setFieldsValue({ permissions: selectedPermissions });
+    
     form.validateFields().then(values => {
       onSave(values);
     });
@@ -85,26 +92,52 @@ const RoleModal: React.FC<RoleModalProps> = ({ visible, onCancel, onSave, role, 
   
   // Function to check if all permissions in a group are selected
   const areAllGroupPermissionsSelected = (group: string) => {
-    const allPermissionKeys = form.getFieldValue('permissions') || [];
     const groupPermissionKeys = groupedPermissions[group].map(p => p.key);
-    return groupPermissionKeys.every(key => allPermissionKeys.includes(key));
+    // Return true only if EVERY permission in this group is selected
+    return groupPermissionKeys.length > 0 && groupPermissionKeys.every(key => 
+      selectedPermissions.includes(key)
+    );
   };
   
-  // Function to toggle all permissions in a group
-  const toggleGroupPermissions = (group: string, checked: boolean) => {
-    const currentPermissions = form.getFieldValue('permissions') || [];
-    const groupPermissionKeys = groupedPermissions[group].map(p => p.key);
-    
+  // Function to toggle a single permission
+  const togglePermission = (permissionKey: string, checked: boolean) => {
     let newPermissions;
     if (checked) {
-      // Add all group permissions
-      newPermissions = [...new Set([...currentPermissions, ...groupPermissionKeys])];
+      // Add the permission if it's not already included
+      newPermissions = [...selectedPermissions, permissionKey];
     } else {
-      // Remove all group permissions
-      newPermissions = currentPermissions.filter((key: string) => !groupPermissionKeys.includes(key));
+      // Remove the permission
+      newPermissions = selectedPermissions.filter(key => key !== permissionKey);
+    }
+    setSelectedPermissions(newPermissions);
+    // No need to update form here, we'll do that on submit
+  };
+  
+  // Function to toggle all permissions in a specific group
+  const toggleGroupPermissions = (group: string, checked: boolean) => {
+    const groupPermissionKeys = groupedPermissions[group].map(p => p.key);
+    let newPermissions;
+    
+    if (checked) {
+      // Add all group permissions if they're not already included
+      const permissionsToAdd = groupPermissionKeys.filter(
+        key => !selectedPermissions.includes(key)
+      );
+      newPermissions = [...selectedPermissions, ...permissionsToAdd];
+    } else {
+      // Remove all permissions from this specific group
+      newPermissions = selectedPermissions.filter(
+        key => !groupPermissionKeys.includes(key)
+      );
     }
     
-    form.setFieldsValue({ permissions: newPermissions });
+    setSelectedPermissions(newPermissions);
+    // No need to update form here, we'll do that on submit
+  };
+  
+  // Check if a specific permission is selected
+  const isPermissionSelected = (permissionKey: string) => {
+    return selectedPermissions.includes(permissionKey);
   };
   
   return (
@@ -157,40 +190,44 @@ const RoleModal: React.FC<RoleModalProps> = ({ visible, onCancel, onSave, role, 
         
         <Divider plain>Permissions</Divider>
         
-        <Form.Item name="permissions">
-          <Checkbox.Group style={{ width: '100%' }}>
-            <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '0 8px' }}>
-              {Object.entries(groupedPermissions).map(([group, permissions]) => (
-                <Card
-                  key={group}
-                  size="small"
-                  title={
-                    <Space>
-                      <Text strong>{group}</Text>
-                      <Checkbox
-                        checked={areAllGroupPermissionsSelected(group)}
-                        onChange={(e) => toggleGroupPermissions(group, e.target.checked)}
-                      >
-                        Select All
-                      </Checkbox>
-                    </Space>
-                  }
-                  style={{ marginBottom: 16 }}
-                >
-                  <Row gutter={[16, 12]}>
-                    {permissions.map(permission => (
-                      <Col span={12} key={permission.key}>
-                        <Checkbox value={permission.key}>
-                          <Text>{permission.label}</Text>
-                        </Checkbox>
-                      </Col>
-                    ))}
-                  </Row>
-                </Card>
-              ))}
-            </div>
-          </Checkbox.Group>
+        {/* Hidden form item to store permissions */}
+        <Form.Item name="permissions" hidden={true}>
+          <Input />
         </Form.Item>
+        
+        <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '0 8px' }}>
+          {Object.entries(groupedPermissions).map(([group, permissions]) => (
+            <Card
+              key={group}
+              size="small"
+              title={
+                <Space>
+                  <Text strong>{group}</Text>
+                  <Checkbox
+                    checked={areAllGroupPermissionsSelected(group)}
+                    onChange={(e) => toggleGroupPermissions(group, e.target.checked)}
+                  >
+                    Select All
+                  </Checkbox>
+                </Space>
+              }
+              style={{ marginBottom: 16 }}
+            >
+              <Row gutter={[16, 12]}>
+                {permissions.map(permission => (
+                  <Col span={12} key={permission.key}>
+                    <Checkbox 
+                      checked={isPermissionSelected(permission.key)}
+                      onChange={(e) => togglePermission(permission.key, e.target.checked)}
+                    >
+                      <Text>{permission.label}</Text>
+                    </Checkbox>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+          ))}
+        </div>
       </Form>
     </Modal>
   );
