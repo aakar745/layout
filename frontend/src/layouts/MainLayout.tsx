@@ -190,17 +190,46 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       console.log('Role:', user.role.name);
       console.log('Permissions:', user.role.permissions);
       
-      // Test every permission for each menu item
+      // Test every permission for each module item
       console.log('------ PERMISSION CHECKS FOR EACH MODULE ------');
-      console.log('Dashboard permission:', hasPermission('dashboard_view'));
-      console.log('Exhibitions permission:', hasPermission('exhibitions_view'));
-      console.log('Stalls permission:', hasPermission('view_stalls'));
-      console.log('Stall Types permission:', hasPermission('view_stall_types'));
-      console.log('Bookings permission:', hasPermission('view_bookings'));
-      console.log('Exhibitors permission:', hasPermission('view_exhibitors'));
-      console.log('Users permission:', hasPermission('users_view'));
-      console.log('Roles permission:', hasPermission('roles_view'));
-      console.log('Settings permission:', hasPermission('settings_view'));
+      console.log('Dashboard view:', hasPermission('dashboard_view'));
+      console.log('Dashboard manage:', hasPermission('dashboard_manage'));
+      
+      // View permissions
+      console.log('Exhibitions view:', hasPermission('exhibitions_view'));
+      console.log('Stalls view:', hasPermission('view_stalls'));
+      console.log('Stall Types view:', hasPermission('view_stall_types'));
+      console.log('Bookings view:', hasPermission('view_bookings'));
+      console.log('Exhibitors view:', hasPermission('view_exhibitors'));
+      console.log('Users view:', hasPermission('users_view'));
+      console.log('Roles view:', hasPermission('roles_view'));
+      console.log('Settings view:', hasPermission('settings_view'));
+      
+      // Create permissions
+      console.log('Exhibitions create:', hasPermission('exhibitions_create'));
+      console.log('Stalls create:', hasPermission('create_stall'));
+      console.log('Bookings create:', hasPermission('bookings_create'));
+      console.log('Exhibitors create:', hasPermission('exhibitors_create'));
+      console.log('Users create:', hasPermission('users_create'));
+      console.log('Roles create:', hasPermission('roles_create'));
+      
+      // Edit permissions
+      console.log('Exhibitions edit:', hasPermission('exhibitions_edit'));
+      console.log('Stalls edit:', hasPermission('edit_stall'));
+      console.log('Bookings edit:', hasPermission('bookings_edit'));
+      console.log('Exhibitors edit:', hasPermission('exhibitors_edit'));
+      console.log('Users edit:', hasPermission('users_edit'));
+      console.log('Roles edit:', hasPermission('roles_edit'));
+      console.log('Settings edit:', hasPermission('settings_edit'));
+      
+      // Delete permissions
+      console.log('Exhibitions delete:', hasPermission('exhibitions_delete'));
+      console.log('Stalls delete:', hasPermission('delete_stall'));
+      console.log('Bookings delete:', hasPermission('bookings_delete'));
+      console.log('Exhibitors delete:', hasPermission('exhibitors_delete'));
+      console.log('Users delete:', hasPermission('users_delete'));
+      console.log('Roles delete:', hasPermission('roles_delete'));
+      
       console.log('=====================================');
       
       // Log available menu items after filtering

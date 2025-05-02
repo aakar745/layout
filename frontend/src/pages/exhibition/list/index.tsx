@@ -18,6 +18,7 @@ import exhibitionService from '../../../services/exhibition';
 import { getExhibitionUrl, getPublicExhibitionUrl } from '../../../utils/url';
 import dayjs from 'dayjs';
 import '../../dashboard/Dashboard.css';
+import { usePermission } from '../../../hooks/reduxHooks';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -44,6 +45,7 @@ const ExhibitionList: React.FC = () => {
     activeStatus: null
   });
   const [viewMode, setViewMode] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
+  const { hasPermission } = usePermission();
 
   useEffect(() => {
     dispatch(fetchExhibitions());
@@ -674,27 +676,33 @@ const ExhibitionList: React.FC = () => {
       fixed: 'right',
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title="View Details">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleNavigation(record, '')}
-            />
-          </Tooltip>
-          <Tooltip title="Edit Exhibition">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleNavigation(record, '/edit')}
-            />
-          </Tooltip>
-          <Dropdown
-            menu={{ items: getActionMenu(record) }}
-            trigger={['click']}
-            placement="bottomRight"
-          >
-            <Button type="text" icon={<MoreOutlined />} />
-          </Dropdown>
+          {hasPermission('exhibitions_view') && (
+            <Tooltip title="View Details">
+              <Button
+                type="text"
+                icon={<EyeOutlined />}
+                onClick={() => handleNavigation(record, '')}
+              />
+            </Tooltip>
+          )}
+          {hasPermission('exhibitions_edit') && (
+            <Tooltip title="Edit Exhibition">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => handleNavigation(record, '/edit')}
+              />
+            </Tooltip>
+          )}
+          {hasPermission('exhibitions_delete') && (
+            <Dropdown
+              menu={{ items: getActionMenu(record) }}
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <Button type="text" icon={<MoreOutlined />} />
+            </Dropdown>
+          )}
         </Space>
       ),
     },

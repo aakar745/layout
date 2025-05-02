@@ -6,6 +6,7 @@ import { RootState, AppDispatch } from '../../store/store';
 import { fetchRoles, addRole, modifyRole, removeRole, setSelectedRole } from '../../store/slices/roleSlice';
 import { Role, CreateRoleData } from '../../services/role.service';
 import RoleModal from './RoleModal';
+import { usePermission } from '../../hooks/reduxHooks';
 
 const { Title, Paragraph, Text } = Typography;
 const { confirm } = Modal;
@@ -30,6 +31,7 @@ export default function RolesPage() {
   const [searchText, setSearchText] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const { hasPermission } = usePermission();
   
   useEffect(() => {
     dispatch(fetchRoles());
@@ -147,26 +149,30 @@ export default function RolesPage() {
       align: 'right' as const,
       render: (_: any, record: Role) => (
         <Space>
-          <Tooltip title={record.name === 'Administrator' ? 'Administrator role cannot be edited' : 'Edit role'}>
-            <Button 
-              type="primary" 
-              shape="circle" 
-              icon={<EditOutlined />} 
-              size="small"
-              onClick={() => handleEditRole(record)}
-              disabled={record.name === 'Administrator'} // Prevent editing of Administrator role
-            />
-          </Tooltip>
-          <Tooltip title="Delete role">
-            <Button 
-              danger 
-              shape="circle" 
-              icon={<DeleteOutlined />} 
-              size="small"
-              onClick={() => showDeleteConfirm(record)} 
-              disabled={record.name === 'Administrator'} // Prevent deletion of Administrator role
-            />
-          </Tooltip>
+          {hasPermission('roles_edit') && (
+            <Tooltip title={record.name === 'Administrator' ? 'Administrator role cannot be edited' : 'Edit role'}>
+              <Button 
+                type="primary" 
+                shape="circle" 
+                icon={<EditOutlined />} 
+                size="small"
+                onClick={() => handleEditRole(record)}
+                disabled={record.name === 'Administrator'} // Prevent editing of Administrator role
+              />
+            </Tooltip>
+          )}
+          {hasPermission('roles_delete') && (
+            <Tooltip title="Delete role">
+              <Button 
+                danger 
+                shape="circle" 
+                icon={<DeleteOutlined />} 
+                size="small"
+                onClick={() => showDeleteConfirm(record)} 
+                disabled={record.name === 'Administrator'} // Prevent deletion of Administrator role
+              />
+            </Tooltip>
+          )}
         </Space>
       ),
     },
@@ -221,14 +227,16 @@ export default function RolesPage() {
             />
           </Col>
           <Col span={8} style={{ textAlign: 'right' }}>
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              style={{ borderRadius: 6 }}
-              onClick={handleAddRole}
-            >
-              Add Role
-            </Button>
+            {hasPermission('roles_create') && (
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                style={{ borderRadius: 6 }}
+                onClick={handleAddRole}
+              >
+                Add Role
+              </Button>
+            )}
           </Col>
         </Row>
 

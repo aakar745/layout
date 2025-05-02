@@ -11,6 +11,8 @@ export interface Exhibitor {
   address?: string;
   status: string;
   isActive: boolean;
+  gstNumber?: string;
+  panNumber?: string;
 }
 
 interface ExhibitorState {

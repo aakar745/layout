@@ -32,6 +32,7 @@ import BookingStatistics from './BookingStatistics';
 import BookingFilters from './BookingFilters';
 import { BookingType, BookingStatus, FilterState, Stall } from './types';
 import '../../dashboard/Dashboard.css';
+import { usePermission } from '../../../hooks/reduxHooks';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -62,6 +63,7 @@ const StallBookingManager: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<BookingStatus>('pending');
   const [rejectionReasonText, setRejectionReasonText] = useState('');
   const [updateLoading, setUpdateLoading] = useState(false);
+  const { hasPermission } = usePermission();
 
   useEffect(() => {
     dispatch(fetchBookings());
@@ -102,6 +104,15 @@ const StallBookingManager: React.FC = () => {
       
       message.success(`Booking ${newStatus} successfully`);
       dispatch(fetchBookings());
+      
+      // If booking is being approved, refetch invoices since a new invoice will be generated
+      if (newStatus === 'approved') {
+        // Give the backend a moment to generate the invoice
+        setTimeout(async () => {
+          await refetchInvoices();
+        }, 1000);
+      }
+      
       setIsDetailsModalVisible(false);
       setIsStatusModalVisible(false);
       setSelectedBooking(null);
@@ -240,33 +251,78 @@ const StallBookingManager: React.FC = () => {
     
     // If not found, refetch and try again
     if (!invoiceId) {
-      message.loading('Checking for invoice...');
+      const messageKey = 'invoice-loading';
+      message.loading({ content: 'Checking for invoice...', key: messageKey });
+      
+      // Force a refetch from backend with skip cache option
       await refetchInvoices();
       invoiceId = getInvoiceId(record._id);
-    }
 
-    if (invoiceId) {
-      navigate(`/invoice/${invoiceId}`);
-    } else {
-      // Check if the booking is recent
+      if (invoiceId) {
+        message.success({ content: 'Invoice found!', key: messageKey, duration: 1 });
+        navigate(`/invoice/${invoiceId}`);
+        return;
+      }
+
+      // Check if the booking is recent or if it's an approved booking
       const bookingDate = new Date(record.createdAt);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const isRecentOrApproved = bookingDate > thirtyMinutesAgo || record.status === 'approved';
       
-      if (bookingDate > fiveMinutesAgo) {
-        message.info('Invoice is still being generated. Checking again in 5 seconds...');
-        // Try again after 5 seconds
-        setTimeout(async () => {
+      if (isRecentOrApproved) {
+        message.info({ 
+          content: 'Invoice is still being generated. Checking again in a moment...', 
+          key: messageKey 
+        });
+        
+        // Implement multiple retries with increasing intervals
+        let retryCount = 0;
+        const maxRetries = 5;
+        const retryIntervals = [2000, 3000, 5000, 8000, 10000]; // Increasing intervals
+        
+        const attemptFetch = async () => {
+          retryCount++;
+          
+          // Use skipCache option to force a network request instead of using cached data
           await refetchInvoices();
           const retryInvoiceId = getInvoiceId(record._id);
+          
           if (retryInvoiceId) {
+            message.success({ 
+              content: 'Invoice is ready!', 
+              key: messageKey,
+              duration: 1
+            });
             navigate(`/invoice/${retryInvoiceId}`);
+          } else if (retryCount < maxRetries) {
+            // Continue retrying with countdown and increasing intervals
+            const nextInterval = retryIntervals[retryCount] || 5000;
+            const secondsToWait = nextInterval / 1000;
+            
+            message.info({ 
+              content: `Attempt ${retryCount}/${maxRetries}: Invoice not ready yet. Trying again in ${secondsToWait} seconds...`, 
+              key: messageKey 
+            });
+            setTimeout(attemptFetch, nextInterval);
           } else {
-            message.warning('Invoice is not ready yet. Please try again in a few moments.');
+            message.warning({ 
+              content: 'Invoice generation is taking longer than expected. Please try refreshing the page in a few moments.', 
+              key: messageKey 
+            });
           }
-        }, 5000);
+        };
+        
+        // Start the retry process with the first interval
+        setTimeout(attemptFetch, retryIntervals[0]);
       } else {
-        message.error('No invoice found for this booking. Please contact support if this persists.');
+        message.error({ 
+          content: 'No invoice found for this booking. Please contact support if this persists.', 
+          key: messageKey 
+        });
       }
+    } else {
+      // Invoice was found immediately
+      navigate(`/invoice/${invoiceId}`);
     }
   };
 
@@ -400,7 +456,7 @@ const StallBookingManager: React.FC = () => {
           <Dropdown
             overlay={
               <Menu>
-                {record.status !== 'cancelled' && (
+                {record.status !== 'cancelled' && hasPermission('view_bookings') && (
                   <Menu.Item 
                     key="invoice" 
                     icon={<FileTextOutlined />}
@@ -422,23 +478,25 @@ const StallBookingManager: React.FC = () => {
                 >
                   Update Status
                 </Menu.Item>
-                <Menu.Item 
-                  key="delete" 
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={() => {
-                    Modal.confirm({
-                      title: 'Delete Booking',
-                      content: 'Are you sure you want to delete this booking? This action cannot be undone.',
-                      okText: 'Yes',
-                      okType: 'danger',
-                      cancelText: 'No',
-                      onOk: () => handleDelete(record._id)
-                    });
-                  }}
-                >
-                  Delete
-                </Menu.Item>
+                {hasPermission('bookings_delete') && (
+                  <Menu.Item 
+                    key="delete" 
+                    icon={<DeleteOutlined />}
+                    danger
+                    onClick={() => {
+                      Modal.confirm({
+                        title: 'Delete Booking',
+                        content: 'Are you sure you want to delete this booking? This action cannot be undone.',
+                        okText: 'Yes',
+                        okType: 'danger',
+                        cancelText: 'No',
+                        onOk: () => handleDelete(record._id)
+                      });
+                    }}
+                  >
+                    Delete
+                  </Menu.Item>
+                )}
               </Menu>
             }
             trigger={['click']}

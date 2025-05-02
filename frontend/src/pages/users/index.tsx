@@ -17,6 +17,7 @@ import { User } from '../../services/user.service';
 import ViewUserModal from './ViewUserModal';
 import EditUserModal from './EditUserModal';
 import NewUserModal from './NewUserModal';
+import { usePermission } from '../../hooks/reduxHooks';
 
 const { Title, Paragraph, Text } = Typography;
 const { TabPane } = Tabs;
@@ -40,6 +41,7 @@ export default function UsersPage() {
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [newModalVisible, setNewModalVisible] = useState(false);
+  const { hasPermission } = usePermission();
 
   // Fetch users when component mounts
   useEffect(() => {
@@ -171,31 +173,37 @@ export default function UsersPage() {
       key: 'action',
       render: (_: any, record: User) => (
         <Space size="small">
-          <Tooltip title="View details">
-            <Button 
-              type="text" 
-              icon={<EyeOutlined />} 
-              size="small" 
-              onClick={() => handleViewUser(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Edit user">
-            <Button 
-              type="text" 
-              icon={<EditOutlined />} 
-              size="small" 
-              onClick={() => handleEditUser(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Delete user">
-            <Button 
-              type="text" 
-              danger 
-              icon={<DeleteOutlined />} 
-              size="small"
-              onClick={() => showDeleteConfirm(record._id, record.name || record.username)}
-            />
-          </Tooltip>
+          {hasPermission('users_view') && (
+            <Tooltip title="View details">
+              <Button 
+                type="text" 
+                icon={<EyeOutlined />} 
+                size="small" 
+                onClick={() => handleViewUser(record)}
+              />
+            </Tooltip>
+          )}
+          {hasPermission('users_edit') && (
+            <Tooltip title="Edit user">
+              <Button 
+                type="text" 
+                icon={<EditOutlined />} 
+                size="small" 
+                onClick={() => handleEditUser(record)}
+              />
+            </Tooltip>
+          )}
+          {hasPermission('users_delete') && (
+            <Tooltip title="Delete user">
+              <Button 
+                type="text" 
+                danger 
+                icon={<DeleteOutlined />} 
+                size="small"
+                onClick={() => showDeleteConfirm(record._id, record.name || record.username)}
+              />
+            </Tooltip>
+          )}
         </Space>
       ),
     },

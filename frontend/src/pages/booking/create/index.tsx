@@ -215,6 +215,8 @@ const CreateBooking: React.FC = () => {
         customerEmail: exhibitor.email,
         customerPhone: exhibitor.phone,
         customerAddress: exhibitor.address || 'N/A',
+        customerGSTIN: exhibitor.gstNumber || 'N/A',
+        customerPAN: exhibitor.panNumber || 'N/A',
         companyName: exhibitor.companyName,
         discount: selectedDiscount ? {
           name: selectedDiscount.name,
@@ -233,9 +235,24 @@ const CreateBooking: React.FC = () => {
         }
       };
 
-      await dispatch(createBooking(bookingData)).unwrap();
-      message.success('Booking created successfully');
-      navigate('/bookings');
+      const result = await dispatch(createBooking(bookingData)).unwrap();
+      
+      // Check if invoice ID is returned directly from the API
+      if (result && result.invoiceId) {
+        message.success('Booking created successfully! Redirecting to invoice...');
+        // Give the backend a moment to finalize invoice generation
+        setTimeout(() => {
+          navigate(`/invoice/${result.invoiceId}`);
+        }, 2000);
+      } else {
+        message.success('Booking created successfully');
+        navigate('/bookings');
+      }
+      
+      // Show warning if there was an issue with invoice generation
+      if (result && result.warning) {
+        message.warning(result.warning);
+      }
     } catch (error) {
       console.error('Error creating booking:', error);
       message.error('Failed to create booking');

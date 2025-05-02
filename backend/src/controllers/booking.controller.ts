@@ -74,6 +74,8 @@ export const createBooking = async (req: Request, res: Response) => {
       customerEmail,
       customerPhone,
       customerAddress,
+      customerGSTIN,
+      customerPAN,
       companyName,
       discount 
     } = req.body;
@@ -166,6 +168,8 @@ export const createBooking = async (req: Request, res: Response) => {
       customerEmail,
       customerPhone,
       customerAddress: req.body.customerAddress || 'N/A',
+      customerGSTIN: req.body.customerGSTIN || 'N/A',
+      customerPAN: req.body.customerPAN || 'N/A',
       companyName,
       status: 'confirmed',
       amount: finalAmount,
@@ -202,26 +206,54 @@ export const createBooking = async (req: Request, res: Response) => {
     const invoiceNumber = `${prefix}/${year}/${sequence}`;
 
     // Generate invoice for the booking
-    await Invoice.create({
-      bookingId: booking._id,
-      userId: req.user?._id,
-      status: 'pending',
-      amount: finalAmount,
-      invoiceNumber, // Add the generated invoice number
-      items: stallCalculations.map(stall => ({
-        description: `Stall ${stall.number} Booking`,
-        amount: stall.baseAmount,
-        discount: stall.discount,
-        taxes: taxes.map(tax => ({
-          name: tax.name,
-          rate: tax.rate,
-          amount: (stall.amountAfterDiscount * tax.rate) / 100
-        }))
-      })),
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-    });
-
-    res.status(201).json(booking);
+    try {
+      console.log(`[INFO] Generating invoice for booking ${booking._id}`);
+      const invoice = await Invoice.create({
+        bookingId: booking._id,
+        userId: req.user?._id,
+        status: 'pending',
+        amount: finalAmount,
+        invoiceNumber, // Add the generated invoice number
+        items: stallCalculations.map(stall => ({
+          description: `Stall ${stall.number} Booking`,
+          amount: stall.baseAmount,
+          discount: stall.discount,
+          taxes: taxes.map(tax => ({
+            name: tax.name,
+            rate: tax.rate,
+            amount: (stall.amountAfterDiscount * tax.rate) / 100
+          }))
+        })),
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      });
+      console.log(`[INFO] Invoice ${invoice._id} created successfully for booking ${booking._id}`);
+      
+      // Include the invoice ID in response for immediate access
+      const bookingWithInvoice = await Booking.findById(booking._id)
+        .populate('exhibitionId', 'name')
+        .populate('stallIds', 'number dimensions ratePerSqm');
+        
+      if (!bookingWithInvoice) {
+        // Unlikely, but handle the case where booking can't be found
+        return res.status(201).json({
+          ...booking.toObject(),
+          invoiceId: invoice._id
+        });
+      }
+      
+      return res.status(201).json({
+        ...bookingWithInvoice.toObject(),
+        invoiceId: invoice._id // Add invoice ID to response
+      });
+    } catch (invoiceError) {
+      console.error('Error creating invoice:', invoiceError);
+      // Even if invoice creation fails, the booking was successful
+      // Return success but with a warning
+      return res.status(201).json({
+        ...booking.toObject(),
+        warning: 'Booking created successfully but invoice generation failed. Please try accessing your invoice later.'
+      });
+    }
   } catch (error) {
     console.error('Error creating booking:', error);
     res.status(500).json({ message: 'Error creating booking', error });

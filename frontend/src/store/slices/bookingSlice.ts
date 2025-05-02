@@ -142,6 +142,9 @@ export interface Booking {
   paymentDetails?: PaymentDetails;
   createdAt: string;
   updatedAt: string;
+  // New properties for API response
+  invoiceId?: string;
+  warning?: string;
 }
 
 /**
@@ -157,6 +160,8 @@ export interface CreateBookingData {
   customerEmail: string;
   customerPhone: string;
   customerAddress: string;
+  customerGSTIN?: string;
+  customerPAN?: string;
   companyName: string;
   discount?: {
     name: string;

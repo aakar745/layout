@@ -8,6 +8,8 @@ import axios from 'axios';
 import crypto from 'crypto';
 import puppeteer from 'puppeteer';
 import handlebars from 'handlebars';
+import User, { IUser } from '../models/user.model';
+import { IRole } from '../models/role.model';
 
 // Cache directory for PDFs
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -709,11 +711,41 @@ export const getInvoices = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
+    // Check if user has admin access or booking permissions to view all invoices
+    let hasViewAllAccess = false;
+    
+    if (req.user) {
+      // Populate user with role to check permissions
+      const user = await User.findById(req.user._id).populate('role');
+      
+      if (user && user.role) {
+        // Type assertion to handle the populated role
+        const userRole = user.role as unknown as IRole;
+        
+        // Check for view_bookings, view_invoices, or admin permission
+        if (userRole.permissions) {
+          hasViewAllAccess = userRole.permissions.some(permission => 
+            permission === 'view_bookings' || 
+            permission === 'bookings_view' ||
+            permission === 'view_invoices' || 
+            permission === 'invoices_view' ||
+            permission === 'admin' ||
+            permission === '*'
+          );
+        }
+        
+        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+      }
+    }
+
+    // Create query based on permissions - if user has access, don't filter by userId
+    const query = hasViewAllAccess ? {} : { userId: req.user._id };
+    
     // Get total count for pagination metadata
-    const totalCount = await Invoice.countDocuments({ userId: req.user._id });
+    const totalCount = await Invoice.countDocuments(query);
 
     // Get invoices with proper population and pagination
-    const invoices = await Invoice.find({ userId: req.user._id })
+    const invoices = await Invoice.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -738,7 +770,7 @@ export const getInvoices = async (req: Request, res: Response) => {
       .lean();
 
     // Log the number of invoices found
-    console.log(`Found ${invoices.length} invoices for user ${req.user._id} (page ${page}, limit ${limit})`);
+    console.log(`Found ${invoices.length} invoices for query (page ${page}, limit ${limit})`);
 
     // Filter out any null bookings and transform the data
     const validInvoices = invoices
@@ -778,6 +810,41 @@ export const getInvoices = async (req: Request, res: Response) => {
 
 export const getInvoice = async (req: Request, res: Response) => {
   try {
+    // Check if user is authenticated
+    if (!req.user?._id) {
+      return res.status(401).json({
+        message: 'Authentication required',
+        error: 'No user found in request'
+      });
+    }
+
+    // Check if user has permission to view any invoice
+    let hasViewAllAccess = false;
+    
+    if (req.user) {
+      // Populate user with role to check permissions
+      const user = await User.findById(req.user._id).populate('role');
+      
+      if (user && user.role) {
+        // Type assertion to handle the populated role
+        const userRole = user.role as unknown as IRole;
+        
+        // Check for view_bookings, view_invoices, or admin permission
+        if (userRole.permissions) {
+          hasViewAllAccess = userRole.permissions.some(permission => 
+            permission === 'view_bookings' || 
+            permission === 'bookings_view' ||
+            permission === 'view_invoices' || 
+            permission === 'invoices_view' ||
+            permission === 'admin' ||
+            permission === '*'
+          );
+        }
+        
+        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+      }
+    }
+
     const invoice = await Invoice.findById(req.params.id)
       .populate({
         path: 'bookingId',
@@ -791,9 +858,22 @@ export const getInvoice = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
+    // If user doesn't have view all access, check if the invoice belongs to them
+    if (!hasViewAllAccess && invoice.userId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        message: 'You do not have permission to view this invoice',
+        error: 'Access denied'
+      });
+    }
+
+    console.log(`[DEBUG] Successfully retrieved invoice ${req.params.id}`);
     res.json(invoice);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching invoice', error });
+    console.error('Error fetching invoice:', error);
+    res.status(500).json({ 
+      message: 'Error fetching invoice', 
+      error: (error as Error).message
+    });
   }
 };
 
@@ -801,6 +881,14 @@ export const downloadInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`[DEBUG] Invoice download requested for ID: ${id}`);
+    
+    // Check if user is authenticated
+    if (!req.user?._id) {
+      return res.status(401).json({
+        message: 'Authentication required',
+        error: 'No user found in request'
+      });
+    }
     
     // Get invoice and populate booking
     console.log(`[DEBUG] Looking up invoice ${id} in database`);
@@ -819,8 +907,36 @@ export const downloadInvoice = async (req: Request, res: Response) => {
     }
 
     console.log(`[DEBUG] Invoice ${id} found, checking permissions`);
-    // Check if user has permission to view this invoice
-    if (req.user?._id && req.user._id.toString() !== invoice.userId?.toString()) {
+    
+    // Check if user has permissions to view any invoice
+    let hasViewAllAccess = false;
+    
+    if (req.user) {
+      // Populate user with role to check permissions
+      const user = await User.findById(req.user._id).populate('role');
+      
+      if (user && user.role) {
+        // Type assertion to handle the populated role
+        const userRole = user.role as unknown as IRole;
+        
+        // Check for view_bookings, view_invoices, or admin permission
+        if (userRole.permissions) {
+          hasViewAllAccess = userRole.permissions.some(permission => 
+            permission === 'view_bookings' || 
+            permission === 'bookings_view' ||
+            permission === 'view_invoices' || 
+            permission === 'invoices_view' ||
+            permission === 'admin' ||
+            permission === '*'
+          );
+        }
+        
+        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+      }
+    }
+    
+    // If user doesn't have view all access, check if the invoice belongs to them
+    if (!hasViewAllAccess && invoice.userId?.toString() !== req.user._id.toString()) {
       console.log(`[ERROR] User ${req.user._id} doesn't have permission to view invoice ${id} (owned by ${invoice.userId})`);
       return res.status(403).json({ message: 'You do not have permission to view this invoice' });
     }

@@ -8,29 +8,32 @@ import {
   shareViaEmail,
   shareViaWhatsApp
 } from '../controllers/invoice.controller';
-import { authenticate } from '../middleware/auth';
+import { protect, authorize } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Get all invoices
-router.get('/', authenticate, getInvoices);
+// Apply authentication for all routes
+router.use(protect);
 
-// Get invoice by ID
-router.get('/:id', authenticate, getInvoice);
+// Get all invoices - requires view_invoices or view_bookings permission
+router.get('/', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), getInvoices);
 
-// Download invoice as PDF
-router.get('/:id/download', authenticate, downloadInvoice);
+// Get invoice by ID - requires view_invoices or view_bookings permission
+router.get('/:id', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), getInvoice);
 
-// Share invoice via email
-router.post('/:id/share/email', authenticate, shareViaEmail);
+// Download invoice - requires view_invoices or view_bookings permission
+router.get('/:id/download', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), downloadInvoice);
 
-// Share invoice via WhatsApp
-router.post('/:id/share/whatsapp', authenticate, shareViaWhatsApp);
+// Update invoice status - requires edit_invoices permission
+router.patch('/:id', authorize('edit_invoices', 'invoices_edit'), updateInvoiceStatus);
 
-// Update invoice status
-router.patch('/:id/status', authenticate, updateInvoiceStatus);
+// Share invoice via email - requires view_invoices or view_bookings permission
+router.post('/:id/share/email', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), shareViaEmail);
 
-// Get invoices by exhibition
-router.get('/exhibition/:exhibitionId', authenticate, getInvoicesByExhibition);
+// Share invoice via WhatsApp - requires view_invoices or view_bookings permission
+router.post('/:id/share/whatsapp', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), shareViaWhatsApp);
+
+// Get invoices by exhibition - requires view_invoices or view_bookings permission
+router.get('/exhibition/:exhibitionId', authorize('view_invoices', 'invoices_view', 'view_bookings', 'bookings_view'), getInvoicesByExhibition);
 
 export default router; 

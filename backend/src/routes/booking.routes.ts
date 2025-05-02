@@ -16,17 +16,17 @@ router.use(protect);
 
 router
   .route('/')
-  .get(getBookings)
-  .post(createBooking);
+  .get(authorize('view_bookings', 'bookings_view'), getBookings)
+  .post(authorize('bookings_create', 'create_booking'), createBooking);
 
 router
   .route('/:id')
-  .get(getBooking)
-  .patch(authorize('admin'), updateBookingStatus)
-  .delete(authorize('admin'), deleteBooking);
+  .get(authorize('view_bookings', 'bookings_view'), getBooking)
+  .patch(authorize('bookings_edit', 'edit_booking'), updateBookingStatus)
+  .delete(authorize('bookings_delete', 'delete_booking'), deleteBooking);
 
 router
   .route('/exhibition/:exhibitionId')
-  .get(authorize('admin'), getBookingsByExhibition);
+  .get(authorize('view_bookings', 'bookings_view'), getBookingsByExhibition);
 
 export default router; 
