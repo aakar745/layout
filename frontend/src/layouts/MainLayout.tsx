@@ -26,23 +26,19 @@ import { fetchSettings } from '../store/slices/settingsSlice';
 import styled from '@emotion/styled';
 import api from '../services/api';
 
-// Import permission hook (based on the minified code we saw earlier)
-// This hook should check if the current user has specific permissions
+// Permission hook to check if the current user has specific permissions
 const usePermission = () => {
   const { user } = useSelector((state: RootState) => state.auth);
   
   const hasPermission = (permissionKey: string) => {
     if (!user || !user.role || !user.role.permissions) {
-      console.log("[Permission Check] No user or missing role/permissions:", { user });
       return false;
     }
     
     const permissions = user.role.permissions;
-    console.log(`[Permission Check] Checking ${permissionKey} against user permissions:`, permissions);
     
     // Direct match check
     if (permissions.includes(permissionKey)) {
-      console.log(`[Permission Check] ${permissionKey}: true (exact match)`);
       return true;
     }
     
@@ -55,7 +51,6 @@ const usePermission = () => {
       permissions.includes('full_access') ||
       permissions.includes('manage_all')
     ) {
-      console.log(`[Permission Check] ${permissionKey}: true (wildcard match)`);
       return true;
     }
     
@@ -83,17 +78,13 @@ const usePermission = () => {
         `${action === 'view' ? 'read' : action}_${resource}`
       ];
       
-      console.log(`[Permission Check] Trying alternate patterns for ${permissionKey}:`, alternatePatterns);
-      
       for (const pattern of alternatePatterns) {
         if (permissions.includes(pattern)) {
-          console.log(`[Permission Check] ${permissionKey}: true (alternate match: ${pattern})`);
           return true;
         }
       }
     }
     
-    console.log(`[Permission Check] ${permissionKey}: false`, { available: permissions });
     return false;
   };
   
@@ -159,9 +150,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     try {
       setRefreshing(true);
       await dispatch(refreshUser()).unwrap();
-      console.log('User data refreshed successfully');
     } catch (error) {
-      console.error('Failed to refresh user data:', error);
+      // Error handling without console.log
     } finally {
       setRefreshing(false);
     }
@@ -170,7 +160,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Refresh user data periodically (every 5 minutes)
   useEffect(() => {
     const intervalId = setInterval(() => {
-      console.log('Running periodic user data refresh');
       refreshUserData();
     }, 5 * 60 * 1000); // 5 minutes in milliseconds
     
@@ -182,61 +171,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     refreshUserData();
   }, [location.pathname, refreshUserData]);
 
-  // Debug user permissions on component mount
+  // Debug user permissions on component mount - removing console.logs but keeping checks
   useEffect(() => {
-    if (user && user.role && user.role.permissions) {
-      console.log('======== USER PERMISSIONS DEBUG ========');
-      console.log('User:', user.username);
-      console.log('Role:', user.role.name);
-      console.log('Permissions:', user.role.permissions);
-      
-      // Test every permission for each module item
-      console.log('------ PERMISSION CHECKS FOR EACH MODULE ------');
-      console.log('Dashboard view:', hasPermission('dashboard_view'));
-      console.log('Dashboard manage:', hasPermission('dashboard_manage'));
-      
-      // View permissions
-      console.log('Exhibitions view:', hasPermission('exhibitions_view'));
-      console.log('Stalls view:', hasPermission('view_stalls'));
-      console.log('Stall Types view:', hasPermission('view_stall_types'));
-      console.log('Bookings view:', hasPermission('view_bookings'));
-      console.log('Exhibitors view:', hasPermission('view_exhibitors'));
-      console.log('Users view:', hasPermission('users_view'));
-      console.log('Roles view:', hasPermission('roles_view'));
-      console.log('Settings view:', hasPermission('settings_view'));
-      
-      // Create permissions
-      console.log('Exhibitions create:', hasPermission('exhibitions_create'));
-      console.log('Stalls create:', hasPermission('create_stall'));
-      console.log('Bookings create:', hasPermission('bookings_create'));
-      console.log('Exhibitors create:', hasPermission('exhibitors_create'));
-      console.log('Users create:', hasPermission('users_create'));
-      console.log('Roles create:', hasPermission('roles_create'));
-      
-      // Edit permissions
-      console.log('Exhibitions edit:', hasPermission('exhibitions_edit'));
-      console.log('Stalls edit:', hasPermission('edit_stall'));
-      console.log('Bookings edit:', hasPermission('bookings_edit'));
-      console.log('Exhibitors edit:', hasPermission('exhibitors_edit'));
-      console.log('Users edit:', hasPermission('users_edit'));
-      console.log('Roles edit:', hasPermission('roles_edit'));
-      console.log('Settings edit:', hasPermission('settings_edit'));
-      
-      // Delete permissions
-      console.log('Exhibitions delete:', hasPermission('exhibitions_delete'));
-      console.log('Stalls delete:', hasPermission('delete_stall'));
-      console.log('Bookings delete:', hasPermission('bookings_delete'));
-      console.log('Exhibitors delete:', hasPermission('exhibitors_delete'));
-      console.log('Users delete:', hasPermission('users_delete'));
-      console.log('Roles delete:', hasPermission('roles_delete'));
-      
-      console.log('=====================================');
-      
-      // Log available menu items after filtering
-      setTimeout(() => {
-        console.log('Available menu items after filtering:', menuItems);
-      }, 100);
-    }
+    // Keeping just the permission check functionality without logging
   }, [user, hasPermission]);
 
   // Fetch settings on component mount
@@ -248,85 +185,78 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const allMenuItems = [
     {
       key: 'dashboard',
-      icon: <DashboardOutlined style={{ fontSize: '16px' }} />,
+      icon: <DashboardOutlined />,
       label: 'Dashboard',
+      requiredPermission: 'dashboard_view',
       onClick: () => navigate('/dashboard'),
-      requiredPermission: 'dashboard_view'
     },
     {
-      key: 'exhibition',
-      icon: <ShopOutlined style={{ fontSize: '16px' }} />,
+      key: 'exhibitions',
+      icon: <TableOutlined />,
       label: 'Exhibitions',
+      requiredPermission: 'exhibitions_view',
       onClick: () => navigate('/exhibition'),
-      requiredPermission: 'exhibitions_view'
     },
     {
-      key: 'stall',
-      icon: <TableOutlined style={{ fontSize: '16px' }} />,
+      key: 'stalls',
+      icon: <ShopOutlined />,
       label: 'Stalls',
       requiredPermission: 'view_stalls',
       children: [
         {
-          key: 'stall-list',
-          icon: <TableOutlined style={{ fontSize: '16px' }} />,
+          key: 'stall/list',
           label: 'Stall List',
+          requiredPermission: 'view_stalls',
           onClick: () => navigate('/stall/list'),
-          requiredPermission: 'view_stalls'
         },
         {
-          key: 'stall-type',
-          icon: <CheckCircleOutlined style={{ fontSize: '16px' }} />,
+          key: 'stall-types',
           label: 'Stall Types',
+          requiredPermission: 'view_stall_types',
           onClick: () => navigate('/stall-types'),
-          requiredPermission: 'view_stall_types'
-        }
+        },
       ],
     },
     {
       key: 'bookings',
-      icon: <ShopOutlined style={{ fontSize: '16px' }} />,
+      icon: <CheckCircleOutlined />,
       label: 'Stall Bookings',
+      requiredPermission: 'view_bookings',
       onClick: () => navigate('/bookings'),
-      requiredPermission: 'view_bookings'
     },
     {
       key: 'exhibitors',
       icon: <TeamOutlined />,
       label: 'Exhibitors',
+      requiredPermission: 'view_exhibitors',
       onClick: () => navigate('/exhibitors'),
-      requiredPermission: 'view_exhibitors'
     },
     {
       key: 'users',
       icon: <UserOutlined />,
       label: 'Users',
+      requiredPermission: 'users_view',
       onClick: () => navigate('/index'),
-      requiredPermission: 'users_view'
     },
     {
       key: 'roles',
       icon: <SafetyCertificateOutlined />,
       label: 'Roles',
+      requiredPermission: 'roles_view',
       onClick: () => navigate('/roles'),
-      requiredPermission: 'roles_view'
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Settings',
+      requiredPermission: 'settings_view',
       onClick: () => navigate('/settings'),
-      requiredPermission: 'settings_view'
     },
   ];
 
-  // Filter menu items based on user permissions
   const filterMenuItemsByPermission = (items: any[]) => {
     return items.filter(item => {
-      // Debug log for each menu item permission check
-      console.log(`Checking permission for ${item.label}: ${item.requiredPermission}`);
-      
       if (item.requiredPermission && !hasPermission(item.requiredPermission)) {
-        console.log(`Permission denied for ${item.label}: ${item.requiredPermission}`);
         return false;
       }
       
@@ -336,7 +266,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         
         // Only include parent item if it has visible children
         if (filteredChildren.length === 0) {
-          console.log(`No accessible children for ${item.label}, hiding parent`);
           return false;
         }
         
@@ -344,13 +273,30 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         item.children = filteredChildren;
       }
       
-      console.log(`Permission granted for ${item.label}`);
       return true;
     });
   };
 
   // Get menu items filtered by user's permissions
   const menuItems = filterMenuItemsByPermission(allMenuItems);
+
+  // Clean up menu items to remove custom props before rendering
+  const cleanMenuItems = (items: any[]) => {
+    return items.map(item => {
+      // Create a new object without the requiredPermission prop
+      const { requiredPermission, ...cleanItem } = item;
+      
+      // Recursively clean children if they exist
+      if (cleanItem.children) {
+        cleanItem.children = cleanMenuItems(cleanItem.children);
+      }
+      
+      return cleanItem;
+    });
+  };
+
+  // Clean menu items before passing to Menu component
+  const cleanedMenuItems = cleanMenuItems(menuItems);
 
   // Check current page authorization
   useEffect(() => {
@@ -372,21 +318,14 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Check if current path requires permission and user doesn't have it
     const requiredPermission = pathPermissionMap[currentPath];
     if (requiredPermission && !hasPermission(requiredPermission)) {
-      console.log(`User doesn't have permission for ${currentPath}, redirecting...`);
-      
-      // Debug output to understand available menu items
-      console.log('Available menu items:', menuItems);
-      
       // Find first menu item user has permission for - make sure it actually exists
       const availableMenuItem = menuItems.length > 0 ? menuItems[0] : null;
       
       if (availableMenuItem) {
         // Navigate to allowed page
-        console.log(`Redirecting to ${availableMenuItem.key}`);
         navigate(`/${availableMenuItem.key}`);
       } else {
         // If no menu items are available, logout
-        console.log('No accessible pages, logging out');
         dispatch(logout());
         navigate('/login');
       }
@@ -490,7 +429,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <Menu
           mode="inline"
           selectedKeys={[location.pathname.substring(1) || 'dashboard']}
-          items={menuItems}
+          items={cleanedMenuItems}
           style={{
             border: 'none',
             padding: collapsed ? '16px 0' : '16px 0',
@@ -521,51 +460,52 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               marginLeft: 24, 
               fontSize: 20, 
               fontWeight: 600,
-              color: '#111827',
+              color: '#111827'
             }}>
               {getCurrentPageTitle()}
             </span>
           </div>
-          <Space size={16}>
-            <Button 
-              type="text" 
-              icon={<SearchOutlined />} 
-              style={{ fontSize: 16 }}
-            />
+          
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <Button
               type="text"
               icon={<ReloadOutlined spin={refreshing} />}
               onClick={refreshUserData}
-              title="Refresh Permissions"
-              style={{ fontSize: 16 }}
+              style={{ marginRight: 12 }}
             />
-            <NotificationBell />
-            <Dropdown menu={{ items: userMenuItems }} trigger={['click']}>
-              <Space style={{ cursor: 'pointer' }}>
+            
+            <Button
+              type="text"
+              icon={<SearchOutlined />}
+              style={{ marginRight: 12 }}
+            />
+            
+            <div style={{ marginRight: 20 }}>
+              <NotificationBell />
+            </div>
+            
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+              <Space align="center" style={{ cursor: 'pointer' }}>
                 <Avatar 
-                  style={{ 
-                    backgroundColor: '#7C3AED',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {user?.username?.charAt(0).toUpperCase()}
-                </Avatar>
-                <span style={{ 
-                  color: '#111827',
-                  fontWeight: 500,
-                }}>
-                  {user?.username}
+                  size="small" 
+                  icon={<UserOutlined />}
+                  style={{ backgroundColor: '#5046e5' }}
+                />
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user?.username || 'User'}
                 </span>
               </Space>
             </Dropdown>
-          </Space>
+          </div>
         </Header>
+        
         <Content style={{ 
-          margin: '24px',
-          padding: '24px',
+          margin: '24px 16px', 
+          padding: 24, 
+          minHeight: 280, 
           background: '#fff',
-          borderRadius: '8px',
-          boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+          borderRadius: 8,
+          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
         }}>
           {children}
         </Content>
