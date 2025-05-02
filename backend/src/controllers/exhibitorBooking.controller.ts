@@ -206,7 +206,14 @@ export const getExhibitorBookings = async (req: Request, res: Response) => {
     const bookings = await Booking.find({ exhibitorId })
       .sort({ createdAt: -1 })
       .populate('exhibitionId', 'name venue startDate endDate')
-      .populate('stallIds', 'number dimensions ratePerSqm status');
+      .populate({
+        path: 'stallIds', 
+        select: 'number dimensions ratePerSqm status stallTypeId',
+        populate: {
+          path: 'stallTypeId',
+          select: 'name description'
+        }
+      });
     
     res.json(bookings);
   } catch (error) {
@@ -230,7 +237,14 @@ export const getExhibitorBooking = async (req: Request, res: Response) => {
       exhibitorId
     })
       .populate('exhibitionId', 'name venue startDate endDate invoicePrefix companyName companyAddress')
-      .populate('stallIds', 'number dimensions ratePerSqm status');
+      .populate({
+        path: 'stallIds', 
+        select: 'number dimensions ratePerSqm status stallTypeId',
+        populate: {
+          path: 'stallTypeId',
+          select: 'name description'
+        }
+      });
     
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found or not authorized to access' });

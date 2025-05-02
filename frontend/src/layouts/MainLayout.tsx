@@ -371,12 +371,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/settings'),
     },
     {
-      key: 'refresh',
-      label: 'Refresh Permissions',
-      icon: <ReloadOutlined />,
-      onClick: refreshUserData,
-    },
-    {
       key: 'divider',
       type: 'divider',
     },
@@ -467,19 +461,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <Button
-              type="text"
-              icon={<ReloadOutlined spin={refreshing} />}
-              onClick={refreshUserData}
-              style={{ marginRight: 12 }}
-            />
-            
-            <Button
-              type="text"
-              icon={<SearchOutlined />}
-              style={{ marginRight: 12 }}
-            />
-            
             <div style={{ marginRight: 20 }}>
               <NotificationBell />
             </div>
