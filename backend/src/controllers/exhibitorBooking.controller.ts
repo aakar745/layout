@@ -9,6 +9,8 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
 import mongoose from 'mongoose';
+import { createNotification } from './notification.controller';
+import { NotificationType, NotificationPriority } from '../models/notification.model';
 
 /**
  * Creates a new booking from an exhibitor with pending status
@@ -184,6 +186,37 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       { _id: { $in: stallIds } },
       { status: 'reserved' }
     );
+
+    // Send notification to admin about new exhibitor booking
+    try {
+      // If there's a creator/owner for the exhibition, notify them
+      if (exhibition.createdBy) {
+        await createNotification(
+          exhibition.createdBy,
+          'admin',
+          'New Exhibitor Booking Created',
+          `A new booking request has been created for exhibition "${exhibition.name}" by exhibitor ${exhibitor.companyName}.`,
+          NotificationType.NEW_BOOKING,
+          {
+            priority: NotificationPriority.HIGH,
+            entityId: booking._id,
+            entityType: 'Booking',
+            data: {
+              exhibitionName: exhibition.name,
+              stallCount: stallIds.length,
+              stallNumbers: stallCalculations.map(s => s.number).join(', '),
+              amount: finalAmount,
+              bookingId: booking._id.toString(),
+              exhibitorName: exhibitor.companyName,
+              bookingSource: 'exhibitor'
+            }
+          }
+        );
+      }
+    } catch (notificationError) {
+      console.error('Error sending notification for exhibitor booking:', notificationError);
+      // Continue even if notification fails
+    }
 
     res.status(201).json(booking);
   } catch (error) {

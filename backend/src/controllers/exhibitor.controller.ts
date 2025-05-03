@@ -7,6 +7,9 @@ import { join } from 'path';
 import { existsSync, unlinkSync } from 'fs';
 import crypto from 'crypto';
 import { getEmailTransporter, emailConfig } from '../config/email.config';
+import User from '../models/user.model';
+import { createNotification } from './notification.controller';
+import { NotificationType, NotificationPriority } from '../models/notification.model';
 
 // Cache directory for PDFs - must match the one in invoice.controller.ts
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -309,6 +312,41 @@ export const register = async (req: Request, res: Response) => {
       isActive: exhibitor.isActive,
       createdAt: exhibitor.createdAt
     };
+
+    // Send notification to all admin users about the new exhibitor registration
+    try {
+      // Find all admin users
+      const adminUsers = await User.find({ isActive: true });
+      
+      if (adminUsers && adminUsers.length > 0) {
+        // Notify each admin
+        for (const admin of adminUsers) {
+          await createNotification(
+            admin._id,
+            'admin',
+            'New Exhibitor Registration',
+            `A new exhibitor "${companyName}" has registered and is pending approval.`,
+            NotificationType.EXHIBITOR_REGISTERED,
+            {
+              priority: NotificationPriority.HIGH,
+              entityId: exhibitor._id,
+              entityType: 'Exhibitor',
+              data: {
+                exhibitorId: exhibitor._id.toString(),
+                companyName: exhibitor.companyName,
+                contactPerson: exhibitor.contactPerson,
+                email: exhibitor.email,
+                phone: exhibitor.phone,
+                registeredAt: exhibitor.createdAt
+              }
+            }
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error sending exhibitor registration notification:', notificationError);
+      // Continue even if notification fails
+    }
 
     res.status(201).json({
       exhibitor: exhibitorResponse,

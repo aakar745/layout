@@ -72,7 +72,7 @@ export const isRecentNotification = (notification: Notification): boolean => {
  * Get the count of unread notifications
  */
 export const getUnreadCount = (notifications: Notification[]): number => {
-  return notifications.filter(n => n.status === NotificationStatus.UNREAD).length;
+  return notifications.filter(n => n.isRead === false).length;
 };
 
 /**
@@ -88,6 +88,14 @@ export const getNotificationRoute = (notification: Notification): string => {
       return `/leads/${notification.entityId}`;
     case 'followup':
       return `/followups/${notification.entityId}`;
+    case 'Booking':
+      return `/bookings`; // Main bookings page which shows all bookings in StallBookingManager
+    case 'Invoice':
+      return `/invoice/${notification.entityId}`;
+    case 'Exhibition':
+      return `/exhibition/${notification.entityId}`;
+    case 'Exhibitor':
+      return `/exhibitors?id=${notification.entityId}`;
     default:
       return '/notifications';
   }

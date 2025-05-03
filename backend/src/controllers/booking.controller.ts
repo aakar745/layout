@@ -3,6 +3,8 @@ import Booking from '../models/booking.model';
 import Stall from '../models/stall.model';
 import Invoice from '../models/invoice.model';
 import Exhibition from '../models/exhibition.model';
+import { createNotification } from './notification.controller';
+import { NotificationType, NotificationPriority } from '../models/notification.model';
 
 /**
  * Interface defining the structure of a discount configuration
@@ -184,10 +186,10 @@ export const createBooking = async (req: Request, res: Response) => {
       }
     });
 
-    // Update stall status to sold
+    // Update stall status to booked
     await Stall.updateMany(
       { _id: { $in: stallIds } },
-      { status: 'sold' }
+      { status: 'booked' }
     );
 
     // Generate invoice number
@@ -227,6 +229,54 @@ export const createBooking = async (req: Request, res: Response) => {
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       });
       console.log(`[INFO] Invoice ${invoice._id} created successfully for booking ${booking._id}`);
+      
+      // Send notification to admin about new booking
+      try {
+        // If there's a creator/owner for the exhibition, notify them
+        if (exhibition.createdBy) {
+          await createNotification(
+            exhibition.createdBy,
+            'admin',
+            'New Booking Created',
+            `A new booking has been created for exhibition "${exhibition.name}" by ${companyName || customerName}.`,
+            NotificationType.NEW_BOOKING,
+            {
+              priority: NotificationPriority.HIGH,
+              entityId: booking._id,
+              entityType: 'Booking',
+              data: {
+                exhibitionName: exhibition.name,
+                stallCount: stallIds.length,
+                stallNumbers: stallCalculations.map(s => s.number).join(', '),
+                amount: finalAmount,
+                bookingId: booking._id.toString()
+              }
+            }
+          );
+        }
+        
+        // Also send invoice notification
+        await createNotification(
+          req.user?.id,
+          'admin',
+          'Invoice Generated',
+          `Invoice #${invoiceNumber} has been generated for booking #${booking._id}.`,
+          NotificationType.INVOICE_GENERATED,
+          {
+            priority: NotificationPriority.MEDIUM,
+            entityId: invoice._id,
+            entityType: 'Invoice',
+            data: {
+              invoiceNumber,
+              bookingId: booking._id.toString(),
+              amount: finalAmount
+            }
+          }
+        );
+      } catch (notificationError) {
+        console.error('Error sending notification:', notificationError);
+        // Continue even if notification fails
+      }
       
       // Include the invoice ID in response for immediate access
       const bookingWithInvoice = await Booking.findById(booking._id)
@@ -297,7 +347,8 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
   try {
     const { status, rejectionReason } = req.body;
     const booking = await Booking.findById(req.params.id)
-      .populate('exhibitionId');
+      .populate('exhibitionId')
+      .populate('exhibitorId');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
@@ -313,6 +364,9 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
     if (status === 'rejected' && !rejectionReason) {
       return res.status(400).json({ message: 'Rejection reason is required when rejecting a booking' });
     }
+
+    // Save old status for comparison
+    const oldStatus = booking.status;
 
     // Update booking status and rejection reason if applicable
     booking.status = status;
@@ -364,7 +418,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
           const invoiceNumber = `${prefix}/${year}/${sequence}`;
           
           // Create invoice with proper data
-          await Invoice.create({
+          const invoice = await Invoice.create({
             bookingId: booking._id,
             userId: userId,
             status: 'pending',
@@ -384,6 +438,57 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
           });
           
           console.log(`Invoice created successfully for booking ${booking._id}`);
+
+          // Notify exhibitor about booking approval and invoice
+          if (booking.exhibitorId) {
+            try {
+              // Get exhibition name safely
+              const exhibitionName = booking.exhibitionId ? 
+                (booking.exhibitionId as any).name || 'your exhibition' : 
+                'your exhibition';
+                
+              // Send booking status change notification
+              await createNotification(
+                booking.exhibitorId,
+                'exhibitor',
+                'Booking Approved',
+                `Your booking request for "${exhibitionName}" has been approved.`,
+                NotificationType.BOOKING_CONFIRMED,
+                {
+                  priority: NotificationPriority.HIGH,
+                  entityId: booking._id,
+                  entityType: 'Booking',
+                  data: {
+                    exhibitionName,
+                    bookingId: booking._id.toString(),
+                    amount: booking.amount
+                  }
+                }
+              );
+
+              // Send invoice notification
+              await createNotification(
+                booking.exhibitorId,
+                'exhibitor',
+                'Invoice Generated',
+                `Invoice #${invoiceNumber} has been generated for your booking.`,
+                NotificationType.INVOICE_GENERATED,
+                {
+                  priority: NotificationPriority.MEDIUM,
+                  entityId: invoice._id,
+                  entityType: 'Invoice',
+                  data: {
+                    invoiceNumber,
+                    bookingId: booking._id.toString(),
+                    amount: booking.amount
+                  }
+                }
+              );
+            } catch (notificationError) {
+              console.error('Error sending notification to exhibitor:', notificationError);
+              // Continue even if notification fails
+            }
+          }
         }
       }
     } else if (status === 'cancelled' || status === 'rejected') {
@@ -398,6 +503,37 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
           { bookingId: booking._id },
           { status: 'cancelled' }
         );
+      }
+
+      // If the booking was rejected and has an exhibitor ID, notify the exhibitor
+      if (status === 'rejected' && booking.exhibitorId && oldStatus !== 'rejected') {
+        try {
+          // Get exhibition name safely
+          const exhibitionName = booking.exhibitionId ? 
+            (booking.exhibitionId as any).name || 'your exhibition' : 
+            'your exhibition';
+            
+          await createNotification(
+            booking.exhibitorId,
+            'exhibitor',
+            'Booking Rejected',
+            `Your booking request for "${exhibitionName}" has been rejected. Reason: ${rejectionReason}`,
+            NotificationType.BOOKING_CANCELLED,
+            {
+              priority: NotificationPriority.HIGH,
+              entityId: booking._id,
+              entityType: 'Booking',
+              data: {
+                exhibitionName,
+                bookingId: booking._id.toString(),
+                rejectionReason
+              }
+            }
+          );
+        } catch (notificationError) {
+          console.error('Error sending rejection notification to exhibitor:', notificationError);
+          // Continue even if notification fails
+        }
       }
     }
 

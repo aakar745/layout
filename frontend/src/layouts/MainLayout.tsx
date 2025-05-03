@@ -462,7 +462,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{ marginRight: 20 }}>
-              <NotificationBell />
+              <NotificationBell isExhibitor={false} />
             </div>
             
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">

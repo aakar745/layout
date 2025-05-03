@@ -4,6 +4,15 @@ export enum NotificationType {
   FOLLOWUP_DUE = 'Follow-up Due',
   STATUS_CHANGE = 'Status Changed',
   ASSIGNMENT = 'Lead Assigned',
+  NEW_BOOKING = 'NEW_BOOKING',
+  BOOKING_CONFIRMED = 'BOOKING_CONFIRMED',
+  BOOKING_CANCELLED = 'BOOKING_CANCELLED',
+  PAYMENT_RECEIVED = 'PAYMENT_RECEIVED',
+  INVOICE_GENERATED = 'INVOICE_GENERATED',
+  EXHIBITION_UPDATE = 'EXHIBITION_UPDATE',
+  SYSTEM_MESSAGE = 'SYSTEM_MESSAGE',
+  EXHIBITOR_MESSAGE = 'EXHIBITOR_MESSAGE',
+  EXHIBITOR_REGISTERED = 'EXHIBITOR_REGISTERED'
 }
 
 // Notification source enum
@@ -16,9 +25,9 @@ export enum NotificationSource {
 
 // Notification priority enum
 export enum NotificationPriority {
-  HIGH = 'High',
-  MEDIUM = 'Medium',
-  LOW = 'Low',
+  HIGH = 'HIGH',
+  MEDIUM = 'MEDIUM',
+  LOW = 'LOW',
 }
 
 // Notification read status
@@ -27,20 +36,27 @@ export enum NotificationStatus {
   UNREAD = 'Unread',
 }
 
-// Notification interface
+// Notification interface matching the API service
 export interface Notification {
-  id: string;
-  userId: string;
-  type: NotificationType;
+  _id: string;
+  recipient: string;
+  recipientType: 'admin' | 'exhibitor';
   title: string;
   message: string;
-  source?: NotificationSource;
+  type: NotificationType;
   priority: NotificationPriority;
-  status: NotificationStatus;
-  entityId?: string; // ID of related entity (lead, followup, etc.)
-  entityType?: string; // Type of related entity (lead, followup, etc.)
-  createdAt: string;
+  isRead: boolean;
   readAt?: string;
+  entityId?: string;
+  entityType?: string;
+  data?: any;
+  createdAt: string;
+  updatedAt: string;
+  // Support for legacy mock properties
+  id?: string;
+  userId?: string;
+  status?: NotificationStatus;
+  source?: NotificationSource;
 }
 
 // Email notification settings

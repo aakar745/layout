@@ -5,103 +5,229 @@ import {
   CheckOutlined, 
   SettingOutlined, 
   CloseCircleOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 
-// Import from notifications module
-import { getNotifications } from '../../notifications/mockData';
-import { Notification, NotificationStatus } from '../../notifications/types';
-import { getUnreadCount } from '../../../utils/notificationUtil';
+// Import notification service for real-time updates
+import notificationService, { Notification as NotificationData } from '../../../services/notification';
+import { NotificationStatus, NotificationType, NotificationPriority, Notification } from '../../notifications/types';
 import NotificationItem from './NotificationItem';
 
 // Import styles
 import './NotificationBell.css';
+import { RootState } from '../../../store/store';
 
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
 
-const NotificationBell: React.FC = () => {
+// Map service notification types to UI notification types
+const mapNotificationType = (type: string): NotificationType => {
+  switch (type) {
+    case 'NEW_BOOKING':
+      return NotificationType.NEW_LEAD;
+    case 'BOOKING_CONFIRMED':
+    case 'INVOICE_GENERATED':
+    case 'PAYMENT_RECEIVED':
+      return NotificationType.STATUS_CHANGE;
+    case 'EXHIBITOR_MESSAGE':
+      return NotificationType.FOLLOWUP_DUE;
+    case 'EXHIBITOR_REGISTERED':
+      return NotificationType.NEW_LEAD;  // Use NEW_LEAD icon for exhibitor registration
+    default:
+      return NotificationType.STATUS_CHANGE;
+  }
+};
+
+// Map service notification priorities to UI priorities
+const mapNotificationPriority = (priority: string): NotificationPriority => {
+  switch (priority) {
+    case 'HIGH':
+      return NotificationPriority.HIGH;
+    case 'MEDIUM':
+      return NotificationPriority.MEDIUM;
+    case 'LOW':
+      return NotificationPriority.LOW;
+    default:
+      return NotificationPriority.MEDIUM;
+  }
+};
+
+interface NotificationBellProps {
+  isExhibitor?: boolean;
+}
+
+const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false }) => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(false);
   const [visible, setVisible] = useState(false);
-  const [hasNewNotifications, setHasNewNotifications] = useState(false);
-  const [activeTab, setActiveTab] = useState('all');
+  const [unreadCount, setUnreadCount] = useState(0);
   const [hasNewAnimation, setHasNewAnimation] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
   const bellRef = useRef<HTMLDivElement>(null);
   
-  useEffect(() => {
-    fetchNotifications();
-    
-    // Simulate receiving new notifications periodically (for demo purposes)
-    const interval = setInterval(() => {
-      // Random chance to trigger new notification (25% chance)
-      if (Math.random() < 0.25 && !visible) {
-        setHasNewNotifications(true);
-        // Trigger the animation
-        setHasNewAnimation(true);
-        setTimeout(() => {
-          setHasNewAnimation(false);
-        }, 2000);
-      }
-    }, 30000); // Every 30 seconds
-    
-    return () => clearInterval(interval);
-  }, [visible]);
+  // Get authentication state
+  const { isAuthenticated: adminAuth, user } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated: exhibitorAuth } = useSelector((state: RootState) => state.exhibitorAuth || { isAuthenticated: false });
+  const isAuthenticated = isExhibitor ? exhibitorAuth : adminAuth;
   
-  const fetchNotifications = () => {
-    setLoading(true);
+  // Add socket status management
+  const [socketConnected, setSocketConnected] = useState(false);
+  
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Initialize notification service with the correct token
+      const tokenKey = isExhibitor ? 'exhibitor_token' : 'token';
+      const token = localStorage.getItem(tokenKey);
+      
+      if (token) {
+        notificationService.init(token, isExhibitor);
+        notificationService.subscribeToNotifications();
+        
+        // Setup event listeners for real-time notifications
+        const unreadCountHandler = (count: number) => {
+          setUnreadCount(count);
+          if (count > 0 && !visible) {
+            setHasNewAnimation(true);
+            setTimeout(() => {
+              setHasNewAnimation(false);
+            }, 2000);
+          }
+        };
+        
+        const notificationHandler = (notification: NotificationData) => {
+          setNotifications(prev => [notification, ...prev]);
+        };
+        
+        const connectedHandler = () => {
+          setSocketConnected(true);
+          // Refresh notifications when socket connects
+          fetchNotifications();
+        };
+        
+        const disconnectedHandler = () => {
+          setSocketConnected(false);
+        };
+        
+        notificationService.addEventListener('unreadCount', unreadCountHandler);
+        notificationService.addEventListener('notification', notificationHandler);
+        notificationService.addEventListener('connected', connectedHandler);
+        notificationService.addEventListener('disconnected', disconnectedHandler);
+        
+        // Fetch initial notifications
+        fetchNotifications();
+        
+        return () => {
+          // Clean up listeners
+          notificationService.removeEventListener('unreadCount', unreadCountHandler);
+          notificationService.removeEventListener('notification', notificationHandler);
+          notificationService.removeEventListener('connected', connectedHandler);
+          notificationService.removeEventListener('disconnected', disconnectedHandler);
+          notificationService.unsubscribeFromNotifications();
+        };
+      } else {
+        console.error(`No ${isExhibitor ? 'exhibitor' : 'admin'} token found in localStorage`);
+      }
+    }
+  }, [isAuthenticated, isExhibitor]);
+  
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) return;
     
-    // In a real app, this would be an API call
-    setTimeout(() => {
-      const allNotifications = getNotifications();
-      setNotifications(allNotifications);
+    setLoading(true);
+    try {
+      const response = await notificationService.getNotifications(1, 10);
+      if (response.success) {
+        setNotifications(response.data.notifications);
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
       setLoading(false);
-      setHasNewNotifications(allNotifications.some(n => n.status === NotificationStatus.UNREAD));
-    }, 600);
+    }
   };
   
   const handleVisibleChange = (flag: boolean) => {
     setVisible(flag);
     if (flag) {
-      setHasNewNotifications(false);
       if (bellRef.current) {
         bellRef.current.classList.remove('bell-animate');
       }
+      // Refresh notifications when opening dropdown
+      fetchNotifications();
     }
   };
   
-  const handleViewNotification = (notification: Notification) => {
-    // Mark as read
-    handleMarkAsRead(notification);
+  const handleViewNotification = async (notification: NotificationData) => {
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      await handleMarkAsRead(notification);
+    }
+    
     setVisible(false);
     
-    // Navigate to related entity or notifications page
+    // Navigate based on notification type and entity
     if (notification.entityId && notification.entityType) {
-      if (notification.entityType === 'lead') {
-        navigate(`/leads/${notification.entityId}`);
-      } else if (notification.entityType === 'followup') {
-        navigate(`/followups/${notification.entityId}`);
+      let url = '';
+      
+      switch (notification.entityType) {
+        case 'Booking':
+          url = isExhibitor 
+            ? `/exhibitor/bookings/${notification.entityId}` 
+            : `/bookings`; // Main bookings page for admin users
+          break;
+        case 'Invoice':
+          url = isExhibitor 
+            ? `/exhibitor/invoice/${notification.entityId}` 
+            : `/invoice/${notification.entityId}`;
+          break;
+        case 'Exhibition':
+          url = `/exhibition/${notification.entityId}`;
+          break;
+        case 'Exhibitor':
+          url = `/exhibitors?id=${notification.entityId}`;
+          break;
+        default:
+          url = '';
+      }
+      
+      if (url) {
+        navigate(url);
+      } else {
+        navigate('/notifications');
       }
     } else {
       navigate('/notifications');
     }
   };
   
-  const handleMarkAsRead = (notification: Notification) => {
-    // In a real app, this would be an API call
-    const updatedNotifications = notifications.map(n => {
-      if (n.id === notification.id) {
-        return {
-          ...n,
-          status: NotificationStatus.READ,
-          readAt: new Date().toISOString(),
-        };
+  const handleMarkAsRead = async (notification: NotificationData) => {
+    try {
+      await notificationService.markAsRead(notification._id);
+      // Update local notification state
+      setNotifications(notifications.map(n => 
+        n._id === notification._id ? { ...n, isRead: true } : n
+      ));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+  
+  const handleDeleteNotification = async (notification: Notification) => {
+    try {
+      await notificationService.deleteNotification(notification._id);
+      // Update local notification state
+      setNotifications(notifications.filter(n => n._id !== notification._id));
+      if (!notification.isRead) {
+        // Update unread count if the deleted notification was unread
+        setUnreadCount(prev => Math.max(0, prev - 1));
       }
-      return n;
-    });
-    setNotifications(updatedNotifications);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
   
   const handleViewAll = () => {
@@ -109,33 +235,62 @@ const NotificationBell: React.FC = () => {
     navigate('/notifications');
   };
   
-  const handleMarkAllAsRead = () => {
-    // In a real app, this would be an API call
-    const updatedNotifications = notifications.map(n => {
-      if (n.status === NotificationStatus.UNREAD) {
-        return {
-          ...n,
-          status: NotificationStatus.READ,
-          readAt: new Date().toISOString(),
-        };
-      }
-      return n;
-    });
-    setNotifications(updatedNotifications);
-    setHasNewNotifications(false);
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      // Update local notification state
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+  
+  const handleDeleteAllNotifications = async () => {
+    try {
+      await notificationService.deleteAllNotifications();
+      // Clear all notifications from local state
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    }
   };
   
   const getFilteredNotifications = () => {
     if (activeTab === 'unread') {
-      return notifications.filter(n => n.status === NotificationStatus.UNREAD);
+      return notifications.filter(n => !n.isRead);
     } else {
-      return notifications.slice(0, 5); // Only show 5 most recent notifications
+      return notifications.slice(0, 10); // Show first 10 notifications
     }
   };
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
   };
+  
+  // Convert service notification to UI notification format
+  const convertToUINotification = (notification: NotificationData): Notification => ({
+    _id: notification._id,
+    recipient: notification.recipient,
+    recipientType: notification.recipientType || 'admin',
+    title: notification.title,
+    message: notification.message,
+    type: mapNotificationType(notification.type),
+    priority: mapNotificationPriority(notification.priority),
+    isRead: notification.isRead,
+    readAt: notification.readAt,
+    entityId: notification.entityId,
+    entityType: notification.entityType,
+    data: notification.data,
+    createdAt: notification.createdAt,
+    updatedAt: notification.updatedAt || notification.createdAt,
+    // Legacy properties
+    id: notification._id,
+    userId: notification.recipient,
+    source: notification.data?.source,
+    status: notification.isRead ? NotificationStatus.READ : NotificationStatus.UNREAD
+  });
   
   const dropdownContent = (
     <div className="notification-dropdown">
@@ -156,9 +311,19 @@ const NotificationBell: React.FC = () => {
             size="small"
             icon={<CheckOutlined />}
             onClick={handleMarkAllAsRead}
-            disabled={getUnreadCount(notifications) === 0}
+            disabled={unreadCount === 0}
             className="header-btn"
             title="Mark all as read"
+          />
+          <Button 
+            type="text" 
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleDeleteAllNotifications}
+            disabled={notifications.length === 0}
+            className="header-btn"
+            title="Clear all notifications"
           />
           <Button 
             type="text" 
@@ -166,7 +331,7 @@ const NotificationBell: React.FC = () => {
             icon={<SettingOutlined />}
             onClick={() => navigate('/notifications')}
             className="header-btn"
-            title="Settings"
+            title="Notification Settings"
           />
           <Button 
             type="text" 
@@ -178,115 +343,92 @@ const NotificationBell: React.FC = () => {
           />
         </Space>
       </div>
-      
+
       <Tabs 
         activeKey={activeTab}
         onChange={handleTabChange}
         size="small"
         className="notification-tabs"
-      >
-        <TabPane 
-          tab={<span>All</span>} 
-          key="all" 
-        />
-        <TabPane 
-          tab={
-            <span className="tab-label">
-              Unread
-              <Badge 
-                count={getUnreadCount(notifications)} 
-                size="small" 
-                offset={[5, -3]}
-                style={{ backgroundColor: '#1677ff' }}
-              />
-            </span>
-          } 
-          key="unread" 
-        />
-      </Tabs>
+        items={[
+          {
+            key: 'all',
+            label: <span>All</span>
+          },
+          {
+            key: 'unread',
+            label: (
+              <span className="tab-label">
+                Unread
+                <Badge 
+                  count={unreadCount} 
+                  size="small" 
+                  offset={[5, -3]}
+                  style={{ backgroundColor: '#1677ff' }}
+                />
+              </span>
+            )
+          }
+        ]}
+      />
       
-      {loading ? (
-        <div className="notification-loading">
-          <Spin size="large" />
-          <Text type="secondary">Loading notifications...</Text>
-        </div>
-      ) : (
-        <div style={{ backgroundColor: 'white' }}>
-          <List
-            className="notification-list"
-            dataSource={getFilteredNotifications()}
-            renderItem={(item) => (
-              <div 
-                onClick={() => handleViewNotification(item)} 
-                className="notification-item"
-              >
-                <NotificationItem
-                  notification={item}
-                  onView={handleViewNotification}
-                  onMarkAsRead={handleMarkAsRead}
+      <div className="notification-list">
+        <Spin spinning={loading}>
+          {getFilteredNotifications().length === 0 ? (
+            <Empty 
+              image={Empty.PRESENTED_IMAGE_SIMPLE} 
+              description={
+                activeTab === 'unread' 
+                  ? "No unread notifications" 
+                  : "No notifications"
+              }
+              style={{ padding: '20px 0' }}
+            />
+          ) : (
+            <List
+              dataSource={getFilteredNotifications()}
+              renderItem={(item) => (
+                <NotificationItem 
+                  notification={convertToUINotification(item)}
+                  onView={() => handleViewNotification(item)}
+                  onMarkAsRead={() => handleMarkAsRead(item)}
+                  onDelete={handleDeleteNotification}
                 />
-              </div>
-            )}
-            locale={{
-              emptyText: (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="No notifications"
-                  className="notification-empty"
-                />
-              ),
-            }}
-          />
-        </div>
-      )}
+              )}
+            />
+          )}
+        </Spin>
+      </div>
+      
+      <Divider style={{ margin: '0' }} />
       
       <div className="notification-footer">
-        <Button 
-          type="primary" 
-          onClick={handleViewAll} 
-          style={{ width: '100%', borderRadius: '4px' }}
-        >
+        <Button type="link" onClick={handleViewAll}>
           View All Notifications
         </Button>
       </div>
     </div>
   );
-  
+
   return (
     <div 
-      className={`notification-bell-container ${hasNewAnimation ? 'has-new-notification' : ''}`}
-      ref={bellRef}
+      ref={bellRef} 
+      className={`bell-container ${hasNewAnimation ? 'bell-animate' : ''}`}
     >
-      <Dropdown 
+      <Dropdown
+        overlay={dropdownContent}
+        trigger={['click']}
         open={visible}
         onOpenChange={handleVisibleChange}
-        trigger={['click']}
-        dropdownRender={() => dropdownContent}
         placement="bottomRight"
-        arrow={{ pointAtCenter: true }}
-        overlayStyle={{ 
-          zIndex: 1050,
-          boxShadow: '0 6px 16px -8px rgba(0,0,0,0.2), 0 9px 28px rgba(0,0,0,0.1)'
-        }}
-        destroyPopupOnHide
+        getPopupContainer={(trigger) => trigger.parentNode as HTMLElement}
+        overlayClassName="notification-dropdown-overlay"
       >
         <Badge 
-          count={getUnreadCount(notifications)} 
-          overflowCount={99}
-          className={hasNewNotifications ? 'badge-pulse' : ''}
-          style={{ 
-            backgroundColor: hasNewNotifications ? '#f5222d' : '#1677ff',
-            transition: 'background-color 0.3s ease'
-          }}
+          count={unreadCount} 
+          offset={[-2, 10]}
           size="small"
-          offset={[-2, 2]}
         >
-          <Button 
-            type="text" 
-            icon={<BellOutlined className="bell-icon" />}
-            className="notification-bell-btn"
-            aria-label="Notifications"
-          />
+          <BellOutlined className="notification-bell-icon" />
         </Badge>
       </Dropdown>
     </div>

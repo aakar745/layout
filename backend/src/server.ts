@@ -4,6 +4,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import morgan from 'morgan';
 import path from 'path';
+import http from 'http';
 import connectDB from './config/db';
 import { protectStatic } from './middleware/static.middleware';
 import { requestLogger } from './middleware/requestLogger.middleware';
@@ -11,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import { errorHandler } from './middleware/error.middleware';
 import { authenticateExhibitor } from './middleware/exhibitorAuth';
 import { urlRewriteMiddleware } from './middleware/url-rewrite.middleware';
+import { initializeSocket } from './services/socket.service';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -26,12 +28,19 @@ import exhibitorRoutes from './routes/exhibitor.routes';
 import exhibitorBookingRoutes from './routes/exhibitorBooking.routes';
 import fixtureRoutes from './routes/fixture.routes';
 import settingsRoutes from './routes/settings.routes';
+import notificationRoutes from './routes/notification.routes';
 
 // Load environment variables
 dotenv.config();
 
 const app: Express = express();
 const port = process.env.PORT || 5000;
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+initializeSocket(server);
 
 // IMPORTANT: Place body parsing middleware before any route handlers
 app.use(express.json());
@@ -214,6 +223,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/exhibitor-bookings', exhibitorBookingRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Direct endpoint for exhibitor booking that doesn't rely on the global middleware order
 app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
@@ -335,6 +345,6 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 // Start server only after successful DB connection
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 }); 

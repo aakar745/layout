@@ -1,13 +1,14 @@
 import React from 'react';
-import { List, Typography, Space, Tag, Avatar, Badge, Tooltip } from 'antd';
+import { List, Typography, Space, Tag, Avatar, Badge, Tooltip, Button } from 'antd';
 import { 
   UserAddOutlined, 
   ClockCircleOutlined, 
   SwapOutlined, 
   UserOutlined,
-  BellOutlined
+  BellOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
-import { Notification, NotificationStatus, NotificationType } from '../types';
+import { Notification, NotificationType } from '../types';
 import { formatRelativeTime, formatDate, getPriorityColor } from '../../../utils/notificationUtil';
 
 const { Text, Paragraph } = Typography;
@@ -16,12 +17,14 @@ interface NotificationItemProps {
   notification: Notification;
   onView: (notification: Notification) => void;
   onMarkAsRead: (notification: Notification) => void;
+  onDelete: (notification: Notification) => void;
 }
 
 const NotificationItem: React.FC<NotificationItemProps> = ({
   notification,
   onView,
   onMarkAsRead,
+  onDelete,
 }) => {
   const getIcon = () => {
     switch (notification.type) {
@@ -39,27 +42,43 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   };
 
   const handleClick = () => {
-    if (notification.status === NotificationStatus.UNREAD) {
+    if (!notification.isRead) {
       onMarkAsRead(notification);
     }
     onView(notification);
   };
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(notification);
+  };
+
   return (
     <List.Item
       onClick={handleClick}
-      className={notification.status === NotificationStatus.UNREAD ? 'notification-unread' : ''}
+      className={!notification.isRead ? 'notification-unread' : ''}
       style={{
         cursor: 'pointer',
-        backgroundColor: notification.status === NotificationStatus.UNREAD ? '#f0f5ff' : 'transparent',
+        backgroundColor: !notification.isRead ? '#f0f5ff' : 'transparent',
         padding: '16px',
         borderRadius: '4px',
         transition: 'background-color 0.3s',
       }}
+      actions={[
+        <Tooltip title="Delete notification">
+          <Button 
+            type="text" 
+            danger 
+            icon={<DeleteOutlined />} 
+            onClick={handleDelete}
+            aria-label="Delete notification"
+          />
+        </Tooltip>
+      ]}
     >
       <List.Item.Meta
         avatar={
-          <Badge dot={notification.status === NotificationStatus.UNREAD} color={getPriorityColor(notification.priority)}>
+          <Badge dot={!notification.isRead} color={getPriorityColor(notification.priority)}>
             <Avatar 
               icon={getIcon()} 
               size="large"
@@ -73,7 +92,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         title={
           <Space>
             <Text strong>{notification.title}</Text>
-            {notification.status === NotificationStatus.UNREAD && (
+            {!notification.isRead && (
               <Tag color="blue">New</Tag>
             )}
           </Space>

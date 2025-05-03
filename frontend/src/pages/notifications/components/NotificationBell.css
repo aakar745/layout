@@ -235,4 +235,24 @@
 .notification-bell-container.bell-animate {
   animation: refined-bell-swing 1s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   transform-origin: center top;
+}
+
+/* Notification bell styles */
+.bell-container {
+  display: inline-block;
+  cursor: pointer;
+  position: relative;
+}
+
+.notification-bell-icon {
+  font-size: 18px;
+}
+
+.bell-animate {
+  animation: bell-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  transform-origin: top center;
+}
+
+.notification-dropdown-overlay {
+  max-width: 400px;
 } 

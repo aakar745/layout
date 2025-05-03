@@ -12,7 +12,7 @@ import {
   Badge, 
   Divider, 
   Input, 
-  notification,
+  notification as antNotification,
   Tooltip
 } from 'antd';
 import { 
@@ -21,14 +21,15 @@ import {
   SettingOutlined, 
   CheckOutlined, 
   FilterOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 
 // Import components and utilities
 import NotificationItem from './components/NotificationItem';
 import EmailSettings from './components/EmailSettings';
-import { getNotifications, getDefaultNotificationPreferences } from './mockData';
+import notificationService, { Notification as NotificationData } from '../../services/notification';
 import { 
   Notification, 
   NotificationStatus, 
@@ -37,6 +38,32 @@ import {
   EmailNotificationSettings
 } from './types';
 import { getUnreadCount, getNotificationRoute } from '../../utils/notificationUtil';
+
+// Map notification types from API to UI types
+const mapNotificationType = (type: string): NotificationType => {
+  switch (type) {
+    case 'NEW_BOOKING':
+      return NotificationType.NEW_BOOKING;
+    case 'BOOKING_CONFIRMED':
+      return NotificationType.BOOKING_CONFIRMED;
+    case 'BOOKING_CANCELLED':
+      return NotificationType.BOOKING_CANCELLED;
+    case 'PAYMENT_RECEIVED':
+      return NotificationType.PAYMENT_RECEIVED;
+    case 'INVOICE_GENERATED':
+      return NotificationType.INVOICE_GENERATED;
+    case 'EXHIBITION_UPDATE':
+      return NotificationType.EXHIBITION_UPDATE;
+    case 'SYSTEM_MESSAGE':
+      return NotificationType.SYSTEM_MESSAGE;
+    case 'EXHIBITOR_MESSAGE':
+      return NotificationType.EXHIBITOR_MESSAGE;
+    case 'EXHIBITOR_REGISTERED':
+      return NotificationType.EXHIBITOR_REGISTERED;
+    default:
+      return NotificationType.SYSTEM_MESSAGE;
+  }
+};
 
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
@@ -51,25 +78,128 @@ const NotificationsPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<NotificationType | 'ALL'>('ALL');
   const [sourceFilter, setSourceFilter] = useState<NotificationSource | 'ALL'>('ALL');
-  const [emailSettings, setEmailSettings] = useState(getDefaultNotificationPreferences().email);
+  const [emailSettings, setEmailSettings] = useState<EmailNotificationSettings>({
+    newLeads: true,
+    followUpReminders: true,
+    statusChanges: false,
+    leadAssignments: true,
+  });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   
   useEffect(() => {
+    // Initialize notification socket if not already connected
+    const tokenKey = 'token'; // For admin notifications
+    const token = localStorage.getItem(tokenKey);
+    if (token) {
+      notificationService.init(token, false);
+    }
+    
+    // Fetch notifications
     fetchNotifications();
+    
+    // Subscribe to real-time notifications
+    notificationService.subscribeToNotifications();
+    
+    // Set up event listeners for new notifications
+    const notificationHandler = (newNotification: NotificationData) => {
+      // Process the notification to ensure types are consistent
+      const processedNotification = {
+        ...newNotification,
+        type: mapNotificationType(newNotification.type)
+      };
+      // Add the new notification to the list
+      setNotifications(prevNotifications => {
+        // Check if notification already exists to avoid duplicates
+        if (prevNotifications.some(n => n._id === newNotification._id)) {
+          return prevNotifications;
+        }
+        return [processedNotification, ...prevNotifications];
+      });
+    };
+    
+    const notificationUpdateHandler = (data: {unreadCount: number, newNotifications?: NotificationData[]}) => {
+      // If we have new notifications, add them
+      if (data.newNotifications && data.newNotifications.length > 0) {
+        const processedNotifications = data.newNotifications.map((notification: NotificationData) => ({
+          ...notification,
+          type: mapNotificationType(notification.type)
+        }));
+        
+        setNotifications(prevNotifications => {
+          // Filter out duplicates before merging
+          const newItems = processedNotifications.filter(
+            newN => !prevNotifications.some(n => n._id === newN._id)
+          );
+          
+          return [...newItems, ...prevNotifications];
+        });
+      }
+    };
+    
+    // Register event listeners
+    notificationService.addEventListener('notification', notificationHandler);
+    notificationService.addEventListener('notification_update', notificationUpdateHandler);
+    
+    // Cleanup on unmount
+    return () => {
+      notificationService.removeEventListener('notification', notificationHandler);
+      notificationService.removeEventListener('notification_update', notificationUpdateHandler);
+    };
   }, []);
 
   useEffect(() => {
     filterNotifications();
   }, [notifications, searchText, typeFilter, sourceFilter, activeTab]);
 
-  const fetchNotifications = () => {
+  // Add navigation detection to refresh data when page becomes active
+  useEffect(() => {
+    // Refresh when component mounts or route changes
+    fetchNotifications();
+    
+    // Listen for focus events to refresh data when tab becomes active
+    const handleFocus = () => {
+      // Only fetch if there are no notifications already
+      if (notifications.length === 0) {
+        fetchNotifications();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [notifications.length]);
+
+  const fetchNotifications = async () => {
     setLoading(true);
-    // In a real app, this would be an API call
-    setTimeout(() => {
-      setNotifications(getNotifications());
+    try {
+      // Use the EXACT same approach as the NotificationBell component
+      const response = await notificationService.getNotifications(1, 50);
+      if (response.success) {
+        // Map API notification types to UI types
+        const processedNotifications = response.data.notifications.map(notification => {
+          return {
+            ...notification,
+            type: mapNotificationType(notification.type)
+          };
+        });
+        setNotifications(processedNotifications);
+      } else {
+        // Don't clear notifications on API error - keep existing ones
+        // setNotifications([]);
+      }
+    } catch (error) {
+      antNotification.error({
+        message: 'Failed to fetch notifications',
+        description: 'There was an error loading your notifications. Please try again later.',
+      });
+      // Don't clear notifications on API error - keep existing ones
+      // setNotifications([]);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const filterNotifications = () => {
@@ -77,7 +207,7 @@ const NotificationsPage: React.FC = () => {
     
     // Filter by tab
     if (activeTab === 'unread') {
-      results = results.filter(n => n.status === NotificationStatus.UNREAD);
+      results = results.filter(n => n.isRead === false);
     }
     
     // Filter by search text
@@ -95,7 +225,7 @@ const NotificationsPage: React.FC = () => {
       results = results.filter(n => n.type === typeFilter);
     }
     
-    // Filter by source
+    // Filter by source (if exists in the notification)
     if (sourceFilter !== 'ALL') {
       results = results.filter(n => n.source === sourceFilter);
     }
@@ -123,39 +253,95 @@ const NotificationsPage: React.FC = () => {
     navigate(route);
   };
 
-  const handleMarkAsRead = (notification: Notification) => {
-    // In a real app, this would be an API call
-    const updatedNotifications = notifications.map(n => {
-      if (n.id === notification.id) {
-        return {
-          ...n,
-          status: NotificationStatus.READ,
-          readAt: new Date().toISOString(),
-        };
-      }
-      return n;
-    });
-    setNotifications(updatedNotifications);
+  const handleMarkAsRead = async (notification: Notification) => {
+    try {
+      // Use the notification service to mark as read
+      await notificationService.markAsRead(notification._id);
+      
+      // Update local state
+      const updatedNotifications = notifications.map(n => {
+        if (n._id === notification._id) {
+          return {
+            ...n,
+            isRead: true,
+            readAt: new Date().toISOString(),
+          };
+        }
+        return n;
+      });
+      setNotifications(updatedNotifications);
+    } catch (error) {
+      antNotification.error({
+        message: 'Failed to mark notification as read',
+        description: 'There was an error updating the notification status. Please try again later.',
+      });
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    // In a real app, this would be an API call
-    const updatedNotifications = notifications.map(n => {
-      if (n.status === NotificationStatus.UNREAD) {
-        return {
-          ...n,
-          status: NotificationStatus.READ,
-          readAt: new Date().toISOString(),
-        };
-      }
-      return n;
-    });
-    setNotifications(updatedNotifications);
-    
-    notification.success({
-      message: 'All notifications marked as read',
-      description: 'All notifications have been marked as read successfully.',
-    });
+  const handleDeleteNotification = async (notification: Notification) => {
+    try {
+      // Use the notification service to delete
+      await notificationService.deleteNotification(notification._id);
+      
+      // Update local state
+      const updatedNotifications = notifications.filter(n => n._id !== notification._id);
+      setNotifications(updatedNotifications);
+      
+      antNotification.success({
+        message: 'Notification deleted',
+        description: 'The notification has been deleted successfully.',
+      });
+    } catch (error) {
+      antNotification.error({
+        message: 'Failed to delete notification',
+        description: 'There was an error deleting the notification. Please try again later.',
+      });
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      // Use the notification service to mark all as read
+      await notificationService.markAllAsRead();
+      
+      // Update local state
+      const updatedNotifications = notifications.map(n => ({
+        ...n,
+        isRead: true,
+        readAt: new Date().toISOString(),
+      }));
+      setNotifications(updatedNotifications);
+      
+      antNotification.success({
+        message: 'All notifications marked as read',
+        description: 'All notifications have been marked as read successfully.',
+      });
+    } catch (error) {
+      antNotification.error({
+        message: 'Failed to mark all notifications as read',
+        description: 'There was an error updating the notification status. Please try again later.',
+      });
+    }
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    try {
+      // Use the notification service to delete all notifications
+      await notificationService.deleteAllNotifications();
+      
+      // Clear local state
+      setNotifications([]);
+      
+      antNotification.success({
+        message: 'All notifications cleared',
+        description: 'All notifications have been deleted successfully.',
+      });
+    } catch (error) {
+      antNotification.error({
+        message: 'Failed to clear notifications',
+        description: 'There was an error deleting the notifications. Please try again later.',
+      });
+    }
   };
 
   const handleSaveEmailSettings = (settings: EmailNotificationSettings) => {
@@ -166,7 +352,7 @@ const NotificationsPage: React.FC = () => {
       setEmailSettings(settings);
       setSettingsLoading(false);
       
-      notification.success({
+      antNotification.success({
         message: 'Settings saved',
         description: 'Your email notification settings have been updated successfully.',
       });
@@ -183,7 +369,7 @@ const NotificationsPage: React.FC = () => {
                 <Title level={4}>
                   <Space>
                     <BellOutlined />
-                    Notifications
+                    Notifications {notifications.length > 0 ? `(${notifications.length})` : ''}
                   </Space>
                 </Title>
                 <Paragraph>
@@ -205,9 +391,18 @@ const NotificationsPage: React.FC = () => {
                     type="primary" 
                     icon={<CheckOutlined />} 
                     onClick={handleMarkAllAsRead}
-                    disabled={getUnreadCount(notifications) === 0}
+                    disabled={notifications.filter(n => !n.isRead).length === 0}
                   >
                     Mark All as Read
+                  </Button>
+                  <Button
+                    type="primary"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={handleDeleteAllNotifications}
+                    disabled={notifications.length === 0}
+                  >
+                    Clear All
                   </Button>
                 </Space>
               </Col>
@@ -257,18 +452,19 @@ const NotificationsPage: React.FC = () => {
 
             <List
               dataSource={filteredNotifications}
-              renderItem={item => (
+              renderItem={(notification) => (
                 <NotificationItem
-                  notification={item}
+                  notification={notification}
                   onView={handleViewNotification}
                   onMarkAsRead={handleMarkAsRead}
+                  onDelete={handleDeleteNotification}
                 />
               )}
               pagination={{
                 pageSize: 10,
                 showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} notifications`,
               }}
-              rowKey="id"
+              rowKey="_id"
               loading={loading}
               locale={{
                 emptyText: (
