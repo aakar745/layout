@@ -10,6 +10,7 @@ import { getEmailTransporter, emailConfig } from '../config/email.config';
 import User from '../models/user.model';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
+import bcrypt from 'bcryptjs';
 
 // Cache directory for PDFs - must match the one in invoice.controller.ts
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -608,6 +609,90 @@ export const updateExhibitorStatus = async (req: Request, res: Response) => {
 
     // Save updated exhibitor
     await exhibitor.save();
+
+    // Send email notification when exhibitor is approved
+    if (status === 'approved') {
+      try {
+        // Get email transport configuration
+        const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
+        
+        // Send mail with defined transport object
+        const info = await transporter.sendMail({
+          from: emailConfig.from,
+          to: exhibitor.email,
+          subject: 'Your Exhibition Account is Approved',
+          text: `Congratulations! Your exhibitor account has been approved. You can now log in to your account.`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+              <h1 style="color: #333; text-align: center;">Account Approved</h1>
+              <p style="font-size: 16px; line-height: 1.5;">Congratulations! Your exhibitor account for the Exhibition Management System has been approved by the administrator.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <div style="font-size: 18px; font-weight: bold; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">You can now log in to your account</div>
+              </div>
+              <p style="font-size: 16px; line-height: 1.5;">You can now access all the features available to exhibitors, including:</p>
+              <ul style="font-size: 16px; line-height: 1.5;">
+                <li>Booking exhibition stalls</li>
+                <li>Managing your bookings</li>
+                <li>Updating your company profile</li>
+                <li>Viewing exhibition details</li>
+              </ul>
+              <p style="font-size: 16px; line-height: 1.5;">Thank you for joining our platform.</p>
+              <p style="font-size: 14px; color: #777; margin-top: 30px;">If you have any questions, please contact our support team.</p>
+            </div>
+          `
+        });
+        
+        // Log test message URL if in test mode
+        if (isTestMode && getTestMessageUrl) {
+          console.log('Preview URL: %s', getTestMessageUrl(info));
+        }
+        
+        // Also send a notification through the app
+        await createNotification(
+          exhibitor._id,
+          'exhibitor',
+          'Account Approved',
+          'Your exhibitor account has been approved. You can now log in and access all features.',
+          NotificationType.ACCOUNT_STATUS_CHANGE,
+          {
+            priority: NotificationPriority.HIGH,
+            entityId: exhibitor._id,
+            entityType: 'Exhibitor',
+            data: {
+              status: 'approved'
+            }
+          }
+        );
+      } catch (emailError) {
+        console.error('Error sending approval email:', emailError);
+        // Don't fail the request if email sending fails
+      }
+    }
+    // Send rejection notification
+    else if (status === 'rejected') {
+      try {
+        // Send notification through the app
+        await createNotification(
+          exhibitor._id,
+          'exhibitor',
+          'Account Rejected',
+          `Your exhibitor account has been rejected. Reason: ${exhibitor.rejectionReason}`,
+          NotificationType.ACCOUNT_STATUS_CHANGE,
+          {
+            priority: NotificationPriority.HIGH,
+            entityId: exhibitor._id,
+            entityType: 'Exhibitor',
+            data: {
+              status: 'rejected',
+              reason: exhibitor.rejectionReason
+            }
+          }
+        );
+      } catch (notificationError) {
+        console.error('Error sending rejection notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+    }
 
     res.json(exhibitor);
   } catch (error) {
