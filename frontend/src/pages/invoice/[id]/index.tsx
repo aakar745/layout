@@ -151,7 +151,12 @@ const InvoiceDetails: React.FC = () => {
           calculations: {
             ...invoice.bookingId.calculations,
             stalls: invoice.bookingId.calculations.stalls.map(stall => ({
-              discount: stall.discount ? { value: stall.discount.value } : undefined
+              discount: stall.discount ? { 
+                ...stall.discount,
+                // Preserve all discount properties including type and value
+                type: stall.discount.type || 'percentage',
+                value: stall.discount.value
+              } : undefined
             }))
           }
         }} />

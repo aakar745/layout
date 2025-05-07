@@ -360,12 +360,16 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     templateHtml = templateHtml.replace('</head>', `<style>${styleSheet}</style></head>`);
     
     // Register helpers for the template
-    console.log('[DEBUG] Registering handlebars helpers');
+    console.log('[DEBUG] Registering Handlebars helpers');
+    
+    // Register custom helpers
     handlebars.registerHelper('formatCurrency', (value: number) => {
-      if (typeof value !== 'number') {
-        return '0';
-      }
-      return value.toLocaleString('en-IN');
+      if (value === null || value === undefined) return '0';
+      return value.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    });
+    
+    handlebars.registerHelper('eq', function(a, b) {
+      return a === b;
     });
     
     handlebars.registerHelper('formatDate', (dateString: string | Date) => {
@@ -376,11 +380,7 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
           console.error(`[ERROR] Invalid date value for formatDate: ${dateString}`);
           return '';
         }
-        return date.toLocaleDateString('en-GB', { 
-          day: '2-digit', 
-          month: '2-digit', 
-          year: 'numeric' 
-        });
+        return date.toLocaleDateString('en-GB');
       } catch (e) {
         console.error(`[ERROR] Date formatting error:`, e);
         return '';
@@ -504,14 +504,25 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     const hasDiscount = bookingId.calculations.stalls?.[0]?.discount !== null && 
                         bookingId.calculations.stalls?.[0]?.discount !== undefined;
     
-    // Get discount percentage from the first stall's discount - only if a discount exists
-    const discountPercentage = hasDiscount ? bookingId.calculations.stalls?.[0]?.discount?.value || 0 : 0;
+    // Get discount info from the first stall's discount - only if a discount exists
+    const discountInfo = hasDiscount ? bookingId.calculations.stalls?.[0]?.discount : null;
+    const discountType = discountInfo?.type || 'percentage';
+    const discountValue = discountInfo?.value || 0;
     
-    console.log('[DEBUG] Discount info - hasDiscount:', hasDiscount, 'discountPercentage:', discountPercentage);
+    console.log('[DEBUG] Discount info - hasDiscount:', hasDiscount, 'discountType:', discountType, 'discountValue:', discountValue);
     
-    // Recalculate discount and after-discount amount
-    const recalculatedDiscountAmount = hasDiscount ? 
-      Math.round((recalculatedTotalBaseAmount * discountPercentage / 100) * 100) / 100 : 0;
+    // Recalculate discount and after-discount amount based on discount type
+    let recalculatedDiscountAmount = 0;
+    if (hasDiscount) {
+      if (discountType === 'percentage') {
+        // For percentage discount
+        recalculatedDiscountAmount = Math.round((recalculatedTotalBaseAmount * discountValue / 100) * 100) / 100;
+      } else if (discountType === 'fixed') {
+        // For fixed discount - use the original calculated amount or recalculate proportionally
+        // Either use the total discount amount from booking calculations or the raw value
+        recalculatedDiscountAmount = Math.min(discountValue, recalculatedTotalBaseAmount);
+      }
+    }
     const recalculatedAmountAfterDiscount = recalculatedTotalBaseAmount - recalculatedDiscountAmount;
     
     // Get GST info
@@ -578,7 +589,8 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
       stalls: stalls,
       calculations: {
         totalBaseAmount: totalBaseAmount,
-        discountPercentage: discountPercentage > 0 ? discountPercentage : 0,
+        discountType: discountType,
+        discountValue: discountValue,
         discountAmount: totalDiscountAmount,
         amountAfterDiscount: amountAfterDiscount,
         gstPercentage: gstPercentage,

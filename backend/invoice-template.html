@@ -92,14 +92,20 @@
                     <div class="calc-label" style="color: #333;">Total Basic Amount</div>
                     <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.totalBaseAmount}}</div>
                 </div>
-                {{#if calculations.discountPercentage}}
+                {{#if calculations.discountAmount}}
                 <div class="calc-row">
-                    <div class="calc-label" style="color: #333;">Discount ({{calculations.discountPercentage}}%)</div>
+                    <div class="calc-label" style="color: #333;">
+                        {{#if (eq calculations.discountType "percentage")}}
+                        Discount ({{calculations.discountValue}}%)
+                        {{else}}
+                        Discount (Fixed ₹{{formatCurrency calculations.discountValue}})
+                        {{/if}}
+                    </div>
                     <div class="calc-value" style="color: #333;">-₹{{formatCurrency calculations.discountAmount}}</div>
                 </div>
                 {{/if}}
                 <div class="calc-row">
-                    <div class="calc-label" style="color: #333;">{{#if calculations.discountPercentage}}Amount after Discount{{else}}Net Amount{{/if}}</div>
+                    <div class="calc-label" style="color: #333;">{{#if calculations.discountAmount}}Amount after Discount{{else}}Net Amount{{/if}}</div>
                     <div class="calc-value" style="color: #333;">₹{{formatCurrency calculations.amountAfterDiscount}}</div>
                 </div>
                 <div class="calc-row">

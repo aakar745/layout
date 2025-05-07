@@ -63,7 +63,10 @@ export interface BookingExtended {
     totalAmount: number;
     stalls: Array<{
       discount?: {
+        name?: string;
+        type?: 'percentage' | 'fixed';
         value: number;
+        amount?: number;
       };
     }>;
     taxes: Tax[];
@@ -133,11 +136,21 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
   
   const calculations = booking.calculations;
   const hasDiscount = calculations.stalls[0]?.discount !== undefined && calculations.stalls[0]?.discount !== null;
-  const discountPercentage = hasDiscount ? (calculations.stalls[0]?.discount?.value || 0) : 0;
+  const discountInfo = hasDiscount ? calculations.stalls[0]?.discount : null;
+  const discountType = discountInfo?.type || 'percentage';
+  const discountValue = discountInfo?.value || 0;
   
-  // Recalculate discount and after-discount amount
-  const recalculatedDiscountAmount = hasDiscount && discountPercentage > 0 ? 
-    Math.round((recalculatedTotalBaseAmount * discountPercentage / 100) * 100) / 100 : 0;
+  // Recalculate discount and after-discount amount based on discount type
+  let recalculatedDiscountAmount = 0;
+  if (hasDiscount && discountValue > 0) {
+    if (discountType === 'percentage') {
+      // For percentage discount
+      recalculatedDiscountAmount = Math.round((recalculatedTotalBaseAmount * discountValue / 100) * 100) / 100;
+    } else if (discountType === 'fixed') {
+      // For fixed discount - use the original discount value or the total discount amount
+      recalculatedDiscountAmount = Math.min(discountValue, recalculatedTotalBaseAmount);
+    }
+  }
   const recalculatedAmountAfterDiscount = recalculatedTotalBaseAmount - recalculatedDiscountAmount;
   
   const gstTax = calculations.taxes.find((tax: Tax) => tax.name.includes('GST'));
@@ -236,14 +249,19 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
             <div className="calc-label">Total Basic Amount</div>
             <div className="calc-value">₹{totalBaseAmount.toLocaleString('en-IN')}</div>
           </div>
-          {discountPercentage > 0 && (
+          {hasDiscount && discountAmount > 0 && (
             <div className="calc-row">
-              <div className="calc-label">Discount ({discountPercentage}%)</div>
+              <div className="calc-label">
+                {discountType === 'percentage' 
+                  ? `Discount (${discountValue}%)`
+                  : `Discount (Fixed ₹${discountValue.toLocaleString('en-IN')})`
+                }
+              </div>
               <div className="calc-value">-₹{discountAmount.toLocaleString('en-IN')}</div>
             </div>
           )}
           <div className="calc-row">
-            <div className="calc-label">{discountPercentage > 0 ? 'Amount after Discount' : 'Net Amount'}</div>
+            <div className="calc-label">{hasDiscount && discountAmount > 0 ? 'Amount after Discount' : 'Net Amount'}</div>
             <div className="calc-value">₹{amountAfterDiscount.toLocaleString('en-IN')}</div>
           </div>
           <div className="calc-row">

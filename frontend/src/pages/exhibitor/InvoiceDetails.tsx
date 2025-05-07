@@ -207,6 +207,18 @@ const ExhibitorInvoiceDetails: React.FC = () => {
             companyEmail: invoice.bookingId.exhibitionId?.companyEmail || '',
             companyWebsite: invoice.bookingId.exhibitionId?.companyWebsite || '',
             companyAddress: invoice.bookingId.exhibitionId?.companyAddress || ''
+          },
+          calculations: {
+            ...invoice.bookingId.calculations,
+            stalls: invoice.bookingId.calculations?.stalls?.map(stall => ({
+              ...stall,
+              discount: stall.discount ? {
+                ...stall.discount,
+                // Ensure discount type is preserved
+                type: stall.discount.type || 'percentage',
+                value: stall.discount.value
+              } : undefined
+            })) || []
           }
         } as BookingExtended} />
       </Card>
