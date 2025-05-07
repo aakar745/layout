@@ -90,11 +90,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
         const unreadCountHandler = (count: number) => {
           setUnreadCount(count);
           if (count > 0 && !visible) {
-            setHasNewAnimation(true);
-            setTimeout(() => {
-              setHasNewAnimation(false);
-            }, 2000);
-          }
+        setHasNewAnimation(true);
+        setTimeout(() => {
+          setHasNewAnimation(false);
+        }, 2000);
+      }
         };
         
         const notificationHandler = (notification: NotificationData) => {
@@ -343,7 +343,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
           />
         </Space>
       </div>
-
+      
       <Tabs 
         activeKey={activeTab}
         onChange={handleTabChange}
@@ -357,19 +357,19 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
           {
             key: 'unread',
             label: (
-              <span className="tab-label">
-                Unread
-                <Badge 
+            <span className="tab-label">
+              Unread
+              <Badge 
                   count={unreadCount} 
-                  size="small" 
-                  offset={[5, -3]}
-                  style={{ backgroundColor: '#1677ff' }}
-                />
-              </span>
+                size="small" 
+                offset={[5, -3]}
+                style={{ backgroundColor: '#1677ff' }}
+              />
+            </span>
             )
           }
         ]}
-      />
+        />
       
       <div className="notification-list">
         <Spin spinning={loading}>
@@ -384,20 +384,20 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
               style={{ padding: '20px 0' }}
             />
           ) : (
-            <List
-              dataSource={getFilteredNotifications()}
-              renderItem={(item) => (
-                <NotificationItem 
+          <List
+            dataSource={getFilteredNotifications()}
+            renderItem={(item) => (
+                <NotificationItem
                   notification={convertToUINotification(item)}
                   onView={() => handleViewNotification(item)}
                   onMarkAsRead={() => handleMarkAsRead(item)}
                   onDelete={handleDeleteNotification}
                 />
               )}
-            />
+          />
           )}
         </Spin>
-      </div>
+        </div>
       
       <Divider style={{ margin: '0' }} />
       
@@ -408,13 +408,13 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
       </div>
     </div>
   );
-
+  
   return (
     <div 
-      ref={bellRef} 
+      ref={bellRef}
       className={`bell-container ${hasNewAnimation ? 'bell-animate' : ''}`}
     >
-      <Dropdown
+      <Dropdown 
         overlay={dropdownContent}
         trigger={['click']}
         open={visible}

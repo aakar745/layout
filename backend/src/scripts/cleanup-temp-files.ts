@@ -11,8 +11,8 @@
  * - Set as a cron job to run daily
  */
 
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Root directory and temp directories to check
 const ROOT_DIR = path.resolve(process.cwd());

@@ -13,6 +13,7 @@ import { errorHandler } from './middleware/error.middleware';
 import { authenticateExhibitor } from './middleware/exhibitorAuth';
 import { urlRewriteMiddleware } from './middleware/url-rewrite.middleware';
 import { initializeSocket } from './services/socket.service';
+import { initializeCleanupService } from './services/cleanup.service';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -330,8 +331,23 @@ app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
   }
 });
 
-// MongoDB connection
-connectDB();
+// Error handling middleware
+app.use(errorHandler);
+
+// MongoDB connection with cleanup service initialization
+connectDB().then(() => {
+  console.log('Connected to MongoDB');
+  
+  // Initialize cleanup service for temporary files
+  initializeCleanupService();
+}).catch(err => {
+  console.error('Error connecting to MongoDB:', err);
+});
+
+// Start server
+server.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
 
 // Serve static files from the React frontend app
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
@@ -339,12 +355,4 @@ app.use(express.static(path.join(__dirname, '../../frontend/dist')));
 // Anything that doesn't match the above routes, send back the index.html file
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
-});
-
-// Error handling middleware
-app.use(errorHandler);
-
-// Start server only after successful DB connection
-server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
 }); 
