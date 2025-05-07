@@ -14,6 +14,7 @@ import {
   TeamOutlined,
   CheckCircleOutlined,
   ReloadOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -191,7 +192,14 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/dashboard'),
     },
     {
-      key: 'exhibitions',
+      key: 'analytics',
+      icon: <BarChartOutlined />,
+      label: 'Analytics',
+      requiredPermission: 'dashboard_view',
+      onClick: () => navigate('/analytics'),
+    },
+    {
+      key: 'exhibition',
       icon: <TableOutlined />,
       label: 'Exhibitions',
       requiredPermission: 'exhibitions_view',
@@ -232,7 +240,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/exhibitors'),
     },
     {
-      key: 'users',
+      key: 'index',
       icon: <UserOutlined />,
       label: 'Users',
       requiredPermission: 'users_view',

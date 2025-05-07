@@ -35,6 +35,7 @@ import CreateBooking from './pages/booking/create';
 import InvoiceDetails from './pages/invoice/[id]';
 import Home from './pages/home/Home';
 import ExhibitorManagement from './pages/exhibitors';
+import AnalyticsPage from './pages/analytics';
 import './styles/modal.css';
 
 // Admin private route
@@ -133,6 +134,18 @@ function App() {
                 <PrivateRoute>
                   <MainLayout>
                     <Dashboard />
+                  </MainLayout>
+                </PrivateRoute>
+              }
+            />
+            
+            {/* Analytics Route */}
+            <Route
+              path="/analytics"
+              element={
+                <PrivateRoute>
+                  <MainLayout>
+                    <AnalyticsPage />
                   </MainLayout>
                 </PrivateRoute>
               }
