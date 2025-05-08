@@ -192,13 +192,6 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/dashboard'),
     },
     {
-      key: 'analytics',
-      icon: <BarChartOutlined />,
-      label: 'Analytics',
-      requiredPermission: 'dashboard_view',
-      onClick: () => navigate('/analytics'),
-    },
-    {
       key: 'exhibition',
       icon: <TableOutlined />,
       label: 'Exhibitions',
