@@ -10,6 +10,8 @@ import puppeteer from 'puppeteer';
 import handlebars from 'handlebars';
 import User, { IUser } from '../models/user.model';
 import { IRole } from '../models/role.model';
+import { getEmailTransporter } from '../config/email.config';
+import Settings from '../models/settings.model';
 
 // Cache directory for PDFs
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -133,17 +135,6 @@ try {
 const whatsappApiUrl = process.env.WHATSAPP_API_URL;
 const whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
 
-// Email transporter configuration - exported for reuse in other controllers
-export const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 // Helper function to generate cache key from invoice data
 const generateCacheKey = (invoice: any): string => {
   try {
@@ -165,7 +156,7 @@ const generateCacheKey = (invoice: any): string => {
     };
     
     const hash = crypto.createHash('md5').update(JSON.stringify(dataToHash)).digest('hex');
-    console.log(`[DEBUG] Generated cache key ${hash} for invoice ${invoice._id}`);
+    
     return hash;
   } catch (error) {
     console.error('[ERROR] Failed to generate cache key:', error);
@@ -196,7 +187,7 @@ const getCachedPDF = (cacheKey: string, invoice: any): Buffer | null => {
             metadata.bookingUpdatedAt !== bookingId?.updatedAt?.toString() ||
             metadata.exhibitionUpdatedAt !== exhibition?.updatedAt?.toString()
           ) {
-            console.log(`[DEBUG] Cache invalid: data has changed for invoice ${invoice._id}`);
+            
             isValid = false;
           }
         } catch (metaError) {
@@ -205,12 +196,12 @@ const getCachedPDF = (cacheKey: string, invoice: any): Buffer | null => {
         }
       } else {
         // No metadata, can't verify validity
-        console.log(`[DEBUG] Cache metadata missing for ${cacheKey}`);
+        
         isValid = false;
       }
       
       if (isValid) {
-        console.log(`[DEBUG] Using valid cached PDF: ${cacheKey}`);
+        
         return readFileSync(cachePath);
       } else {
         // Clean up invalid cache
@@ -219,7 +210,7 @@ const getCachedPDF = (cacheKey: string, invoice: any): Buffer | null => {
           if (existsSync(metaPath)) {
             unlinkSync(metaPath);
           }
-          console.log(`[DEBUG] Removed invalid cache: ${cacheKey}`);
+          
         } catch (cleanupError) {
           console.error(`[ERROR] Failed to remove invalid cache: ${cacheKey}`, cleanupError);
         }
@@ -256,14 +247,14 @@ const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): void => {
     };
     
     writeFileSync(metaPath, JSON.stringify(metadata, null, 2));
-    console.log(`[DEBUG] Cached PDF and metadata: ${cacheKey}`);
+    
   } catch (error) {
     console.error(`[ERROR] Error caching PDF: ${cacheKey}`, error);
   }
 };
 
 // Optimized PDF generation with caching and auto-refresh
-export const getPDF = async (invoice: any, forceRegenerate = false): Promise<Buffer> => {
+export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = false): Promise<Buffer> => {
   try {
     // Try to get from cache first if not forcing regeneration
     if (!forceRegenerate) {
@@ -275,8 +266,8 @@ export const getPDF = async (invoice: any, forceRegenerate = false): Promise<Buf
     }
     
     // Generate new PDF
-    console.log(`[DEBUG] Generating new PDF for invoice ${invoice._id}`);
-    const pdfBuffer = await generatePDF(invoice);
+    
+    const pdfBuffer = await generatePDF(invoice, isAdmin);
     
     // Cache the newly generated PDF
     const cacheKey = generateCacheKey(invoice);
@@ -314,9 +305,9 @@ const calculateArea = (width: number, height: number): number => {
 };
 
 // Generate PDF from invoice data using HTML template
-export const generatePDF = async (invoice: any): Promise<Buffer> => {
+export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promise<Buffer> => {
   try {
-    console.log('[DEBUG] Starting PDF generation');
+    
     const { bookingId } = invoice;
 
     if (!bookingId) {
@@ -331,15 +322,23 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
       throw new Error('Invalid invoice data: Missing exhibitionId');
     }
     
+    // Get global settings to access logo
+    
+    const globalSettings = await Settings.findOne();
+    const globalLogo = globalSettings?.logo || null;
+    
+    
+    
+    
     // Get absolute paths for templates and verify they exist
     const currentDir = process.cwd();
-    console.log(`[DEBUG] Current working directory: ${currentDir}`);
+    
     
     const templatePath = join(currentDir, 'invoice-template.html');
     const styleSheetPath = join(currentDir, 'invoice-styles.css');
     
-    console.log(`[DEBUG] Template path: ${templatePath}`);
-    console.log(`[DEBUG] Stylesheet path: ${styleSheetPath}`);
+    
+    
     
     if (!existsSync(templatePath)) {
       console.error(`[ERROR] Template file not found at: ${templatePath}`);
@@ -351,7 +350,7 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
       throw new Error(`Invoice stylesheet file not found at: ${styleSheetPath}`);
     }
     
-    console.log('[DEBUG] Reading template files');
+    
     
     let templateHtml = readFileSync(templatePath, 'utf8');
     const styleSheet = readFileSync(styleSheetPath, 'utf8');
@@ -360,7 +359,7 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     templateHtml = templateHtml.replace('</head>', `<style>${styleSheet}</style></head>`);
     
     // Register helpers for the template
-    console.log('[DEBUG] Registering Handlebars helpers');
+    
     
     // Register custom helpers
     handlebars.registerHelper('formatCurrency', (value: number) => {
@@ -449,10 +448,10 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     });
     
     // Compile the template
-    console.log('[DEBUG] Compiling template');
+    
     const template = handlebars.compile(templateHtml);
     
-    console.log('[DEBUG] Validating booking data structure');
+    
     
     // Validation for required booking data
     if (!bookingId.stallIds || !Array.isArray(bookingId.stallIds)) {
@@ -509,7 +508,7 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     const discountType = discountInfo?.type || 'percentage';
     const discountValue = discountInfo?.value || 0;
     
-    console.log('[DEBUG] Discount info - hasDiscount:', hasDiscount, 'discountType:', discountType, 'discountValue:', discountValue);
+    
     
     // Recalculate discount and after-discount amount based on discount type
     let recalculatedDiscountAmount = 0;
@@ -544,16 +543,41 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     const createdAt = new Date(bookingId.createdAt || Date.now());
     
     // Add debug logs for date information
-    console.log('[DEBUG] Invoice date information:', {
-      bookingCreatedAt: bookingId.createdAt,
-      parsedCreatedAt: createdAt.toString(),
-      isValidDate: !isNaN(createdAt.getTime()),
-      formattedDateGB: createdAt.toLocaleDateString('en-GB')
-    });
+    
     
     // Prepare data for template with safe defaults
-    console.log('[DEBUG] Preparing template context data');
+    
+    
+    // Use filesystem paths for PDF generation instead of URLs
+    // This is critical for PDF generation when server isn't running
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // Define base URL with proper fallback, use file protocol for local access
+    const baseUrl = isProduction 
+      ? (process.env.BASE_URL || 'http://localhost:5000')
+      // Use file:// protocol with absolute path for local testing
+      : `file://${join(currentDir, '..')}`;
+      
+    
+    
+    // Resolve logo paths to absolute filesystem paths for local access
+    let exhibitionLogoPath = null;
+    let globalLogoPath = null;
+    
+    if (exhibition.headerLogo) {
+      exhibitionLogoPath = exhibition.headerLogo;
+      
+    }
+    
+    if (globalLogo) {
+      globalLogoPath = globalLogo;
+      
+    }
+    
     const data = {
+      baseUrl: baseUrl,
+      globalLogo: globalLogoPath,
+      useGlobalLogo: isAdmin,
       bookingId: {
         companyName: bookingId.companyName || 'N/A',
         customerName: bookingId.customerName || 'N/A',
@@ -564,8 +588,8 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
       },
       invoice: {
         invoiceNumber: invoice.invoiceNumber || 'Draft',
-        date: createdAt, // Pass the Date object directly instead of a formatted string
-        time: createdAt // Pass the Date object directly, let the helper format it
+        date: createdAt,
+        time: createdAt
       },
       exhibition: {
         name: exhibition.name || 'Exhibition',
@@ -576,6 +600,7 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
         companyAddress: exhibition.companyAddress || 'N/A',
         companyEmail: exhibition.companyEmail || 'N/A',
         companyWebsite: exhibition.companyWebsite || 'N/A',
+        headerLogo: exhibitionLogoPath,
         bankName: exhibition.bankName || 'N/A',
         bankAccount: exhibition.bankAccount || 'N/A',
         bankAccountName: exhibition.bankAccountName || exhibition.companyName || 'N/A',
@@ -602,109 +627,186 @@ export const generatePDF = async (invoice: any): Promise<Buffer> => {
     };
     
     // Log data structure for debugging
-    console.log('[DEBUG] Template data structure:', JSON.stringify({
-      // Log key parts but not the whole data to avoid overwhelming logs
-      invoice: data.invoice,
-      calculations: data.calculations
-    }));
+    
     
     // Generate HTML from template
-    console.log('[DEBUG] Rendering template with data');
+    
     const html = template(data);
     
-    // Generate PDF with puppeteer
-    console.log('[DEBUG] Launching puppeteer for PDF generation');
-    let browser;
+    // Check if the HTML contains any img tags
+    const imgCount = (html.match(/<img[^>]*>/g) || []).length;
+    
+    
+    // Launch puppeteer to generate PDF
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+    
+    
+    const page = await browser.newPage();
+    
+    // Set viewport size to match A4
+    await page.setViewport({
+      width: 794, // A4 width in pixels at 96 DPI
+      height: 1123, // A4 height in pixels at 96 DPI
+      deviceScaleFactor: 2,
+    });
+    
+    // Directly embed logo image in HTML if logo path is available
+    const processedHtml = await embedLogo(html, exhibitionLogoPath, globalLogoPath, currentDir);
+    
+    // Basic HTML with direct CSS to avoid cross-origin issues
+    const wrappedHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { margin: 0; padding: 0; background-color: white !important; color: black !important; }
+          * { visibility: visible !important; opacity: 1 !important; }
+          .proforma-invoice { visibility: visible !important; opacity: 1 !important; }
+          
+          /* Make sure images are displayed */
+          img { display: block !important; visibility: visible !important; }
+        </style>
+      </head>
+      <body>
+        ${processedHtml}
+      </body>
+      </html>
+    `;
+    
+    
+    // Add event listener for console messages
+    
+    
+    // Add event listener for request failures
+    page.on('requestfailed', request => {
+      
+    });
+    
+    await page.setContent(wrappedHtml, { 
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
+    
+    // Wait a moment to ensure rendering is complete
+    await new Promise(r => setTimeout(r, 1000));
+    
     try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu'
-        ]
-      });
+      // Take screenshot for debugging
+      const screenshotPath = join(process.cwd(), 'debug-screenshot.png');
+      await page.screenshot({ path: screenshotPath, fullPage: true });
       
-      console.log('[DEBUG] Creating new page in puppeteer');
-      const page = await browser.newPage();
-      
-      // Set viewport size to match A4
-      await page.setViewport({
-        width: 794, // A4 width in pixels at 96 DPI
-        height: 1123, // A4 height in pixels at 96 DPI
-        deviceScaleFactor: 2,
-      });
-      
-      // Basic HTML with direct CSS to avoid cross-origin issues
-      const wrappedHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { margin: 0; padding: 0; background-color: white !important; color: black !important; }
-            * { visibility: visible !important; opacity: 1 !important; }
-            .proforma-invoice { visibility: visible !important; opacity: 1 !important; }
-          </style>
-        </head>
-        <body>
-          ${html}
-        </body>
-        </html>
-      `;
-      
-      console.log('[DEBUG] Setting HTML content in page');
-      await page.setContent(wrappedHtml, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000
-      });
-      
-      // Wait a moment to ensure rendering is complete
-      await new Promise(r => setTimeout(r, 1000));
-      
-      try {
-        // Take screenshot for debugging
-        const screenshotPath = join(process.cwd(), 'debug-screenshot.png');
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.log(`[DEBUG] Screenshot saved to: ${screenshotPath}`);
-      } catch (err) {
-        console.error('[ERROR] Failed to save screenshot:', err);
-      }
-      
-      console.log('[DEBUG] Generating PDF');
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '5mm',
-          right: '5mm',
-          bottom: '5mm',
-          left: '5mm'
-        },
-        preferCSSPageSize: true,
-        timeout: 60000,
-        pageRanges: '1' // Only print the first page
-      });
-      
-      console.log('[DEBUG] PDF generation successful, buffer size:', pdfBuffer.length);
-      return Buffer.from(pdfBuffer);
     } catch (err) {
-      console.error('[ERROR] Puppeteer error:', err);
-      throw err;
-    } finally {
-      if (browser) {
-        console.log('[DEBUG] Closing puppeteer browser');
-        await browser.close();
-      }
+      console.error('[ERROR] Failed to save screenshot:', err);
     }
+    
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '5mm',
+        right: '5mm',
+        bottom: '5mm',
+        left: '5mm'
+      },
+      preferCSSPageSize: true,
+      timeout: 60000,
+      pageRanges: '1' // Only print the first page
+    });
+    
+    
+    return Buffer.from(pdfBuffer);
   } catch (err) {
     console.error('[ERROR] PDF generation failed:', err);
     if (err instanceof Error) {
       console.error('[ERROR] Stack trace:', err.stack);
     }
     throw err;
+  }
+};
+
+// Helper function to embed the logo directly in the HTML
+const embedLogo = async (html: string, exhibitionLogoPath: string | null, globalLogoPath: string | null, currentDir: string): Promise<string> => {
+  try {
+    // If no logo paths are available, return original HTML
+    if (!exhibitionLogoPath && !globalLogoPath) {
+      return html;
+    }
+    
+    let processedHtml = html;
+    
+    // Process exhibition logo if available
+    if (exhibitionLogoPath) {
+      const fullExhibitionLogoPath = join(currentDir, 'uploads', exhibitionLogoPath);
+      
+      
+      if (existsSync(fullExhibitionLogoPath)) {
+        const logoBuffer = readFileSync(fullExhibitionLogoPath);
+        const logoBase64 = logoBuffer.toString('base64');
+        
+        // Determine MIME type based on file extension
+        const ext = exhibitionLogoPath.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: Record<string, string> = {
+          'png': 'image/png',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'gif': 'image/gif',
+          'svg': 'image/svg+xml'
+        };
+        const mimeType = mimeTypes[ext] || 'image/png';
+        
+        // Create data URL
+        const dataUrl = `data:${mimeType};base64,${logoBase64}`;
+        
+        
+        // Replace exhibition logo URL
+        const exhibitionLogoRegex = new RegExp(`src=["'].*?${exhibitionLogoPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'g');
+        processedHtml = processedHtml.replace(exhibitionLogoRegex, `src="${dataUrl}"`);
+      } else {
+        console.error(`[ERROR] Exhibition logo file not found at: ${fullExhibitionLogoPath}`);
+      }
+    }
+    
+    // Process global logo if available
+    if (globalLogoPath) {
+      const fullGlobalLogoPath = join(currentDir, 'uploads', globalLogoPath);
+      
+      
+      if (existsSync(fullGlobalLogoPath)) {
+        const logoBuffer = readFileSync(fullGlobalLogoPath);
+        const logoBase64 = logoBuffer.toString('base64');
+        
+        // Determine MIME type based on file extension
+        const ext = globalLogoPath.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: Record<string, string> = {
+          'png': 'image/png',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'gif': 'image/gif',
+          'svg': 'image/svg+xml'
+        };
+        const mimeType = mimeTypes[ext] || 'image/png';
+        
+        // Create data URL
+        const dataUrl = `data:${mimeType};base64,${logoBase64}`;
+        
+        
+        // Replace global logo URL
+        const globalLogoRegex = new RegExp(`src=["'].*?${globalLogoPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'g');
+        processedHtml = processedHtml.replace(globalLogoRegex, `src="${dataUrl}"`);
+      } else {
+        console.error(`[ERROR] Global logo file not found at: ${fullGlobalLogoPath}`);
+      }
+    }
+    
+    return processedHtml;
+  } catch (error) {
+    console.error('[ERROR] Failed to embed logo:', error);
+    return html; // Return original HTML if embedding fails
   }
 };
 
@@ -746,7 +848,7 @@ export const getInvoices = async (req: Request, res: Response) => {
           );
         }
         
-        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+        
       }
     }
 
@@ -782,7 +884,7 @@ export const getInvoices = async (req: Request, res: Response) => {
       .lean();
 
     // Log the number of invoices found
-    console.log(`Found ${invoices.length} invoices for query (page ${page}, limit ${limit})`);
+    
 
     // Filter out any null bookings and transform the data
     const validInvoices = invoices
@@ -853,7 +955,7 @@ export const getInvoice = async (req: Request, res: Response) => {
           );
         }
         
-        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+        
       }
     }
 
@@ -878,7 +980,7 @@ export const getInvoice = async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[DEBUG] Successfully retrieved invoice ${req.params.id}`);
+    
     res.json(invoice);
   } catch (error) {
     console.error('Error fetching invoice:', error);
@@ -892,7 +994,7 @@ export const getInvoice = async (req: Request, res: Response) => {
 export const downloadInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    console.log(`[DEBUG] Invoice download requested for ID: ${id}`);
+    
     
     // Check if user is authenticated
     if (!req.user?._id) {
@@ -903,7 +1005,7 @@ export const downloadInvoice = async (req: Request, res: Response) => {
     }
     
     // Get invoice and populate booking
-    console.log(`[DEBUG] Looking up invoice ${id} in database`);
+    
     const invoice = await Invoice.findById(id)
       .populate({
         path: 'bookingId',
@@ -918,7 +1020,7 @@ export const downloadInvoice = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    console.log(`[DEBUG] Invoice ${id} found, checking permissions`);
+    
     
     // Check if user has permissions to view any invoice
     let hasViewAllAccess = false;
@@ -943,7 +1045,7 @@ export const downloadInvoice = async (req: Request, res: Response) => {
           );
         }
         
-        console.log(`[DEBUG] User ${req.user._id} has view all access: ${hasViewAllAccess}`);
+        
       }
     }
     
@@ -955,22 +1057,17 @@ export const downloadInvoice = async (req: Request, res: Response) => {
 
     // Check for force regeneration parameter - always regenerate to ensure latest data
     const forceRegenerate = true; // Always force regeneration to ensure latest data
-    console.log(`[DEBUG] Generating PDF for invoice ${id}, force regenerate: ${forceRegenerate}`);
+    
     
     try {
       // Log invoice structure for debugging
-      console.log(`[DEBUG] Invoice structure:`, JSON.stringify({
-        id: invoice._id,
-        bookingId: invoice.bookingId._id,
-        invoiceNumber: invoice.invoiceNumber,
-        // Include other key invoice properties but not the entire object
-      }));
+      
       
       // Get PDF (from cache if available)
-      const pdfBuffer = await getPDF(invoice, forceRegenerate);
+      const pdfBuffer = await getPDF(invoice, forceRegenerate, true);
 
       // Set response headers and send PDF
-      console.log(`[DEBUG] Successfully generated PDF, sending response`);
+      
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);
       res.setHeader('Content-Length', pdfBuffer.length);
@@ -1022,15 +1119,18 @@ export const shareViaEmail = async (req: Request, res: Response) => {
     }
 
     // Get PDF (from cache if available)
-    const pdfBuffer = await getPDF(invoice);
+    const pdfBuffer = await getPDF(invoice, false, true);
 
     // Store PDF temporarily 
     const tempFilePath = join(process.cwd(), `temp-invoice-${id}.pdf`);
     writeFileSync(tempFilePath, pdfBuffer);
 
+    // Get the email transporter that works for OTPs
+    const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
+
     // Send email
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_USER || '"Exhibition Management" <no-reply@exhibition-management.com>',
       to: email,
       subject: `Invoice - ${invoice.invoiceNumber}`,
       text: message || `Please find attached the invoice ${invoice.invoiceNumber}.`,
@@ -1041,6 +1141,11 @@ export const shareViaEmail = async (req: Request, res: Response) => {
         },
       ],
     });
+
+    // Log test message URL if in test mode
+    if (isTestMode && getTestMessageUrl) {
+      console.log('Preview URL: %s', getTestMessageUrl(info));
+    }
 
     // Delete temp file
     unlinkSync(tempFilePath);
@@ -1069,7 +1174,7 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    const pdfBuffer = await generatePDF(invoice);
+    const pdfBuffer = await generatePDF(invoice, true);
     const pdfPath = join(__dirname, `../temp/invoice-${id}.pdf`);
     writeFileSync(pdfPath, pdfBuffer);
 

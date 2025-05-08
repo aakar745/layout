@@ -146,7 +146,8 @@ const InvoiceDetails: React.FC = () => {
             companyGST: invoice.bookingId.exhibitionId.companyGST || '',
             companyEmail: invoice.bookingId.exhibitionId.companyEmail || '',
             companyWebsite: invoice.bookingId.exhibitionId.companyWebsite || '',
-            companyAddress: invoice.bookingId.exhibitionId.companyAddress || ''
+            companyAddress: invoice.bookingId.exhibitionId.companyAddress || '',
+            headerLogo: invoice.bookingId.exhibitionId.headerLogo || undefined, // Pass headerLogo if available
           },
           calculations: {
             ...invoice.bookingId.calculations,

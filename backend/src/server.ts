@@ -101,6 +101,11 @@ app.use('/api/uploads', protectStatic, (req, res, next) => {
   fallthrough: false // Return 404 if file not found
 }));
 
+// Add public access to uploads for logos and images (no authentication required)
+app.use('/api/public/uploads', express.static(path.join(__dirname, '../uploads'), {
+  fallthrough: false // Return 404 if file not found
+}));
+
 // Handle static file errors
 app.use('/api/uploads', (err: any, req: any, res: any, next: any) => {
   console.error('Static file error:', {

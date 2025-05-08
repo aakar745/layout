@@ -22,6 +22,7 @@ export interface Exhibition {
   bankIFSC?: string;
   bankBranch?: string;
   bankAccountName?: string;
+  headerLogo?: string | null;
 }
 
 export interface Stall {

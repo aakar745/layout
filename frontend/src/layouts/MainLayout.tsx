@@ -15,6 +15,7 @@ import {
   CheckCircleOutlined,
   ReloadOutlined,
   BarChartOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -226,6 +227,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/bookings'),
     },
     {
+      key: 'invoices',
+      icon: <FileTextOutlined />,
+      label: 'Invoices',
+      requiredPermission: 'view_invoices',
+      onClick: () => navigate('/invoices'),
+    },
+    {
       key: 'exhibitors',
       icon: <TeamOutlined />,
       label: 'Exhibitors',
@@ -308,6 +316,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'stall/list': 'view_stalls',
       'stall-types': 'view_stall_types',
       'bookings': 'view_bookings',
+      'invoices': 'view_invoices',
       'exhibitors': 'view_exhibitors',
       'index': 'users_view',
       'roles': 'roles_view',

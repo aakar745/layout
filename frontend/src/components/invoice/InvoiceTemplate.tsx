@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { formatCurrency } from '../../utils/format';
 import './invoice.css';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
+import api from '../../services/api';
 
 interface Stall {
   _id: string;
@@ -45,6 +48,7 @@ interface Exhibition {
   name?: string;
   startDate?: string;
   endDate?: string;
+  headerLogo?: string;
 }
 
 export interface BookingExtended {
@@ -78,11 +82,45 @@ interface InvoiceTemplateProps {
 }
 
 const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [isLogoLoading, setIsLogoLoading] = useState<boolean>(true);
+  
+  const globalSettings = useSelector((state: RootState) => state.settings.settings);
+  
+  useEffect(() => {
+    const loadLogo = async () => {
+      setIsLogoLoading(true);
+      try {
+        if (booking.exhibitionId.headerLogo) {
+          const logoPath = booking.exhibitionId.headerLogo;
+          setLogoUrl(`${api.defaults.baseURL}/public/uploads/${logoPath}`);
+          console.log('Using exhibition header logo:', logoPath);
+        }
+        else if (globalSettings?.logo) {
+          const logoPath = globalSettings.logo;
+          setLogoUrl(`${api.defaults.baseURL}/public/uploads/${logoPath}`);
+          console.log('Using global settings logo:', logoPath);
+        }
+        else {
+          const logoEndpoint = `${api.defaults.baseURL}/public/logo`;
+          setLogoUrl(logoEndpoint);
+          console.log('Using public logo endpoint:', logoEndpoint);
+        }
+      } catch (error) {
+        console.error('Error loading logo:', error);
+        setLogoUrl(null);
+      } finally {
+        setIsLogoLoading(false);
+      }
+    };
+    
+    loadLogo();
+  }, [booking.exhibitionId.headerLogo, globalSettings?.logo]);
+
   const formatExhibitionName = () => {
     const startDate = new Date(booking.exhibitionId.startDate || '');
     const endDate = new Date(booking.exhibitionId.endDate || '');
     
-    // Group dates by month
     const datesByMonth: { [key: string]: string[] } = {};
     let currentDate = new Date(startDate);
     
@@ -97,7 +135,6 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
       currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    // Format each month group
     const formattedDateGroups = Object.entries(datesByMonth).map(([monthYear, dates]) => {
       return `${dates.join(', ')} ${monthYear}`;
     });
@@ -113,7 +150,6 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
     };
   };
 
-  // Calculate stall data
   const stallData = booking.stallIds.map((stall: Stall, index: number) => {
     const typedStall = stall as StallWithType;
     const area = stall.dimensions.width * stall.dimensions.height;
@@ -131,7 +167,6 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
     };
   });
 
-  // Recalculate totals based on current stall dimensions
   const recalculatedTotalBaseAmount = stallData.reduce((sum, stall) => sum + stall.amount, 0);
   
   const calculations = booking.calculations;
@@ -140,14 +175,11 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
   const discountType = discountInfo?.type || 'percentage';
   const discountValue = discountInfo?.value || 0;
   
-  // Recalculate discount and after-discount amount based on discount type
   let recalculatedDiscountAmount = 0;
   if (hasDiscount && discountValue > 0) {
     if (discountType === 'percentage') {
-      // For percentage discount
       recalculatedDiscountAmount = Math.round((recalculatedTotalBaseAmount * discountValue / 100) * 100) / 100;
     } else if (discountType === 'fixed') {
-      // For fixed discount - use the original discount value or the total discount amount
       recalculatedDiscountAmount = Math.min(discountValue, recalculatedTotalBaseAmount);
     }
   }
@@ -156,11 +188,9 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
   const gstTax = calculations.taxes.find((tax: Tax) => tax.name.includes('GST'));
   const gstPercentage = gstTax ? gstTax.rate : 18;
   
-  // Recalculate GST and total
   const recalculatedGstAmount = Math.round((recalculatedAmountAfterDiscount * gstPercentage / 100) * 100) / 100;
   const recalculatedTotalAmount = recalculatedAmountAfterDiscount + recalculatedGstAmount;
   
-  // Use recalculated values for display
   const totalBaseAmount = recalculatedTotalBaseAmount;
   const discountAmount = recalculatedDiscountAmount;
   const amountAfterDiscount = recalculatedAmountAfterDiscount;
@@ -171,7 +201,20 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
     <div className="invoice-container">
       <div className="proforma-invoice">
         <div className="header-section">
-          <div className="logo-cell">Logo</div>
+          <div className="logo-cell">
+            {isLogoLoading ? (
+              <div className="logo-loading">Loading...</div>
+            ) : logoUrl ? (
+              <img 
+                src={logoUrl} 
+                alt={booking.exhibitionId.companyName} 
+                className="logo-image"
+                onError={() => setLogoUrl(null)} 
+              />
+            ) : (
+              booking.exhibitionId.companyName
+            )}
+          </div>
           <div className="title-company">
             <div className="title-cell">PROFORMA INVOICE</div>
             <div className="company-cell">{booking.exhibitionId.companyName}</div>

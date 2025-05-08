@@ -33,6 +33,7 @@ import StallType from './pages/stall/type';
 import StallBookingManager from './pages/booking/manage';
 import CreateBooking from './pages/booking/create';
 import InvoiceDetails from './pages/invoice/[id]';
+import InvoiceList from './pages/invoice/list';
 import Home from './pages/home/Home';
 import ExhibitorManagement from './pages/exhibitors';
 import './styles/modal.css';
@@ -279,6 +280,16 @@ function App() {
                 <PrivateRoute>
                   <MainLayout>
                     <CreateBooking />
+                  </MainLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/invoices"
+              element={
+                <PrivateRoute>
+                  <MainLayout>
+                    <InvoiceList />
                   </MainLayout>
                 </PrivateRoute>
               }

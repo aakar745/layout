@@ -4,13 +4,14 @@ import Stall from '../models/stall.model';
 import Invoice from '../models/invoice.model';
 import Exhibition from '../models/exhibition.model';
 import Exhibitor from '../models/exhibitor.model';
-import { generatePDF, transporter } from './invoice.controller';
+import { generatePDF } from './invoice.controller';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
 import mongoose from 'mongoose';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
+import { getEmailTransporter } from '../config/email.config';
 
 /**
  * Creates a new booking from an exhibitor with pending status
@@ -418,7 +419,7 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
     }
 
     // Generate the PDF using the same function used for admin invoices
-    const pdfBuffer = await generatePDF(invoice);
+    const pdfBuffer = await generatePDF(invoice, false);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
@@ -469,12 +470,15 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
     }
 
     // Generate the PDF and send email
-    const pdfBuffer = await generatePDF(invoice);
+    const pdfBuffer = await generatePDF(invoice, false);
     const pdfPath = join(__dirname, `../temp/invoice-${invoice._id}.pdf`);
     writeFileSync(pdfPath, pdfBuffer);
 
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
+    // Get the email transporter that works for OTPs
+    const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
+
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"Exhibition Management" <no-reply@exhibition-management.com>',
       to: email,
       subject: `Invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'Your Booking'}`,
       text: message || 'Please find the attached invoice.',
@@ -483,6 +487,11 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
         path: pdfPath
       }]
     });
+
+    // Log test message URL if in test mode
+    if (isTestMode && getTestMessageUrl) {
+      console.log('Preview URL: %s', getTestMessageUrl(info));
+    }
 
     unlinkSync(pdfPath);
     res.json({ message: 'Invoice shared via email successfully' });
@@ -538,7 +547,7 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
     }
 
     // Generate the PDF and save temporarily
-    const pdfBuffer = await generatePDF(invoice);
+    const pdfBuffer = await generatePDF(invoice, false);
     const pdfPath = join(__dirname, `../temp/invoice-${invoice._id}.pdf`);
     writeFileSync(pdfPath, pdfBuffer);
 
