@@ -12,6 +12,7 @@ import User, { IUser } from '../models/user.model';
 import { IRole } from '../models/role.model';
 import { getEmailTransporter } from '../config/email.config';
 import Settings from '../models/settings.model';
+import { cpus } from 'os';
 
 // Cache directory for PDFs
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -19,6 +20,11 @@ const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
 const PDF_CACHE_MAX_AGE = parseInt(process.env.PDF_CACHE_MAX_AGE || '2592000000', 10); // 30 days in ms
 // Set maximum cache size - default 500MB
 const PDF_CACHE_MAX_SIZE = parseInt(process.env.PDF_CACHE_MAX_SIZE || '524288000', 10); // 500MB in bytes
+
+// Limit concurrent PDF generation to avoid memory issues
+const MAX_CONCURRENT_PDF_GENERATIONS = Math.max(1, Math.min(2, Math.floor(cpus().length / 2)));
+let currentPdfGenerations = 0;
+const pdfGenerationQueue: Array<() => void> = [];
 
 // Clean up old cache files
 const cleanupPdfCache = () => {
@@ -253,6 +259,46 @@ const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): void => {
   }
 };
 
+/**
+ * Queue PDF generation to prevent memory issues with too many Puppeteer instances
+ */
+const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Promise<Buffer> => {
+  // If we can process immediately, do so
+  if (currentPdfGenerations < MAX_CONCURRENT_PDF_GENERATIONS) {
+    currentPdfGenerations++;
+    try {
+      return await generateFn();
+    } finally {
+      currentPdfGenerations--;
+      // Process next item in queue if any
+      if (pdfGenerationQueue.length > 0) {
+        const nextGeneration = pdfGenerationQueue.shift();
+        if (nextGeneration) nextGeneration();
+      }
+    }
+  }
+  
+  // Otherwise, queue the generation
+  return new Promise<Buffer>((resolve, reject) => {
+    console.log(`[INFO] Queuing PDF generation. Current: ${currentPdfGenerations}, Queue size: ${pdfGenerationQueue.length}`);
+    
+    pdfGenerationQueue.push(() => {
+      currentPdfGenerations++;
+      generateFn()
+        .then(resolve)
+        .catch(reject)
+        .finally(() => {
+          currentPdfGenerations--;
+          // Process next item in queue
+          if (pdfGenerationQueue.length > 0) {
+            const nextGeneration = pdfGenerationQueue.shift();
+            if (nextGeneration) nextGeneration();
+          }
+        });
+    });
+  });
+};
+
 // Optimized PDF generation with caching and auto-refresh
 export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = false): Promise<Buffer> => {
   try {
@@ -265,9 +311,12 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
       }
     }
     
-    // Generate new PDF
-    
-    const pdfBuffer = await generatePDF(invoice, isAdmin);
+    // Queue the PDF generation to prevent memory issues
+    const pdfBuffer = await queuePdfGeneration(async () => {
+      console.log(`[DEBUG] Generating new PDF for invoice ${invoice._id}`);
+      const buffer = await generatePDF(invoice, isAdmin);
+      return buffer;
+    });
     
     // Cache the newly generated PDF
     const cacheKey = generateCacheKey(invoice);
@@ -638,89 +687,128 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     
     
     // Launch puppeteer to generate PDF
+    // Enhanced Puppeteer configuration for production
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--single-process', // Use a single process to reduce memory consumption
+        '--no-zygote', // Don't use zygote process
+        '--no-first-run', // Skip first run tasks
+        '--disable-extensions', // Disable extensions
+        '--disable-default-apps', // Disable default apps
+        '--disable-canvas-aa', // Disable antialiasing on canvas
+        '--disable-session-storage', // Disable session storage
+        '--disable-translate', // Disable translation
+        '--disable-sync', // Disable sync
+        '--disable-background-networking', // Disable background networking
+        '--memory-pressure-off', // Turn off memory pressure
+        '--mute-audio', // Mute audio
+        
+        // Memory limits for Chromium
+        '--js-flags=--max-old-space-size=128', // Limit JS memory to 128MB
+      ],
+      protocolTimeout: 60000, // Increase protocol timeout to 60 seconds
+      // Set a small viewport on creation to save memory
+      defaultViewport: {
+        width: 800,
+        height: 600,
+        deviceScaleFactor: 1
+      }
     });
-    
-    
-    const page = await browser.newPage();
-    
-    // Set viewport size to match A4
-    await page.setViewport({
-      width: 794, // A4 width in pixels at 96 DPI
-      height: 1123, // A4 height in pixels at 96 DPI
-      deviceScaleFactor: 2,
-    });
-    
-    // Directly embed logo image in HTML if logo path is available
-    const processedHtml = await embedLogo(html, exhibitionLogoPath, globalLogoPath, currentDir);
-    
-    // Basic HTML with direct CSS to avoid cross-origin issues
-    const wrappedHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { margin: 0; padding: 0; background-color: white !important; color: black !important; }
-          * { visibility: visible !important; opacity: 1 !important; }
-          .proforma-invoice { visibility: visible !important; opacity: 1 !important; }
-          
-          /* Make sure images are displayed */
-          img { display: block !important; visibility: visible !important; }
-        </style>
-      </head>
-      <body>
-        ${processedHtml}
-      </body>
-      </html>
-    `;
-    
-    
-    // Add event listener for console messages
-    
-    
-    // Add event listener for request failures
-    page.on('requestfailed', request => {
-      
-    });
-    
-    await page.setContent(wrappedHtml, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000
-    });
-    
-    // Wait a moment to ensure rendering is complete
-    await new Promise(r => setTimeout(r, 1000));
     
     try {
-      // Take screenshot for debugging
-      const screenshotPath = join(process.cwd(), 'debug-screenshot.png');
-      await page.screenshot({ path: screenshotPath, fullPage: true });
+      const page = await browser.newPage();
       
-    } catch (err) {
-      console.error('[ERROR] Failed to save screenshot:', err);
+      // Set viewport size to match A4
+      await page.setViewport({
+        width: 794, // A4 width in pixels at 96 DPI
+        height: 1123, // A4 height in pixels at 96 DPI
+        deviceScaleFactor: 2,
+      });
+      
+      // Directly embed logo image in HTML if logo path is available
+      const processedHtml = await embedLogo(html, exhibitionLogoPath, globalLogoPath, currentDir);
+      
+      // Basic HTML with direct CSS to avoid cross-origin issues
+      const wrappedHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { margin: 0; padding: 0; background-color: white !important; color: black !important; }
+            * { visibility: visible !important; opacity: 1 !important; }
+            .proforma-invoice { visibility: visible !important; opacity: 1 !important; }
+            
+            /* Make sure images are displayed */
+            img { display: block !important; visibility: visible !important; }
+          </style>
+        </head>
+        <body>
+          ${processedHtml}
+        </body>
+        </html>
+      `;
+      
+      
+      // Add event listener for console messages
+      
+      
+      // Add event listener for request failures
+      page.on('requestfailed', request => {
+        
+      });
+      
+      await page.setContent(wrappedHtml, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000
+      });
+      
+      // Wait a moment to ensure rendering is complete
+      await new Promise(r => setTimeout(r, 1000));
+      
+      try {
+        // Take screenshot for debugging
+        const screenshotPath = join(process.cwd(), 'debug-screenshot.png');
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        
+      } catch (err) {
+        console.error('[ERROR] Failed to save screenshot:', err);
+      }
+      
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '5mm',
+          right: '5mm',
+          bottom: '5mm',
+          left: '5mm'
+        },
+        preferCSSPageSize: true,
+        timeout: 60000,
+        pageRanges: '1' // Only print the first page
+      });
+      
+      
+      return Buffer.from(pdfBuffer);
+    } finally {
+      // Ensure browser is closed to prevent memory leaks
+      if (browser) {
+        try {
+          await browser.close();
+          console.log('[DEBUG] Puppeteer browser closed successfully');
+        } catch (closeError) {
+          console.error('[ERROR] Failed to close Puppeteer browser:', closeError);
+        }
+      }
     }
-    
-    
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '5mm',
-        right: '5mm',
-        bottom: '5mm',
-        left: '5mm'
-      },
-      preferCSSPageSize: true,
-      timeout: 60000,
-      pageRanges: '1' // Only print the first page
-    });
-    
-    
-    return Buffer.from(pdfBuffer);
   } catch (err) {
     console.error('[ERROR] PDF generation failed:', err);
     if (err instanceof Error) {
