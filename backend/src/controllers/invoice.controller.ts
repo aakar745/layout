@@ -13,6 +13,7 @@ import { IRole } from '../models/role.model';
 import { getEmailTransporter } from '../config/email.config';
 import Settings from '../models/settings.model';
 import { cpus } from 'os';
+import { setTimeout as sleep } from 'timers/promises';
 
 // Cache directory for PDFs
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -172,130 +173,154 @@ const generateCacheKey = (invoice: any): string => {
 };
 
 // Helper function to get cached PDF if available and still valid
-const getCachedPDF = (cacheKey: string, invoice: any): Buffer | null => {
-  const cachePath = join(PDF_CACHE_DIR, `${cacheKey}.pdf`);
-  const metaPath = join(PDF_CACHE_DIR, `${cacheKey}.json`);
-  
-  if (existsSync(cachePath)) {
-    try {
-      // Check if metadata exists and entities haven't changed
-      let isValid = true;
-      
-      if (existsSync(metaPath)) {
-        try {
-          const metadata = JSON.parse(readFileSync(metaPath, 'utf8'));
-          const bookingId = invoice.bookingId;
-          const exhibition = bookingId?.exhibitionId;
-          
-          // Verify all updatedAt timestamps match
-          if (
-            metadata.invoiceUpdatedAt !== invoice.updatedAt?.toString() ||
-            metadata.bookingUpdatedAt !== bookingId?.updatedAt?.toString() ||
-            metadata.exhibitionUpdatedAt !== exhibition?.updatedAt?.toString()
-          ) {
-            
-            isValid = false;
-          }
-        } catch (metaError) {
-          console.error(`[ERROR] Error reading cache metadata for ${cacheKey}`, metaError);
-          isValid = false;
-        }
-      } else {
-        // No metadata, can't verify validity
-        
-        isValid = false;
-      }
-      
-      if (isValid) {
-        
-        return readFileSync(cachePath);
-      } else {
-        // Clean up invalid cache
-        try {
-          unlinkSync(cachePath);
-          if (existsSync(metaPath)) {
-            unlinkSync(metaPath);
-          }
-          
-        } catch (cleanupError) {
-          console.error(`[ERROR] Failed to remove invalid cache: ${cacheKey}`, cleanupError);
-        }
-        return null;
-      }
-    } catch (error) {
-      console.error(`[ERROR] Error reading cached PDF: ${cacheKey}`, error);
-    }
-  }
-  return null;
-};
-
-// Helper function to cache generated PDF
-const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): void => {
+const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = false): Buffer | null => {
   const cachePath = join(PDF_CACHE_DIR, `${cacheKey}.pdf`);
   const metaPath = join(PDF_CACHE_DIR, `${cacheKey}.json`);
   
   try {
-    // Save the PDF
+    // Check if cache file exists
+    if (!existsSync(cachePath) || !existsSync(metaPath)) {
+      return null;
+    }
+    
+    // Read metadata
+    const metaJson = readFileSync(metaPath, 'utf8');
+    const metadata = JSON.parse(metaJson);
+    
+    // Check if cache is still valid (within retention period)
+    const now = Date.now();
+    const cacheTime = metadata.timestamp || 0;
+    
+    // Skip timestamp validation if ignoreTimestamp is true - use for emergency fallback
+    if (!ignoreTimestamp && now - cacheTime > PDF_CACHE_MAX_AGE) {
+      console.log(`[DEBUG] Cache expired for ${cacheKey}`);
+      // Delete expired files
+      try {
+        unlinkSync(cachePath);
+        unlinkSync(metaPath);
+      } catch (err) {
+        console.error(`[ERROR] Failed to delete expired cache files: ${err}`);
+      }
+      return null;
+    }
+    
+    // Check if invoice data has changed
+    // For simplicity we're just comparing the modification timestamps
+    const invoiceUpdatedTime = new Date(invoice.updatedAt).getTime();
+    
+    // Skip invoice update check if ignoreTimestamp is true - use for emergency fallback
+    if (!ignoreTimestamp && invoiceUpdatedTime > cacheTime) {
+      console.log(`[DEBUG] Invoice has been updated since cache was created`);
+      return null;
+    }
+    
+    // Read the cached PDF
+    return readFileSync(cachePath);
+  } catch (err) {
+    console.error(`[ERROR] Error reading from cache:`, err);
+    return null;
+  }
+};
+
+// Helper function to cache a generated PDF
+const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): void => {
+  try {
+    // Ensure cache directory exists
+    if (!existsSync(PDF_CACHE_DIR)) {
+      mkdirSync(PDF_CACHE_DIR, { recursive: true });
+    }
+    
+    // Write PDF file
+    const cachePath = join(PDF_CACHE_DIR, `${cacheKey}.pdf`);
     writeFileSync(cachePath, pdfBuffer);
     
-    // Save metadata to validate cache later
+    // Write metadata including timestamps for later validation
+    const metaPath = join(PDF_CACHE_DIR, `${cacheKey}.json`);
+    
     const bookingId = invoice.bookingId;
     const exhibition = bookingId?.exhibitionId;
     
     const metadata = {
-      createdAt: new Date().toISOString(),
-      invoiceId: invoice._id?.toString(),
+      invoiceId: invoice._id.toString(),
+      bookingId: bookingId?._id.toString(),
+      exhibitionId: exhibition?._id.toString(),
+      timestamp: Date.now(),
       invoiceUpdatedAt: invoice.updatedAt?.toString(),
-      bookingId: bookingId?._id?.toString(),
       bookingUpdatedAt: bookingId?.updatedAt?.toString(),
-      exhibitionId: exhibition?._id?.toString(),
       exhibitionUpdatedAt: exhibition?.updatedAt?.toString()
     };
     
     writeFileSync(metaPath, JSON.stringify(metadata, null, 2));
-    
+    console.log(`[DEBUG] Cached PDF for invoice ${invoice._id} with key ${cacheKey}`);
   } catch (error) {
-    console.error(`[ERROR] Error caching PDF: ${cacheKey}`, error);
+    console.error(`[ERROR] Failed to cache PDF:`, error);
+    // Continue without caching - non-critical error
   }
 };
 
-/**
- * Queue PDF generation to prevent memory issues with too many Puppeteer instances
- */
+// Update the queuePdfGeneration function for better queue management and graceful degradation
 const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Promise<Buffer> => {
   // If we can process immediately, do so
   if (currentPdfGenerations < MAX_CONCURRENT_PDF_GENERATIONS) {
     currentPdfGenerations++;
     try {
+      console.log(`[DEBUG] Starting PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
       return await generateFn();
+    } catch (error) {
+      console.error('[ERROR] PDF generation failed in queue processor:', error);
+      throw error;
     } finally {
       currentPdfGenerations--;
+      console.log(`[DEBUG] Completed PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
+      
       // Process next item in queue if any
       if (pdfGenerationQueue.length > 0) {
-        const nextGeneration = pdfGenerationQueue.shift();
-        if (nextGeneration) nextGeneration();
+        const nextItem = pdfGenerationQueue.shift();
+        if (nextItem) nextItem();
       }
     }
   }
   
-  // Otherwise, queue the generation
-  return new Promise<Buffer>((resolve, reject) => {
-    console.log(`[INFO] Queuing PDF generation. Current: ${currentPdfGenerations}, Queue size: ${pdfGenerationQueue.length}`);
+  // If too many concurrent generations, add to queue with timeout
+  console.log(`[DEBUG] Queuing PDF generation (${pdfGenerationQueue.length + 1} waiting)`);
+  
+  return new Promise((resolve, reject) => {
+    // Add timeout to prevent indefinite waiting
+    const timeoutMs = 120000; // 2 minutes timeout
+    const timeout = setTimeout(() => {
+      // Remove from queue if still there
+      const index = pdfGenerationQueue.indexOf(processItem);
+      if (index > -1) {
+        pdfGenerationQueue.splice(index, 1);
+      }
+      reject(new Error(`PDF generation queue timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
     
-    pdfGenerationQueue.push(() => {
+    // Function to execute when this item's turn comes
+    const processItem = async () => {
+      clearTimeout(timeout);
       currentPdfGenerations++;
-      generateFn()
-        .then(resolve)
-        .catch(reject)
-        .finally(() => {
-          currentPdfGenerations--;
-          // Process next item in queue
-          if (pdfGenerationQueue.length > 0) {
-            const nextGeneration = pdfGenerationQueue.shift();
-            if (nextGeneration) nextGeneration();
-          }
-        });
-    });
+      try {
+        console.log(`[DEBUG] Processing queued PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
+        const result = await generateFn();
+        resolve(result);
+      } catch (error) {
+        console.error('[ERROR] Queued PDF generation failed:', error);
+        reject(error);
+      } finally {
+        currentPdfGenerations--;
+        console.log(`[DEBUG] Completed queued PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
+        
+        // Process next item in queue
+        if (pdfGenerationQueue.length > 0) {
+          const nextItem = pdfGenerationQueue.shift();
+          if (nextItem) nextItem();
+        }
+      }
+    };
+    
+    // Add to processing queue
+    pdfGenerationQueue.push(processItem);
   });
 };
 
@@ -305,26 +330,60 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
     // Try to get from cache first if not forcing regeneration
     if (!forceRegenerate) {
       const cacheKey = generateCacheKey(invoice);
-      const cachedPDF = getCachedPDF(cacheKey, invoice);
+      const cachedPDF = getCachedPDF(cacheKey, invoice, true);
       if (cachedPDF) {
+        console.log(`[DEBUG] Using cached PDF for invoice ${invoice._id}`);
         return cachedPDF;
       }
     }
     
-    // Queue the PDF generation to prevent memory issues
-    const pdfBuffer = await queuePdfGeneration(async () => {
-      console.log(`[DEBUG] Generating new PDF for invoice ${invoice._id}`);
-      const buffer = await generatePDF(invoice, isAdmin);
-      return buffer;
-    });
+    // Generate new PDF
+    console.log(`[DEBUG] Generating new PDF for invoice ${invoice._id}`);
     
-    // Cache the newly generated PDF
-    const cacheKey = generateCacheKey(invoice);
-    cachePDF(cacheKey, pdfBuffer, invoice);
-    
-    return pdfBuffer;
+    // Use the queue system to prevent too many concurrent PDF generations
+    try {
+      // First attempt with full rendering
+      console.log('[DEBUG] Attempting PDF generation with full rendering');
+      return await queuePdfGeneration(async () => {
+        try {
+          const pdfBuffer = await generatePDF(invoice, isAdmin);
+          
+          // Cache the newly generated PDF
+          const cacheKey = generateCacheKey(invoice);
+          cachePDF(cacheKey, pdfBuffer, invoice);
+          
+          return pdfBuffer;
+        } catch (err) {
+          console.error('[ERROR] Full rendering PDF generation failed:', err);
+          throw err; // Let the queue system handle this error
+        }
+      });
+    } catch (primaryError) {
+      // If we get here, the primary generation method failed
+      console.log('[DEBUG] Primary PDF generation failed, attempting fallback mechanism');
+      
+      // Log the error for debugging
+      console.error('[ERROR] Primary PDF generation failed:', primaryError);
+      
+      // See if we have a cached version we can use as a last resort, even if forceRegenerate was true
+      console.log('[DEBUG] Checking for any cached version as a last resort');
+      const cacheKey = generateCacheKey(invoice);
+      const cachedPDF = getCachedPDF(cacheKey, invoice, true); // true = ignore timestamp
+      
+      if (cachedPDF) {
+        console.log('[DEBUG] Using outdated cached PDF as fallback');
+        return cachedPDF;
+      }
+      
+      // If still no success, we have to report the error
+      console.error('[ERROR] No fallback PDF available, must report failure');
+      throw new Error(`Failed to generate PDF: ${primaryError instanceof Error ? primaryError.message : 'Unknown error'}`);
+    }
   } catch (error) {
     console.error('[ERROR] Failed to get or generate PDF:', error);
+    if (error instanceof Error) {
+      console.error('[ERROR] Stack trace:', error.stack);
+    }
     throw error;
   }
 };
@@ -688,7 +747,9 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     
     // Launch puppeteer to generate PDF
     // Enhanced Puppeteer configuration for production
-    const browser = await puppeteer.launch({
+    
+    // Configure puppeteer options
+    const puppeteerOptions: any = {
       headless: true,
       args: [
         '--no-sandbox',
@@ -700,29 +761,44 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         '--no-zygote', // Don't use zygote process
         '--no-first-run', // Skip first run tasks
         '--disable-extensions', // Disable extensions
-        '--disable-default-apps', // Disable default apps
-        '--disable-canvas-aa', // Disable antialiasing on canvas
-        '--disable-session-storage', // Disable session storage
-        '--disable-translate', // Disable translation
-        '--disable-sync', // Disable sync
-        '--disable-background-networking', // Disable background networking
-        '--memory-pressure-off', // Turn off memory pressure
-        '--mute-audio', // Mute audio
-        
-        // Memory limits for Chromium
-        '--js-flags=--max-old-space-size=128', // Limit JS memory to 128MB
       ],
       protocolTimeout: 60000, // Increase protocol timeout to 60 seconds
-      // Set a small viewport on creation to save memory
-      defaultViewport: {
-        width: 800,
-        height: 600,
-        deviceScaleFactor: 1
+      timeout: 60000 // Overall browser launch timeout
+    };
+    
+    // Check if we should use a specific Chrome/Chromium executable path
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    if (executablePath) {
+      console.log(`[DEBUG] Using custom Chrome executable path: ${executablePath}`);
+      puppeteerOptions.executablePath = executablePath;
+    }
+    
+    // Create browser instance
+    console.log('[DEBUG] Launching puppeteer with options:', JSON.stringify(puppeteerOptions, null, 2));
+    let browser;
+    try {
+      browser = await puppeteer.launch(puppeteerOptions);
+      console.log('[DEBUG] Puppeteer browser launched successfully');
+    } catch (browserError) {
+      console.error('[ERROR] Failed to launch puppeteer browser:', browserError);
+      // Try with simpler configuration
+      console.log('[DEBUG] Attempting to launch with minimal configuration');
+      try {
+        browser = await puppeteer.launch({ 
+          headless: true,
+          args: ['--no-sandbox'],
+          timeout: 90000 // Longer timeout for fallback
+        });
+        console.log('[DEBUG] Puppeteer browser launched with minimal configuration');
+      } catch (fallbackError) {
+        console.error('[ERROR] Failed to launch even with minimal configuration:', fallbackError);
+        throw new Error(`Cannot launch Chrome/Chromium browser: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
       }
-    });
+    }
     
     try {
       const page = await browser.newPage();
+      console.log('[DEBUG] Browser page created');
       
       // Set viewport size to match A4
       await page.setViewport({
@@ -730,9 +806,12 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         height: 1123, // A4 height in pixels at 96 DPI
         deviceScaleFactor: 2,
       });
+      console.log('[DEBUG] Viewport set');
       
       // Directly embed logo image in HTML if logo path is available
+      console.log('[DEBUG] Embedding logo in HTML');
       const processedHtml = await embedLogo(html, exhibitionLogoPath, globalLogoPath, currentDir);
+      console.log('[DEBUG] Logo embedded successfully');
       
       // Basic HTML with direct CSS to avoid cross-origin issues
       const wrappedHtml = `
@@ -757,31 +836,45 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       
       
       // Add event listener for console messages
-      
+      page.on('console', msg => console.log('[PUPPETEER CONSOLE]', msg.text()));
       
       // Add event listener for request failures
       page.on('requestfailed', request => {
-        
+        console.error('[PUPPETEER REQUEST FAILED]', request.url(), request.failure()?.errorText);
       });
       
-      await page.setContent(wrappedHtml, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000
-      });
+      console.log('[DEBUG] Setting page content');
+      try {
+        await page.setContent(wrappedHtml, { 
+          waitUntil: 'networkidle0',
+          timeout: 30000
+        });
+        console.log('[DEBUG] Page content set successfully');
+      } catch (contentError) {
+        console.error('[ERROR] Failed to set page content:', contentError);
+        // Try with simpler options
+        await page.setContent(wrappedHtml, { 
+          waitUntil: 'load',
+          timeout: 60000
+        });
+        console.log('[DEBUG] Page content set with fallback options');
+      }
       
       // Wait a moment to ensure rendering is complete
+      console.log('[DEBUG] Waiting for rendering to complete');
       await new Promise(r => setTimeout(r, 1000));
       
       try {
         // Take screenshot for debugging
+        console.log('[DEBUG] Taking screenshot for debugging');
         const screenshotPath = join(process.cwd(), 'debug-screenshot.png');
         await page.screenshot({ path: screenshotPath, fullPage: true });
-        
+        console.log('[DEBUG] Screenshot saved to', screenshotPath);
       } catch (err) {
         console.error('[ERROR] Failed to save screenshot:', err);
       }
       
-      
+      console.log('[DEBUG] Generating PDF');
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -795,7 +888,7 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         timeout: 60000,
         pageRanges: '1' // Only print the first page
       });
-      
+      console.log('[DEBUG] PDF generated successfully');
       
       return Buffer.from(pdfBuffer);
     } finally {
