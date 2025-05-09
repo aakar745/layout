@@ -21,7 +21,7 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Install Puppeteer dependencies
+# Install Puppeteer dependencies with specific Chromium version
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -31,11 +31,14 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     nodejs \
-    yarn
+    yarn \
+    dumb-init
 
 # Set environment variables for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PUPPETEER_DISABLE_SETUID_SANDBOX=true \
+    PUPPETEER_NO_SANDBOX=true
 
 # Copy package files
 COPY --from=build /app/package.json ./
@@ -55,5 +58,6 @@ RUN cd backend && npm install --only=production
 # Expose the port the app runs on
 EXPOSE 5000
 
-# Command to run the application
+# Use dumb-init as entrypoint to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["npm", "start"] 
