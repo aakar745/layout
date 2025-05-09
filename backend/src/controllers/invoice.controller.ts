@@ -754,16 +754,10 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--single-process', // Use a single process to reduce memory consumption
-        '--no-zygote', // Don't use zygote process
-        '--no-first-run', // Skip first run tasks
-        '--disable-extensions', // Disable extensions
+        '--disable-dev-shm-usage'
       ],
-      protocolTimeout: 60000, // Increase protocol timeout to 60 seconds
-      timeout: 60000 // Overall browser launch timeout
+      timeout: 90000,
+      pipe: true // Use pipe instead of WebSocket for better stability in containers
     };
     
     // Check if we should use a specific Chrome/Chromium executable path
@@ -781,15 +775,15 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       console.log('[DEBUG] Puppeteer browser launched successfully');
     } catch (browserError) {
       console.error('[ERROR] Failed to launch puppeteer browser:', browserError);
-      // Try with simpler configuration
-      console.log('[DEBUG] Attempting to launch with minimal configuration');
+      // Try with even simpler configuration - absolute minimal
+      console.log('[DEBUG] Attempting to launch with absolute minimal configuration');
       try {
         browser = await puppeteer.launch({ 
           headless: true,
           args: ['--no-sandbox'],
-          timeout: 90000 // Longer timeout for fallback
+          timeout: 120000 // Longer timeout for fallback
         });
-        console.log('[DEBUG] Puppeteer browser launched with minimal configuration');
+        console.log('[DEBUG] Puppeteer browser launched with absolute minimal configuration');
       } catch (fallbackError) {
         console.error('[ERROR] Failed to launch even with minimal configuration:', fallbackError);
         throw new Error(`Cannot launch Chrome/Chromium browser: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
