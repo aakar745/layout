@@ -4,7 +4,8 @@ import Stall from '../models/stall.model';
 import Invoice from '../models/invoice.model';
 import Exhibition from '../models/exhibition.model';
 import Exhibitor from '../models/exhibitor.model';
-import { generatePDF } from './invoice.controller';
+import { generatePDF, getPDF } from '../services/invoice-pdf.service';
+import { sendPdfByEmail, sendPdfByWhatsApp } from '../services/pdf-delivery.service';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
@@ -418,14 +419,17 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate the PDF using the same function used for admin invoices
-    const pdfBuffer = await generatePDF(invoice, false);
+    // Get the PDF from cache or generate it
+    const pdfBuffer = await getPDF(invoice, false, false);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
-    res.status(500).json({ message: 'Error downloading exhibitor booking invoice', error });
+    res.status(500).json({ 
+      message: 'Error downloading exhibitor booking invoice', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 };
 
@@ -469,34 +473,28 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate the PDF and send email
-    const pdfBuffer = await generatePDF(invoice, false);
-    const pdfPath = join(__dirname, `../temp/invoice-${invoice._id}.pdf`);
-    writeFileSync(pdfPath, pdfBuffer);
-
-    // Get the email transporter that works for OTPs
-    const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
-
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"Exhibition Management" <no-reply@exhibition-management.com>',
-      to: email,
-      subject: `Invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'Your Booking'}`,
-      text: message || 'Please find the attached invoice.',
-      attachments: [{
-        filename: `invoice-${invoice._id}.pdf`,
-        path: pdfPath
-      }]
-    });
-
-    // Log test message URL if in test mode
-    if (isTestMode && getTestMessageUrl) {
-      console.log('Preview URL: %s', getTestMessageUrl(info));
+    // Get the PDF from cache or generate it
+    const pdfBuffer = await getPDF(invoice, false, false);
+    
+    // Send the email
+    const success = await sendPdfByEmail(
+      pdfBuffer,
+      email,
+      `Invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'Your Booking'}`,
+      message || 'Please find the attached invoice.',
+      `invoice-${invoice._id}.pdf`
+    );
+    
+    if (!success) {
+      return res.status(500).json({ message: 'Failed to send email' });
     }
 
-    unlinkSync(pdfPath);
     res.json({ message: 'Invoice shared via email successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error sharing invoice via email', error });
+    res.status(500).json({ 
+      message: 'Error sharing invoice via email', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 };
 
@@ -507,8 +505,6 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
   try {
     const { phoneNumber } = req.body;
     const exhibitorId = req.exhibitor?.id;
-    const whatsappApiUrl = process.env.WHATSAPP_API_URL;
-    const whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
     
     if (!exhibitorId) {
       return res.status(400).json({ message: 'Exhibitor ID not found' });
@@ -516,10 +512,6 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
 
     if (!phoneNumber) {
       return res.status(400).json({ message: 'Phone number is required' });
-    }
-
-    if (!whatsappApiUrl || !whatsappApiToken) {
-      throw new Error('WhatsApp API configuration missing');
     }
 
     // First check if the booking exists and belongs to this exhibitor
@@ -546,26 +538,29 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate the PDF and save temporarily
-    const pdfBuffer = await generatePDF(invoice, false);
-    const pdfPath = join(__dirname, `../temp/invoice-${invoice._id}.pdf`);
-    writeFileSync(pdfPath, pdfBuffer);
-
-    // TODO: Implement file storage and get public URL
+    // Get the PDF from cache or generate it
+    const pdfBuffer = await getPDF(invoice, false, false);
+    
+    // Generate a URL for the PDF download
     const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/exhibitor-bookings/${req.params.id}/invoice/download`;
+    
+    // Send via WhatsApp
+    const success = await sendPdfByWhatsApp(
+      pdfBuffer,
+      phoneNumber,
+      `Your invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'your booking'}`,
+      pdfUrl
+    );
+    
+    if (!success) {
+      return res.status(500).json({ message: 'Failed to send WhatsApp message' });
+    }
 
-    await axios.post(whatsappApiUrl, {
-      phone: phoneNumber,
-      message: `Here's your invoice: ${pdfUrl}`,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${whatsappApiToken}`
-      }
-    });
-
-    unlinkSync(pdfPath);
     res.json({ message: 'Invoice shared successfully via WhatsApp' });
   } catch (error) {
-    res.status(500).json({ message: 'Error sharing invoice via WhatsApp', error });
+    res.status(500).json({ 
+      message: 'Error sharing invoice via WhatsApp', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
   }
 }; 
