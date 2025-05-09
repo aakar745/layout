@@ -430,8 +430,8 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       
       // Set viewport size to match A4 (simplified from the old code)
       await page.setViewport({
-        width: 794, // A4 width in pixels at 96 DPI
-        height: 1123, // A4 height in pixels at 96 DPI
+        width: 1587, // A4 width in pixels at 96 DPI
+        height: 2242, // A4 height in pixels at 96 DPI
         deviceScaleFactor: 2
       });
       
@@ -473,9 +473,9 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         format: 'A4',
         printBackground: true,
         margin: {
-          top: '5mm',
+          top: '2mm',
           right: '5mm',
-          bottom: '5mm',
+          bottom: '2mm',
           left: '5mm'
         },
         preferCSSPageSize: true,
