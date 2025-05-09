@@ -395,16 +395,16 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     // Generate HTML from template
     const html = template(data);
     
-    // Configure puppeteer options for better container compatibility
+    // Configure puppeteer options using the simpler approach from the old code
     const puppeteerOptions: any = {
       headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
-      ],
-      timeout: 90000,
-      pipe: true // Use pipe instead of WebSocket for better stability in containers
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu'
+      ]
     };
     
     // Use custom Chrome executable path if specified in environment
@@ -414,37 +414,31 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       puppeteerOptions.executablePath = executablePath;
     }
     
-    // Launch browser with fallback options if needed
+    // Launch browser with simplified options
     let browser;
     try {
       browser = await puppeteer.launch(puppeteerOptions);
       console.log('[DEBUG] Puppeteer browser launched successfully');
     } catch (browserError) {
       console.error('[ERROR] Failed to launch puppeteer browser:', browserError);
-      // Try with simpler configuration
-      browser = await puppeteer.launch({ 
-        headless: true,
-        args: ['--no-sandbox'],
-        timeout: 90000
-      });
-      console.log('[DEBUG] Puppeteer browser launched with minimal configuration');
+      throw browserError;
     }
     
     try {
       // Create a new page
       const page = await browser.newPage();
       
-      // Set viewport size to match A4
+      // Set viewport size to match A4 (simplified from the old code)
       await page.setViewport({
         width: 794, // A4 width in pixels at 96 DPI
         height: 1123, // A4 height in pixels at 96 DPI
-        deviceScaleFactor: 2,
+        deviceScaleFactor: 2
       });
       
       // Embed logos in HTML
       const processedHtml = await embedLogo(html, data.exhibitionLogo, data.globalLogo, currentDir);
       
-      // Wrap HTML with additional CSS for better rendering
+      // Wrap HTML with additional CSS for better rendering (simplified)
       const wrappedHtml = `
         <!DOCTYPE html>
         <html>
@@ -465,25 +459,11 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         </html>
       `;
       
-      // Add event listeners for debugging
-      page.on('console', msg => console.log('[PUPPETEER CONSOLE]', msg.text()));
-      page.on('requestfailed', request => {
-        console.error('[PUPPETEER REQUEST FAILED]', request.url(), request.failure()?.errorText);
+      // Set page content with simple options (matching the old code)
+      await page.setContent(wrappedHtml, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000
       });
-      
-      // Set page content with fallback options
-      try {
-        await page.setContent(wrappedHtml, { 
-          waitUntil: 'networkidle0',
-          timeout: 30000
-        });
-      } catch (contentError) {
-        console.error('[ERROR] Failed to set page content:', contentError);
-        await page.setContent(wrappedHtml, { 
-          waitUntil: 'load',
-          timeout: 60000
-        });
-      }
       
       // Wait for rendering to complete
       await new Promise(r => setTimeout(r, 1000));
