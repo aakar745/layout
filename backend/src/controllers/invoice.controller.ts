@@ -640,7 +640,8 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     // Launch puppeteer to generate PDF
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      protocolTimeout: 60000 // Increase protocol timeout to 60 seconds
     });
     
     
