@@ -12,7 +12,8 @@ import {
   Form, 
   Input,
   Typography,
-  message
+  message,
+  Progress
 } from 'antd';
 import { 
   FilePdfOutlined, 
@@ -51,6 +52,8 @@ const ExhibitorInvoiceDetails: React.FC = () => {
   const [emailForm] = Form.useForm();
   const [whatsappForm] = Form.useForm();
   const [pdfDocument, setPdfDocument] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages);
@@ -70,19 +73,65 @@ const ExhibitorInvoiceDetails: React.FC = () => {
   };
 
   const handleDownload = async () => {
+    if (!bookingId) return;
+    
     try {
-      const response = await downloadInvoice(bookingId || '').unwrap();
-      const url = URL.createObjectURL(response);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Invoice-${invoice?.invoiceNumber || bookingId || 'download'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setIsDownloading(true);
+      setDownloadProgress(0);
+      message.loading({ content: 'Preparing invoice...', key: 'download' });
+      
+      // Use existing RTK Query method but simulate progress
+      const simulateProgress = () => {
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 5;
+          if (progress <= 90) {
+            setDownloadProgress(progress);
+            
+            if (progress % 25 === 0) {
+              message.loading({ 
+                content: `Downloading: ${progress}% complete`, 
+                key: 'download'
+              });
+            }
+          } else {
+            clearInterval(interval);
+          }
+        }, 200);
+        return interval;
+      };
+      
+      const progressInterval = simulateProgress();
+      
+      try {
+        const response = await downloadInvoice(bookingId).unwrap();
+        
+        // Complete the progress to 100%
+        clearInterval(progressInterval);
+        setDownloadProgress(100);
+        message.loading({ content: 'Finalizing download...', key: 'download' });
+        
+        // Process the downloaded file
+        const url = URL.createObjectURL(response);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Invoice-${invoice?.invoiceNumber || bookingId || 'download'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        message.success({ content: 'Invoice downloaded successfully', key: 'download' });
+      } catch (error) {
+        clearInterval(progressInterval);
+        throw error;
+      }
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      message.error('Failed to download PDF');
+      message.error({ content: 'Failed to download invoice', key: 'download' });
+    } finally {
+      setIsDownloading(false);
+      setTimeout(() => setDownloadProgress(0), 500); // Reset after a brief delay
     }
   };
 
@@ -151,32 +200,48 @@ const ExhibitorInvoiceDetails: React.FC = () => {
       <Card title="Invoice Details" style={{ margin: '20px' }}>
         <Row gutter={[16, 24]}>
           <Col span={24}>
-            <Space>
-              <Button 
-                type="primary" 
-                icon={<FilePdfOutlined />} 
-                onClick={handlePreview}
-              >
-                Preview Invoice
-              </Button>
-              <Button 
-                icon={<DownloadOutlined />} 
-                onClick={handleDownload}
-              >
-                Download PDF
-              </Button>
-              <Button 
-                icon={<MailOutlined />} 
-                onClick={handleEmailShare}
-              >
-                Share via Email
-              </Button>
-              <Button 
-                icon={<WhatsAppOutlined />} 
-                onClick={handleWhatsAppShare}
-              >
-                Share via WhatsApp
-              </Button>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space>
+                <Button 
+                  type="primary" 
+                  icon={<FilePdfOutlined />} 
+                  onClick={handlePreview}
+                  disabled={isDownloading}
+                >
+                  Preview Invoice
+                </Button>
+                <Button 
+                  icon={<DownloadOutlined />} 
+                  onClick={handleDownload}
+                  loading={isDownloading && downloadProgress < 100}
+                  disabled={isDownloading && downloadProgress >= 100}
+                >
+                  Download PDF
+                </Button>
+                <Button 
+                  icon={<MailOutlined />} 
+                  onClick={handleEmailShare}
+                  disabled={isDownloading}
+                >
+                  Share via Email
+                </Button>
+                <Button 
+                  icon={<WhatsAppOutlined />} 
+                  onClick={handleWhatsAppShare}
+                  disabled={isDownloading}
+                >
+                  Share via WhatsApp
+                </Button>
+              </Space>
+              
+              {isDownloading && (
+                <Progress 
+                  percent={downloadProgress} 
+                  size="small" 
+                  status="active" 
+                  style={{ marginBottom: 0, marginTop: 4 }}
+                />
+              )}
             </Space>
           </Col>
         </Row>

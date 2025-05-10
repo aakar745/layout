@@ -445,12 +445,41 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
         <head>
           <meta charset="UTF-8">
           <style>
-            body { margin: 0; padding: 0; background-color: white !important; color: black !important; }
-            * { visibility: visible !important; opacity: 1 !important; }
-            .proforma-invoice { visibility: visible !important; opacity: 1 !important; }
+            /* Base styles */
+            body { 
+              margin: 0; 
+              padding: 0; 
+              background-color: white !important; 
+              color: black !important; 
+            }
+            * { 
+              visibility: visible !important; 
+              opacity: 1 !important; 
+              box-sizing: border-box;
+            }
+            
+            /* Invoice container */
+            .proforma-invoice { 
+              visibility: visible !important; 
+              opacity: 1 !important; 
+              max-width: 100%;
+            }
             
             /* Make sure images are displayed */
             img { display: block !important; visibility: visible !important; }
+            
+            /* Prevent unnecessary page breaks */
+            .stall-row { page-break-inside: avoid; }
+            .stall-header { page-break-after: avoid; }
+            .section-header { page-break-after: avoid; }
+            
+            /* Keep important sections together */
+            .calculation-summary, 
+            .details-section,
+            .instruction-section,
+            .signature-section { 
+              page-break-inside: avoid; 
+            }
           </style>
         </head>
         <body>
@@ -468,19 +497,31 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       // Wait for rendering to complete
       await new Promise(r => setTimeout(r, 1000));
       
-      // Generate PDF
+      // Check content height to determine if we need multiple pages
+      const contentHeight = await page.evaluate(() => {
+        return document.body.scrollHeight;
+      });
+      
+      console.log(`[DEBUG] Content height: ${contentHeight}px`);
+      
+      // A4 height at 96 DPI is approximately 1123px with margins
+      const a4HeightWithMargins = 1123; 
+      const needsMultiplePages = contentHeight > a4HeightWithMargins;
+      
+      // Generate PDF with or without page range based on content height
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
         margin: {
-          top: '2mm',
-          right: '5mm',
-          bottom: '2mm',
-          left: '5mm'
+          top: '10mm',
+          right: '10mm',
+          bottom: '10mm',
+          left: '10mm'
         },
-        preferCSSPageSize: true,
+        preferCSSPageSize: false,
         timeout: 60000,
-        pageRanges: '1' // Only print the first page
+        // Only limit to first page if content fits
+        ...(needsMultiplePages ? {} : { pageRanges: '1' })
       });
       
       return Buffer.from(pdfBuffer);

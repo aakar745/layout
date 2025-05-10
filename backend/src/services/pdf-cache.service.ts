@@ -66,6 +66,7 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
   try {
     // Check if cache file exists
     if (!existsSync(cachePath) || !existsSync(metaPath)) {
+      console.log(`[DEBUG] Cache file not found for ${cacheKey}`);
       return null;
     }
     
@@ -90,17 +91,37 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
       return null;
     }
     
-    // Check if invoice data has changed
-    // For simplicity we're just comparing the modification timestamps
-    const invoiceUpdatedTime = new Date(invoice.updatedAt).getTime();
-    
-    // Skip invoice update check if ignoreTimestamp is true - use for emergency fallback
-    if (!ignoreTimestamp && invoiceUpdatedTime > cacheTime) {
-      console.log(`[DEBUG] Invoice has been updated since cache was created`);
-      return null;
+    // Check if invoice data has changed - only if we have the necessary data and not ignoring timestamps
+    if (!ignoreTimestamp && invoice.updatedAt) {
+      const invoiceUpdatedTime = new Date(invoice.updatedAt).getTime();
+      
+      // If the invoice was updated after the cache was created
+      if (invoiceUpdatedTime > cacheTime) {
+        console.log(`[DEBUG] Invoice ${invoice._id} has been updated since cache was created`);
+        return null;
+      }
+      
+      // Also check if related booking or exhibition was updated
+      if (metadata.bookingUpdatedAt && invoice.bookingId?.updatedAt) {
+        const bookingUpdatedTime = new Date(invoice.bookingId.updatedAt).getTime();
+        if (bookingUpdatedTime > cacheTime) {
+          console.log(`[DEBUG] Related booking has been updated since cache was created`);
+          return null;
+        }
+      }
+      
+      // Check if exhibition was updated
+      if (metadata.exhibitionUpdatedAt && invoice.bookingId?.exhibitionId?.updatedAt) {
+        const exhibitionUpdatedTime = new Date(invoice.bookingId.exhibitionId.updatedAt).getTime();
+        if (exhibitionUpdatedTime > cacheTime) {
+          console.log(`[DEBUG] Related exhibition has been updated since cache was created`);
+          return null;
+        }
+      }
     }
     
-    // Read the cached PDF
+    // All checks passed, read and return the cached PDF
+    console.log(`[DEBUG] Using cached PDF for invoice ${invoice._id}`);
     return readFileSync(cachePath);
   } catch (err) {
     console.error(`[ERROR] Error reading from cache:`, err);

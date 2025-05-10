@@ -121,7 +121,7 @@ exhibitorApi.interceptors.response.use(
 );
 
 // Specialized function for blob responses (PDF, images, etc.)
-export const downloadFile = async (url: string, isExhibitor = false) => {
+export const downloadFile = async (url: string, isExhibitor = false, onProgress?: (progressEvent: any) => void) => {
   const token = isExhibitor 
     ? localStorage.getItem('exhibitor_token')
     : localStorage.getItem('token');
@@ -130,7 +130,8 @@ export const downloadFile = async (url: string, isExhibitor = false) => {
     responseType: 'blob',
     headers: {
       'Authorization': `Bearer ${token}`
-    }
+    },
+    onDownloadProgress: onProgress
   });
 };
 

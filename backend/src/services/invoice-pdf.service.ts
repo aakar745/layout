@@ -104,6 +104,8 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
 export const downloadInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    // Get force regeneration parameter, defaulting to false for performance
+    const forceRegenerate = req.query.force === 'true';
     
     // Check if user is authenticated
     if (!req.user?._id) {
@@ -158,18 +160,32 @@ export const downloadInvoice = async (req: Request, res: Response) => {
       console.log(`[ERROR] User ${req.user._id} doesn't have permission to view invoice ${id} (owned by ${invoice.userId})`);
       return res.status(403).json({ message: 'You do not have permission to view this invoice' });
     }
-
-    // Check for force regeneration parameter - always regenerate to ensure latest data
-    const forceRegenerate = true; // Always force regeneration to ensure latest data
     
     try {
+      // Generate cache key for ETag
+      const cacheKey = generateCacheKey(invoice);
+      
+      // Check if client has a valid cached version using ETag
+      const clientETag = req.headers['if-none-match'];
+      if (!forceRegenerate && clientETag === `"${cacheKey}"`) {
+        // Client has the latest version, return 304 Not Modified
+        return res.status(304).end();
+      }
+      
       // Get PDF (from cache if available)
       const pdfBuffer = await getPDF(invoice, forceRegenerate, true);
-
-      // Set response headers and send PDF
+      
+      // Calculate PDF hash for ETag
+      const etag = `"${cacheKey}"`;
+      
+      // Set response headers for better caching
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);
       res.setHeader('Content-Length', pdfBuffer.length);
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+      
+      // Send the PDF
       res.send(pdfBuffer);
     } catch (pdfError) {
       console.error(`[ERROR] PDF generation failed:`, pdfError);

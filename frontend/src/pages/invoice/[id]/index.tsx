@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Button, Space, Modal, Form, Input, message } from 'antd';
+import { Card, Button, Space, Modal, Form, Input, message, Progress, Spin } from 'antd';
 import { DownloadOutlined, MailOutlined, WhatsAppOutlined, ArrowLeftOutlined, EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -23,6 +23,8 @@ const InvoiceDetails: React.FC = () => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [form] = Form.useForm();
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   const handlePreview = async () => {
     try {
@@ -37,8 +39,36 @@ const InvoiceDetails: React.FC = () => {
   };
 
   const handleDownload = async () => {
+    if (!id) return;
+    
     try {
-      const response = await downloadFile(`/invoices/${id}/download?force=true`);
+      setIsDownloading(true);
+      setDownloadProgress(0);
+      message.loading({ content: 'Preparing invoice...', key: 'download' });
+      
+      const response = await downloadFile(
+        `/invoices/${id}/download?force=false`,
+        false,
+        (progressEvent) => {
+          const total = progressEvent.total;
+          const loaded = progressEvent.loaded;
+          
+          if (total) {
+            // Calculate and update progress percentage
+            const percentage = Math.round((loaded * 100) / total);
+            setDownloadProgress(percentage);
+            
+            // Update message when progress changes significantly
+            if (percentage % 25 === 0) {
+              message.loading({ 
+                content: `Downloading: ${percentage}% complete`, 
+                key: 'download'
+              });
+            }
+          }
+        }
+      );
+      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -47,9 +77,14 @@ const InvoiceDetails: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      
+      message.success({ content: 'Invoice downloaded successfully', key: 'download' });
     } catch (error) {
       console.error('Download error:', error);
-      message.error('Failed to download invoice');
+      message.error({ content: 'Failed to download invoice', key: 'download' });
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
     }
   };
 
@@ -93,38 +128,54 @@ const InvoiceDetails: React.FC = () => {
       <Card
         title="Invoice Details"
         extra={
-          <Space>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(-1)}
-            >
-              Back
-            </Button>
-            <Button
-              icon={<EyeOutlined />}
-              onClick={handlePreview}
-            >
-              Preview
-            </Button>
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              onClick={handleDownload}
-            >
-              Download
-            </Button>
-            <Button
-              icon={<MailOutlined />}
-              onClick={() => setEmailModalVisible(true)}
-            >
-              Share via Email
-            </Button>
-            <Button
-              icon={<WhatsAppOutlined />}
-              onClick={() => setWhatsappModalVisible(true)}
-            >
-              Share via WhatsApp
-            </Button>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Space>
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() => navigate(-1)}
+                disabled={isDownloading}
+              >
+                Back
+              </Button>
+              <Button
+                icon={<EyeOutlined />}
+                onClick={handlePreview}
+                disabled={isDownloading}
+              >
+                Preview
+              </Button>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                onClick={handleDownload}
+                loading={isDownloading && downloadProgress < 100}
+                disabled={isDownloading && downloadProgress >= 100}
+              >
+                Download
+              </Button>
+              <Button
+                icon={<MailOutlined />}
+                onClick={() => setEmailModalVisible(true)}
+                disabled={isDownloading}
+              >
+                Share via Email
+              </Button>
+              <Button
+                icon={<WhatsAppOutlined />}
+                onClick={() => setWhatsappModalVisible(true)}
+                disabled={isDownloading}
+              >
+                Share via WhatsApp
+              </Button>
+            </Space>
+            {isDownloading && (
+              <Progress 
+                percent={downloadProgress} 
+                size="small" 
+                status="active" 
+                style={{ marginBottom: 0, marginTop: 4 }}
+              />
+            )}
           </Space>
         }
       >

@@ -12,7 +12,8 @@ import {
   DatePicker, 
   Tooltip,
   Modal,
-  App
+  App,
+  Progress
 } from 'antd';
 import { 
   SearchOutlined, 
@@ -51,6 +52,8 @@ const InvoiceList: React.FC = () => {
   const [sortField, setSortField] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'ascend' | 'descend'>('descend');
   const [messageApi, contextHolder] = message.useMessage();
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
   // Fetch exhibitions for the filter dropdown
   const { exhibitions, loading: exhibitionsLoading } = useSelector((state: RootState) => state.exhibition);
@@ -102,8 +105,35 @@ const InvoiceList: React.FC = () => {
 
   const handleDownload = async (id: string) => {
     try {
-      messageApi.loading({ content: 'Downloading invoice...', key: id });
-      const response = await downloadFile(`/invoices/${id}/download?force=true`);
+      setDownloadingInvoiceId(id);
+      setDownloadProgress(0);
+      messageApi.loading({ content: 'Preparing invoice...', key: id });
+      
+      // Use the enhanced downloadFile function with progress tracking
+      const response = await downloadFile(
+        `/invoices/${id}/download?force=false`, 
+        false,
+        (progressEvent) => {
+          const total = progressEvent.total;
+          const loaded = progressEvent.loaded;
+          
+          if (total) {
+            // Calculate and update progress percentage
+            const percentage = Math.round((loaded * 100) / total);
+            setDownloadProgress(percentage);
+            
+            // Update message when progress changes significantly
+            if (percentage % 25 === 0) {
+              messageApi.loading({ 
+                content: `Downloading: ${percentage}% complete`, 
+                key: id 
+              });
+            }
+          }
+        }
+      );
+      
+      // Process the downloaded file
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -112,10 +142,14 @@ const InvoiceList: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      
       messageApi.success({ content: 'Invoice downloaded successfully', key: id });
     } catch (error) {
       console.error('Download error:', error);
       messageApi.error({ content: 'Failed to download invoice', key: id });
+    } finally {
+      setDownloadingInvoiceId(null);
+      setDownloadProgress(0);
     }
   };
 
@@ -233,28 +267,41 @@ const InvoiceList: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       render: (_: any, record: any) => (
-        <Space>
-          <Tooltip title="View Invoice">
-            <Button 
-              type="text" 
-              icon={<EyeOutlined />} 
-              onClick={() => navigate(`/invoice/${record._id}`)}
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          <Space>
+            <Tooltip title="View Invoice">
+              <Button 
+                type="text" 
+                icon={<EyeOutlined />} 
+                onClick={() => navigate(`/invoice/${record._id}`)}
+              />
+            </Tooltip>
+            <Tooltip title="Download">
+              <Button 
+                type="text" 
+                icon={<DownloadOutlined />} 
+                onClick={() => handleDownload(record._id)}
+                loading={downloadingInvoiceId === record._id && downloadProgress < 100}
+                disabled={downloadingInvoiceId !== null && downloadingInvoiceId !== record._id}
+              />
+            </Tooltip>
+            <Tooltip title="Email">
+              <Button 
+                type="text" 
+                icon={<MailOutlined />} 
+                onClick={() => openEmailModal(record._id)}
+                disabled={downloadingInvoiceId !== null}
+              />
+            </Tooltip>
+          </Space>
+          {downloadingInvoiceId === record._id && (
+            <Progress 
+              percent={downloadProgress} 
+              size="small" 
+              status="active" 
+              style={{ marginBottom: 0, marginTop: 4 }}
             />
-          </Tooltip>
-          <Tooltip title="Download">
-            <Button 
-              type="text" 
-              icon={<DownloadOutlined />} 
-              onClick={() => handleDownload(record._id)}
-            />
-          </Tooltip>
-          <Tooltip title="Email">
-            <Button 
-              type="text" 
-              icon={<MailOutlined />} 
-              onClick={() => openEmailModal(record._id)}
-            />
-          </Tooltip>
+          )}
         </Space>
       ),
     },
