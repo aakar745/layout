@@ -13,7 +13,7 @@ import Invoice from '../models/invoice.model';
 import User from '../models/user.model';
 import { IRole } from '../models/role.model';
 import { join } from 'path';
-import { writeFileSync, unlinkSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 
 // Import from specialized services
 import { generatePDF } from './pdf-generator.service';
@@ -31,6 +31,12 @@ import {
 
 // Initialize the cache on module load
 initializeCache();
+
+// Utility function to sanitize filenames for file system operations
+const sanitizeFilename = (filename: string): string => {
+  // Replace slashes, backslashes, colons, and other invalid filename characters
+  return filename.replace(/[\/\\:*?"<>|]/g, '_');
+};
 
 /**
  * Get a PDF for an invoice, with caching and fallback
@@ -222,6 +228,8 @@ export const shareViaEmail = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Email address is required' });
     }
 
+    console.log(`[INFO] Processing email share request for invoice ${id} to ${email}`);
+
     // Get invoice
     const invoice = await Invoice.findById(id)
       .populate({
@@ -233,28 +241,39 @@ export const shareViaEmail = async (req: Request, res: Response) => {
       });
 
     if (!invoice) {
+      console.log(`[ERROR] Invoice ${id} not found for email share`);
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
+    console.log(`[INFO] Generating PDF for invoice ${id} with number ${invoice.invoiceNumber || 'unknown'}`);
+
     // Get PDF (from cache if available)
     const pdfBuffer = await getPDF(invoice, false, true);
+    
+    // Create a safe filename for the PDF attachment
+    const invoiceNumber = invoice.invoiceNumber || `INV-${id}`;
+    const attachmentFilename = `invoice-${invoiceNumber}.pdf`;
+    
+    console.log(`[DEBUG] Sending email with attachment filename: ${attachmentFilename}`);
     
     // Send email with PDF
     const success = await sendPdfByEmail(
       pdfBuffer,
       email,
-      `Invoice - ${invoice.invoiceNumber}`,
-      message || `Please find attached the invoice ${invoice.invoiceNumber}.`,
-      `invoice-${invoice.invoiceNumber}.pdf`
+      `Invoice - ${invoiceNumber}`,
+      message || `Please find attached the invoice ${invoiceNumber}.`,
+      attachmentFilename
     );
     
     if (!success) {
+      console.log(`[ERROR] Failed to send email to ${email}`);
       return res.status(500).json({ message: 'Failed to send email' });
     }
 
+    console.log(`[INFO] Email sent successfully to ${email}`);
     res.json({ message: 'Invoice shared via email successfully' });
   } catch (error) {
-    console.error('Email sharing error:', error);
+    console.error('[ERROR] Email sharing error:', error);
     res.status(500).json({ 
       message: 'Error sharing invoice via email', 
       error: error instanceof Error ? error.message : 'Unknown error' 
@@ -285,8 +304,20 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
     // Get PDF (from cache if available)
     const pdfBuffer = await getPDF(invoice, false, true);
     
-    // Create temporary file for message context
-    const pdfPath = join(process.cwd(), `temp/invoice-${id}.pdf`);
+    // Create temp directory if it doesn't exist
+    const tempDir = join(process.cwd(), 'temp');
+    if (!existsSync(tempDir)) {
+      mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Create a safe filename by sanitizing the invoice number
+    const safeFilename = sanitizeFilename(`invoice-${invoice.invoiceNumber || id}.pdf`);
+    
+    // Create temporary file for message context with unique identifier
+    const timestamp = Date.now();
+    const pdfPath = join(tempDir, `whatsapp-${timestamp}-${safeFilename}`);
+    
+    console.log(`[DEBUG] Writing WhatsApp PDF to temporary file: ${pdfPath}`);
     writeFileSync(pdfPath, pdfBuffer);
 
     // Generate a public URL for the invoice
@@ -302,7 +333,15 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
     );
     
     // Clean up temporary file
-    unlinkSync(pdfPath);
+    try {
+      if (existsSync(pdfPath)) {
+        console.log(`[DEBUG] Cleaning up WhatsApp temporary file: ${pdfPath}`);
+        unlinkSync(pdfPath);
+      }
+    } catch (cleanupErr) {
+      console.error('[ERROR] Failed to clean up temporary file:', cleanupErr);
+      // Continue processing - non-critical error
+    }
     
     if (!success) {
       return res.status(500).json({ message: 'Failed to send WhatsApp message' });

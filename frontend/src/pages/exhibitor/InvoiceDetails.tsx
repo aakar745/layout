@@ -16,12 +16,10 @@ import {
   Progress
 } from 'antd';
 import { 
-  FilePdfOutlined, 
   DownloadOutlined, 
   MailOutlined, 
   WhatsAppOutlined 
 } from '@ant-design/icons';
-import { Document, Page, pdfjs } from 'react-pdf';
 import { 
   useGetExhibitorInvoiceQuery,
   useDownloadExhibitorInvoiceMutation,
@@ -32,9 +30,6 @@ import InvoiceTemplate from '../../components/invoice/InvoiceTemplate';
 import type { BookingExtended } from '../../components/invoice/InvoiceTemplate';
 import type { Booking, Invoice } from '../../types/booking';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-
 const { Title, Text } = Typography;
 
 const ExhibitorInvoiceDetails: React.FC = () => {
@@ -44,33 +39,12 @@ const ExhibitorInvoiceDetails: React.FC = () => {
   const [shareViaEmail] = useShareViaEmailMutation();
   const [shareViaWhatsApp] = useShareViaWhatsAppMutation();
   
-  const [previewVisible, setPreviewVisible] = useState(false);
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [whatsappModalVisible, setWhatsappModalVisible] = useState(false);
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
   const [emailForm] = Form.useForm();
   const [whatsappForm] = Form.useForm();
-  const [pdfDocument, setPdfDocument] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
-    setNumPages(numPages);
-    setPageNumber(1);
-  }
-
-  const handlePreview = async () => {
-    try {
-      const response = await downloadInvoice(bookingId || '').unwrap();
-      const url = URL.createObjectURL(response);
-      setPdfDocument(url);
-      setPreviewVisible(true);
-    } catch (error) {
-      console.error('Error generating PDF preview:', error);
-      message.error('Failed to generate PDF preview');
-    }
-  };
 
   const handleDownload = async () => {
     if (!bookingId) return;
@@ -203,14 +177,6 @@ const ExhibitorInvoiceDetails: React.FC = () => {
             <Space direction="vertical" style={{ width: '100%' }}>
               <Space>
                 <Button 
-                  type="primary" 
-                  icon={<FilePdfOutlined />} 
-                  onClick={handlePreview}
-                  disabled={isDownloading}
-                >
-                  Preview Invoice
-                </Button>
-                <Button 
                   icon={<DownloadOutlined />} 
                   onClick={handleDownload}
                   loading={isDownloading && downloadProgress < 100}
@@ -287,30 +253,6 @@ const ExhibitorInvoiceDetails: React.FC = () => {
           }
         } as BookingExtended} />
       </Card>
-
-      {/* PDF Preview Modal */}
-      <Modal
-        title="Invoice Preview"
-        visible={previewVisible}
-        onCancel={() => setPreviewVisible(false)}
-        footer={null}
-        width={800}
-      >
-        {pdfDocument && (
-          <Document
-            file={pdfDocument}
-            onLoadSuccess={onDocumentLoadSuccess}
-            options={{ cMapUrl: 'cmaps/', cMapPacked: true }}
-          >
-            <Page pageNumber={pageNumber} width={750} />
-          </Document>
-        )}
-        {numPages && (
-          <div style={{ textAlign: 'center', marginTop: '10px' }}>
-            <Text>Page {pageNumber} of {numPages}</Text>
-          </div>
-        )}
-      </Modal>
 
       {/* Email Modal */}
       <Modal

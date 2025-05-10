@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Space, Modal, Form, Input, message, Progress, Spin } from 'antd';
-import { DownloadOutlined, MailOutlined, WhatsAppOutlined, ArrowLeftOutlined, EyeOutlined } from '@ant-design/icons';
+import { DownloadOutlined, MailOutlined, WhatsAppOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { Document, Page, pdfjs } from 'react-pdf';
 import InvoiceTemplate from '../../../components/invoice/InvoiceTemplate';
 import { useGetInvoiceQuery } from '../../../store/services/invoice';
 import { useParams } from 'react-router-dom';
@@ -10,33 +9,15 @@ import api, { downloadFile } from '../../../services/api';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-
 const InvoiceDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: invoice, isLoading } = useGetInvoiceQuery(id || '');
   const [emailModalVisible, setEmailModalVisible] = useState(false);
   const [whatsappModalVisible, setWhatsappModalVisible] = useState(false);
-  const [pdfModalVisible, setPdfModalVisible] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [numPages, setNumPages] = useState<number | null>(null);
   const [form] = Form.useForm();
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-
-  const handlePreview = async () => {
-    try {
-      const response = await downloadFile(`/invoices/${id}/download?force=true`);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      setPdfUrl(url);
-      setPdfModalVisible(true);
-    } catch (error) {
-      console.error('Preview error:', error);
-      message.error('Failed to preview invoice');
-    }
-  };
 
   const handleDownload = async () => {
     if (!id) return;
@@ -112,10 +93,6 @@ const InvoiceDetails: React.FC = () => {
     }
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-  };
-
   if (isLoading || !invoice) {
     return <div>Loading...</div>;
   }
@@ -136,13 +113,6 @@ const InvoiceDetails: React.FC = () => {
                 disabled={isDownloading}
               >
                 Back
-              </Button>
-              <Button
-                icon={<EyeOutlined />}
-                onClick={handlePreview}
-                disabled={isDownloading}
-              >
-                Preview
               </Button>
               <Button
                 type="primary"
@@ -213,40 +183,6 @@ const InvoiceDetails: React.FC = () => {
           }
         }} />
       </Card>
-
-      <Modal
-        title="Preview Invoice"
-        open={pdfModalVisible}
-        onCancel={() => {
-          setPdfModalVisible(false);
-          if (pdfUrl) {
-            window.URL.revokeObjectURL(pdfUrl);
-            setPdfUrl(null);
-          }
-        }}
-        width={1000}
-        footer={null}
-      >
-        {pdfUrl && (
-          <div style={{ height: '80vh', overflow: 'auto' }}>
-            <Document
-              file={pdfUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              loading={<div>Loading PDF...</div>}
-            >
-              {Array.from(new Array(numPages || 0), (_, index) => (
-                <Page
-                  key={`page_${index + 1}`}
-                  pageNumber={index + 1}
-                  width={900}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                />
-              ))}
-            </Document>
-          </div>
-        )}
-      </Modal>
 
       <Modal
         title="Share Invoice via Email"
