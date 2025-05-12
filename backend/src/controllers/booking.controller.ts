@@ -79,7 +79,9 @@ export const createBooking = async (req: Request, res: Response) => {
       customerGSTIN,
       customerPAN,
       companyName,
-      discount 
+      discount,
+      basicAmenities,
+      extraAmenities
     } = req.body;
 
     if (!exhibitorId) {
@@ -175,6 +177,9 @@ export const createBooking = async (req: Request, res: Response) => {
       companyName,
       status: 'confirmed',
       amount: finalAmount,
+      // Include amenities if provided
+      ...(basicAmenities && basicAmenities.length > 0 && { basicAmenities }),
+      ...(extraAmenities && extraAmenities.length > 0 && { extraAmenities }),
       calculations: {
         stalls: stallCalculations,
         totalBaseAmount,

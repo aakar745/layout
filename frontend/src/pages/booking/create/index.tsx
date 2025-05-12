@@ -11,8 +11,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Form, Input, Select, InputNumber, Button, Space, Typography, Row, Col, Modal, message, Descriptions, Divider, Table } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Card, Form, Input, Select, InputNumber, Button, Space, Typography, Row, Col, Modal, message, Descriptions, Divider, Table, Tag, Tooltip } from 'antd';
+import { PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
@@ -42,6 +42,9 @@ const CreateBooking: React.FC = () => {
   const [selectedStalls, setSelectedStalls] = useState<Stall[]>([]);
   const [selectedExhibition, setSelectedExhibition] = useState<Exhibition | null>(null);
   const [selectedDiscountId, setSelectedDiscountId] = useState<string | undefined>();
+  const [selectedExtraAmenities, setSelectedExtraAmenities] = useState<string[]>([]);
+  const [basicAmenitiesWithQuantities, setBasicAmenitiesWithQuantities] = useState<any[]>([]);
+  const [totalStallArea, setTotalStallArea] = useState<number>(0);
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
   
@@ -71,7 +74,11 @@ const CreateBooking: React.FC = () => {
       setStallsLoading(true);
       form.setFieldValue('stallIds', []); // Clear previous stall selection
       form.setFieldValue('discountId', undefined); // Clear previous discount selection
+      form.setFieldValue('extraAmenities', []); // Clear extra amenities selection
       setSelectedStalls([]); // Clear selected stall details
+      setSelectedExtraAmenities([]); // Clear selected extra amenities
+      setBasicAmenitiesWithQuantities([]); // Clear basic amenities
+      setTotalStallArea(0); // Reset total stall area
       
       // Fetch exhibition details
       const exhibitionResponse = await exhibitionService.getExhibition(exhibitionId);
@@ -108,6 +115,29 @@ const CreateBooking: React.FC = () => {
       return id && stallIds.includes(id);
     });
     setSelectedStalls(selected);
+
+    // Calculate total area of selected stalls
+    const totalArea = selected.reduce(
+      (sum, stall) => sum + (stall.dimensions.width * stall.dimensions.height),
+      0
+    );
+    setTotalStallArea(totalArea);
+
+    // Calculate basic amenities quantities based on total area
+    if (selectedExhibition?.basicAmenities?.length) {
+      const amenitiesWithQuantities = selectedExhibition.basicAmenities.map((amenity: any) => {
+        // Calculate quantity based on square meters and perSqm rate
+        // e.g., 1 table per 9 sqm with total area of 27 sqm = 3 tables
+        const calculatedQuantity = Math.floor(totalArea / amenity.perSqm) * amenity.quantity;
+        
+        return {
+          ...amenity,
+          calculatedQuantity: calculatedQuantity > 0 ? calculatedQuantity : 0,
+          key: amenity._id || amenity.id // Add key for table
+        };
+      });
+      setBasicAmenitiesWithQuantities(amenitiesWithQuantities);
+    }
   };
 
   /**
@@ -207,7 +237,7 @@ const CreateBooking: React.FC = () => {
       const totalAmount = Math.round((totalAmountAfterDiscount + totalTaxAmount) * 100) / 100;
 
       // Create booking with all calculated values
-      const bookingData: CreateBookingData = {
+      const bookingData: any = {
         exhibitionId: values.exhibitionId,
         exhibitorId: values.exhibitorId,
         stallIds: stallCalculations.map(s => s.stallId),
@@ -234,6 +264,24 @@ const CreateBooking: React.FC = () => {
           totalAmount
         }
       };
+
+      // Add amenities to booking data
+      if (basicAmenitiesWithQuantities.length) {
+        bookingData.basicAmenities = basicAmenitiesWithQuantities
+          .filter(amenity => amenity.calculatedQuantity > 0)
+          .map(amenity => ({
+            name: amenity.name,
+            type: amenity.type,
+            perSqm: amenity.perSqm,
+            quantity: amenity.quantity,
+            calculatedQuantity: amenity.calculatedQuantity,
+            description: amenity.description
+          }));
+      }
+
+      if (selectedExtraAmenities.length) {
+        bookingData.extraAmenities = getSelectedExtraAmenities();
+      }
 
       const result = await dispatch(createBooking(bookingData)).unwrap();
       
@@ -350,6 +398,29 @@ const CreateBooking: React.FC = () => {
       totalTaxAmount,
       totalAmount
     };
+  };
+
+  // Function to get selected extra amenities data
+  const getSelectedExtraAmenities = () => {
+    if (!selectedExhibition?.amenities?.length) return [];
+    
+    return selectedExhibition.amenities
+      .filter((amenity: any) => {
+        const amenityId = amenity._id || amenity.id;
+        return amenityId && selectedExtraAmenities.includes(amenityId.toString());
+      })
+      .map((amenity: any) => ({
+        id: amenity._id || amenity.id,
+        name: amenity.name,
+        type: amenity.type,
+        rate: amenity.rate,
+        description: amenity.description
+      }));
+  };
+
+  // Handle extra amenities selection
+  const handleExtraAmenitiesChange = (selectedIds: string[]) => {
+    setSelectedExtraAmenities(selectedIds);
   };
 
   return (
@@ -493,6 +564,167 @@ const CreateBooking: React.FC = () => {
                             );
                           }}
                         />
+                      </Card>
+                    </Col>
+
+                    {/* Amenities Section */}
+                    <Col span={24}>
+                      <Card title="Stall Amenities" size="small">
+                        <Row gutter={[16, 24]}>
+                          {/* Basic Amenities Section */}
+                          <Col span={24}>
+                            <div style={{ marginBottom: 16 }}>
+                              <Typography.Title level={5} style={{ margin: 0 }}>
+                                <Space>
+                                  <span>Included Basic Amenities</span>
+                                  <Tag color="green">Based on stall area</Tag>
+                                </Space>
+                              </Typography.Title>
+                              <Typography.Text type="secondary">
+                                The following amenities are included based on your total stall area of {totalStallArea.toFixed(2)} sqm.
+                              </Typography.Text>
+                            </div>
+                            
+                            {selectedExhibition?.basicAmenities?.length ? (
+                              <Table 
+                                dataSource={basicAmenitiesWithQuantities.filter(a => a.calculatedQuantity > 0)} 
+                                columns={[
+                                  {
+                                    title: 'Name',
+                                    dataIndex: 'name',
+                                    key: 'name',
+                                    render: (text, record: any) => (
+                                      <Space>
+                                        <Typography.Text strong>{text}</Typography.Text>
+                                        <Tag color="blue">{record.type}</Tag>
+                                      </Space>
+                                    )
+                                  },
+                                  {
+                                    title: 'Quantity',
+                                    dataIndex: 'calculatedQuantity',
+                                    key: 'calculatedQuantity',
+                                    width: 120,
+                                    render: (quantity: number) => (
+                                      <Tag color="green">{quantity} {quantity === 1 ? 'unit' : 'units'}</Tag>
+                                    )
+                                  },
+                                  {
+                                    title: 'Allocation',
+                                    dataIndex: 'perSqm',
+                                    key: 'perSqm',
+                                    width: 180,
+                                    render: (perSqm: number, record: any) => (
+                                      <Tooltip title={record.description}>
+                                        <Typography.Text type="secondary">
+                                          <InfoCircleOutlined style={{ marginRight: 5 }} />
+                                          1 {record.quantity > 1 ? `set of ${record.quantity}` : 'unit'} per {perSqm} sqm
+                                        </Typography.Text>
+                                      </Tooltip>
+                                    )
+                                  },
+                                  {
+                                    title: 'Status',
+                                    key: 'status',
+                                    width: 100,
+                                    align: 'right' as 'right',
+                                    render: () => <Typography.Text type="success">Included</Typography.Text>
+                                  }
+                                ]}
+                                pagination={false}
+                                size="small"
+                                locale={{
+                                  emptyText: <Typography.Text>No basic amenities qualify based on the selected stall area.</Typography.Text>
+                                }}
+                              />
+                            ) : (
+                              <Typography.Text type="secondary">
+                                No basic amenities have been configured for this exhibition.
+                              </Typography.Text>
+                            )}
+                          </Col>
+                          
+                          {/* Extra Amenities Section */}
+                          <Col span={24}>
+                            <Divider style={{ margin: '12px 0 24px' }} />
+                            <div style={{ marginBottom: 16 }}>
+                              <Typography.Title level={5} style={{ margin: 0 }}>
+                                <Space>
+                                  <span>Additional Amenities</span>
+                                  <Tag color="blue">Optional</Tag>
+                                </Space>
+                              </Typography.Title>
+                              <Typography.Text type="secondary">
+                                Select any additional amenities for the booking.
+                              </Typography.Text>
+                            </div>
+                            
+                            {selectedExhibition?.amenities?.length ? (
+                              <>
+                                <Form.Item
+                                  name="extraAmenities"
+                                  label="Select Additional Amenities"
+                                >
+                                  <Select
+                                    mode="multiple"
+                                    placeholder="Select amenities"
+                                    style={{ width: '100%' }}
+                                    onChange={handleExtraAmenitiesChange}
+                                    optionLabelProp="label"
+                                    options={selectedExhibition.amenities.map((amenity: any) => ({
+                                      label: `${amenity.name} (${amenity.rate ? `₹${amenity.rate.toLocaleString()}` : 'N/A'})`,
+                                      value: amenity._id || amenity.id,
+                                      key: amenity._id || amenity.id
+                                    }))}
+                                  />
+                                </Form.Item>
+                                
+                                {selectedExtraAmenities.length > 0 && (
+                                  <div style={{ marginTop: 16 }}>
+                                    <Typography.Text strong>Selected Amenities:</Typography.Text>
+                                    <Table 
+                                      dataSource={getSelectedExtraAmenities()} 
+                                      columns={[
+                                        {
+                                          title: 'Name',
+                                          dataIndex: 'name',
+                                          key: 'name',
+                                          render: (text, record: any) => (
+                                            <Space align="center">
+                                              <Typography.Text strong>{text}</Typography.Text>
+                                              <Tag color="blue">{record.type}</Tag>
+                                              <Typography.Text type="secondary" style={{ fontSize: '13px' }}>
+                                                {record.description || ''}
+                                              </Typography.Text>
+                                            </Space>
+                                          )
+                                        },
+                                        {
+                                          title: 'Rate',
+                                          dataIndex: 'rate',
+                                          key: 'rate',
+                                          width: 120,
+                                          align: 'right' as 'right',
+                                          render: (rate: number) => (
+                                            <Typography.Text strong style={{ color: '#1890ff' }}>
+                                              ₹{rate.toLocaleString('en-IN')}
+                                            </Typography.Text>
+                                          )
+                                        }
+                                      ]}
+                                      pagination={false}
+                                      size="small"
+                                    />
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <Typography.Text type="secondary">
+                                No additional amenities have been configured for this exhibition.
+                              </Typography.Text>
+                            )}
+                          </Col>
+                        </Row>
                       </Card>
                     </Col>
 

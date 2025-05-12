@@ -36,6 +36,7 @@ import InvoiceDetails from './pages/invoice/[id]';
 import InvoiceList from './pages/invoice/list';
 import Home from './pages/home/Home';
 import ExhibitorManagement from './pages/exhibitors';
+import AmenitiesPage from './pages/amenities/index';
 import './styles/modal.css';
 
 // Admin private route
@@ -280,6 +281,16 @@ function App() {
                 <PrivateRoute>
                   <MainLayout>
                     <CreateBooking />
+                  </MainLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/amenities"
+              element={
+                <PrivateRoute>
+                  <MainLayout>
+                    <AmenitiesPage />
                   </MainLayout>
                 </PrivateRoute>
               }

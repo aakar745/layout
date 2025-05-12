@@ -16,6 +16,7 @@ import {
   ReloadOutlined,
   BarChartOutlined,
   FileTextOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -227,6 +228,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/bookings'),
     },
     {
+      key: 'amenities',
+      icon: <GiftOutlined />,
+      label: 'Amenities',
+      requiredPermission: 'view_amenities',
+      onClick: () => navigate('/amenities'),
+    },
+    {
       key: 'invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
@@ -316,6 +324,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'stall/list': 'view_stalls',
       'stall-types': 'view_stall_types',
       'bookings': 'view_bookings',
+      'amenities': 'view_amenities',
       'invoices': 'view_invoices',
       'exhibitors': 'view_exhibitors',
       'index': 'users_view',

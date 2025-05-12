@@ -46,6 +46,23 @@ export interface IBooking extends Document {
   customerPAN?: string;
   companyName: string;
   amount: number;
+  /** Basic amenities included with the stall based on area calculation */
+  basicAmenities: Array<{
+    name: string;
+    type: string;
+    perSqm: number;
+    quantity: number;
+    calculatedQuantity: number;
+    description?: string;
+  }>;
+  /** Extra amenities selected during booking */
+  extraAmenities: Array<{
+    id: mongoose.Types.ObjectId | string;
+    name: string;
+    type: string;
+    rate: number;
+    description?: string;
+  }>;
   calculations: {
     /** Array of stall bookings with their individual calculations */
     stalls: Array<{
@@ -140,6 +157,23 @@ const bookingSchema = new Schema({
     type: Number,
     required: true,
   },
+  /** Basic amenities included with the stall based on area calculation */
+  basicAmenities: [{
+    name: { type: String, required: true },
+    type: { type: String, required: true },
+    perSqm: { type: Number, required: true },
+    quantity: { type: Number, required: true },
+    calculatedQuantity: { type: Number, required: true },
+    description: { type: String }
+  }],
+  /** Extra amenities selected during booking */
+  extraAmenities: [{
+    id: { type: Schema.Types.ObjectId, required: true },
+    name: { type: String, required: true },
+    type: { type: String, required: true },
+    rate: { type: Number, required: true },
+    description: { type: String }
+  }],
   calculations: {
     stalls: [{
       stallId: {

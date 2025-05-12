@@ -32,7 +32,9 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       customerEmail,
       customerPhone,
       companyName,
-      discountId 
+      discountId,
+      basicAmenities,
+      extraAmenities
     } = req.body;
 
     const exhibitorId = req.exhibitor?.id;
@@ -172,6 +174,9 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       companyName: companyName || exhibitor.companyName,
       status: 'pending',
       amount: finalAmount,
+      // Include amenities if provided
+      ...(basicAmenities && basicAmenities.length > 0 && { basicAmenities }),
+      ...(extraAmenities && extraAmenities.length > 0 && { extraAmenities }),
       calculations: {
         stalls: stallCalculations,
         totalBaseAmount,
