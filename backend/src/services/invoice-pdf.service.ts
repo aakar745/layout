@@ -110,8 +110,8 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
 export const downloadInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // Get force regeneration parameter, defaulting to false for performance
-    const forceRegenerate = req.query.force === 'true';
+    // Get force regeneration parameter, defaulting to true to always generate fresh PDFs
+    const forceRegenerate = req.query.force === 'true' || true; // Always regenerate unless explicitly set to false
     
     // Check if user is authenticated
     if (!req.user?._id) {
@@ -121,13 +121,23 @@ export const downloadInvoice = async (req: Request, res: Response) => {
       });
     }
     
-    // Get invoice and populate booking
+    // Get invoice and deeply populate booking, stalls, and exhibition data to ensure we have the latest
     const invoice = await Invoice.findById(id)
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId' },
-          { path: 'stallIds', populate: { path: 'stallTypeId' } },
+          { 
+            path: 'exhibitionId',
+            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo'
+          },
+          { 
+            path: 'stallIds', 
+            select: 'number dimensions ratePerSqm status stallTypeId', 
+            populate: { 
+              path: 'stallTypeId', 
+              select: 'name' 
+            } 
+          },
         ],
       });
 
@@ -168,28 +178,19 @@ export const downloadInvoice = async (req: Request, res: Response) => {
     }
     
     try {
-      // Generate cache key for ETag
-      const cacheKey = generateCacheKey(invoice);
+      console.log(`[INFO] Generating fresh PDF for invoice ${id}`);
       
-      // Check if client has a valid cached version using ETag
-      const clientETag = req.headers['if-none-match'];
-      if (!forceRegenerate && clientETag === `"${cacheKey}"`) {
-        // Client has the latest version, return 304 Not Modified
-        return res.status(304).end();
-      }
+      // Always generate a fresh PDF with the latest data - bypassing the cache system
+      const pdfBuffer = await generatePDF(invoice, true);
       
-      // Get PDF (from cache if available)
-      const pdfBuffer = await getPDF(invoice, forceRegenerate, true);
-      
-      // Calculate PDF hash for ETag
-      const etag = `"${cacheKey}"`;
-      
-      // Set response headers for better caching
+      // Set response headers
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);
       res.setHeader('Content-Length', pdfBuffer.length);
-      res.setHeader('ETag', etag);
-      res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+      // Disable caching to ensure fresh data every time
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       
       // Send the PDF
       res.send(pdfBuffer);
@@ -230,13 +231,13 @@ export const shareViaEmail = async (req: Request, res: Response) => {
 
     console.log(`[INFO] Processing email share request for invoice ${id} to ${email}`);
 
-    // Get invoice
+    // Get invoice with full population to ensure latest data
     const invoice = await Invoice.findById(id)
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId' },
-          { path: 'stallIds', populate: { path: 'stallTypeId' } },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
         ],
       });
 
@@ -245,10 +246,10 @@ export const shareViaEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    console.log(`[INFO] Generating PDF for invoice ${id} with number ${invoice.invoiceNumber || 'unknown'}`);
+    console.log(`[INFO] Generating fresh PDF for invoice ${id} with number ${invoice.invoiceNumber || 'unknown'}`);
 
-    // Get PDF (from cache if available)
-    const pdfBuffer = await getPDF(invoice, false, true);
+    // Generate a fresh PDF directly without using the cache system
+    const pdfBuffer = await generatePDF(invoice, true);
     
     // Create a safe filename for the PDF attachment
     const invoiceNumber = invoice.invoiceNumber || `INV-${id}`;
@@ -289,20 +290,22 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { phoneNumber } = req.body;
 
-    const invoice = await Invoice.findById(id).populate({
-      path: 'bookingId',
-      populate: [
-        { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
-        { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
-      ],
-    });
+    // Get invoice with full population to ensure latest data
+    const invoice = await Invoice.findById(id)
+      .populate({
+        path: 'bookingId',
+        populate: [
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+        ],
+      });
 
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    // Get PDF (from cache if available)
-    const pdfBuffer = await getPDF(invoice, false, true);
+    // Generate a fresh PDF directly without using the cache system
+    const pdfBuffer = await generatePDF(invoice, true);
     
     // Create temp directory if it doesn't exist
     const tempDir = join(process.cwd(), 'temp');

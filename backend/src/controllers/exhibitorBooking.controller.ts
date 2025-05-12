@@ -4,7 +4,8 @@ import Stall from '../models/stall.model';
 import Invoice from '../models/invoice.model';
 import Exhibition from '../models/exhibition.model';
 import Exhibitor from '../models/exhibitor.model';
-import { generatePDF, getPDF } from '../services/invoice-pdf.service';
+import { getPDF } from '../services/invoice-pdf.service';
+import { generatePDF } from '../services/pdf-generator.service';
 import { sendPdfByEmail, sendPdfByWhatsApp } from '../services/pdf-delivery.service';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
@@ -404,14 +405,24 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
       return res.status(404).json({ message: 'Booking not found or not authorized to access' });
     }
 
-    // Then fetch the invoice
+    // Then fetch the invoice with all the latest data
     const invoice = await Invoice.findOne({ bookingId: booking._id })
       .populate({
         path: 'bookingId',
         select: '_id exhibitionId stallIds customerName customerEmail customerPhone customerGSTIN customerAddress companyName calculations amount status createdAt updatedAt',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
-          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+          { 
+            path: 'exhibitionId', 
+            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' 
+          },
+          { 
+            path: 'stallIds', 
+            select: 'number dimensions ratePerSqm stallTypeId', 
+            populate: { 
+              path: 'stallTypeId', 
+              select: 'name' 
+            } 
+          },
         ],
       });
     
@@ -419,11 +430,17 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Get the PDF from cache or generate it
-    const pdfBuffer = await getPDF(invoice, false, false);
+    // Generate a fresh PDF directly instead of using the cache
+    const pdfBuffer = await generatePDF(invoice, false);
 
+    // Set headers to prevent caching
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Send the fresh PDF
     res.send(pdfBuffer);
   } catch (error) {
     res.status(500).json({ 
@@ -464,7 +481,7 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
           { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
         ],
       });
@@ -473,8 +490,8 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Get the PDF from cache or generate it
-    const pdfBuffer = await getPDF(invoice, false, false);
+    // Generate a fresh PDF directly instead of using the cache
+    const pdfBuffer = await generatePDF(invoice, false);
     
     // Send the email
     const success = await sendPdfByEmail(
@@ -529,7 +546,7 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
           { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
         ],
       });
@@ -538,8 +555,8 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Get the PDF from cache or generate it
-    const pdfBuffer = await getPDF(invoice, false, false);
+    // Generate a fresh PDF directly instead of using the cache
+    const pdfBuffer = await generatePDF(invoice, false);
     
     // Generate a URL for the PDF download
     const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/exhibitor-bookings/${req.params.id}/invoice/download`;
