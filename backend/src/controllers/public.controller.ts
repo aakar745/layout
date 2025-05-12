@@ -32,7 +32,7 @@ export const getPublicExhibition = async (req: Request, res: Response) => {
     }
     
     const exhibition = await Exhibition.findOne(query)
-      .select('name description startDate endDate venue headerTitle headerSubtitle headerDescription headerLogo sponsorLogos slug');
+      .select('name description startDate endDate venue headerTitle headerSubtitle headerDescription headerLogo sponsorLogos slug amenities basicAmenities');
 
     if (!exhibition) {
       return res.status(404).json({ message: 'Exhibition not found' });
@@ -58,7 +58,7 @@ export const getPublicLayout = async (req: Request, res: Response) => {
     
     // Get exhibition
     const exhibition = await Exhibition.findOne(query)
-      .select('name description startDate endDate dimensions taxConfig publicDiscountConfig venue headerLogo slug');
+      .select('name description startDate endDate dimensions taxConfig publicDiscountConfig venue headerLogo slug amenities basicAmenities');
 
     if (!exhibition) {
       return res.status(404).json({ message: 'Exhibition not found' });

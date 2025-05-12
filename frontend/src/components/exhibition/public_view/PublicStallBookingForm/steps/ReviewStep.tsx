@@ -1,8 +1,9 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { Typography, Descriptions, Card, Space, Spin, Alert, Button, Divider, Table, Tag, Form, Input } from 'antd';
+import { Typography, Descriptions, Card, Space, Spin, Alert, Button, Divider, Table, Tag, Form, Input, Badge } from 'antd';
 import { StepProps } from '../types';
 import { PublicDiscount } from '../../../../../services/publicExhibition';
 import { StepContent } from '../styles';
+import { InfoCircleOutlined } from '@ant-design/icons';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -112,19 +113,37 @@ const ReviewStep: React.FC<StepProps> = ({
   const bookingSummary = useMemo(() => {
     // Base stall amount
     const baseAmount = formattedStallDetails.reduce((sum, stall) => sum + stall.price, 0);
+
+    // Calculate total square meters of all selected stalls
+    const totalStallArea = formattedStallDetails.reduce((total, stall) => 
+      total + (stall.area || 0), 0);
     
-    // Calculate amenities total if any are selected
+    // Calculate basic (included) amenities based on stall size
+    const basicAmenities = exhibition?.basicAmenities?.map(amenity => {
+      // Calculate quantity based on square meters and perSqm rate
+      // e.g., 1 table per 9 sqm with total area of 27 sqm = 3 tables
+      const calculatedQuantity = Math.floor(totalStallArea / amenity.perSqm) * amenity.quantity;
+      
+      return {
+        ...amenity,
+        calculatedQuantity: calculatedQuantity > 0 ? calculatedQuantity : 0
+      };
+    }) || [];
+    
+    // Get selected amenities but don't include in price calculation
     let amenitiesTotal = 0;
     const amenityItems = selectedAmenities.map((amenityId: string) => {
       const amenity = (exhibition as any)?.amenities?.find((a: any) => 
         (a.id === amenityId || a._id === amenityId)
       );
       if (amenity) {
+        // Track amenities total for display purposes only
         amenitiesTotal += amenity.rate || 0;
         return {
           name: amenity.name,
           rate: amenity.rate,
-          type: amenity.type
+          type: amenity.type,
+          description: amenity.description
         };
       }
       return null;
@@ -148,8 +167,8 @@ const ReviewStep: React.FC<StepProps> = ({
     const totalDiscountAmount = discounts.reduce((sum: number, d: CalculatedDiscount) => sum + d.amount, 0);
     const amountAfterDiscount = baseAmount - totalDiscountAmount;
     
-    // Calculate subtotal (stalls + amenities - discounts)
-    const subtotal = amountAfterDiscount + amenitiesTotal;
+    // Calculate subtotal (stalls - discounts), NOT including amenities
+    const subtotal = amountAfterDiscount;
 
     // Apply taxes
     const taxes = exhibition?.taxConfig
@@ -164,6 +183,8 @@ const ReviewStep: React.FC<StepProps> = ({
     
     return {
       baseAmount,
+      basicAmenities,
+      totalStallArea,
       amenities: amenityItems,
       amenitiesTotal,
       discounts,
@@ -322,20 +343,119 @@ const ReviewStep: React.FC<StepProps> = ({
         <Text strong>Total Base Amount: {formatCurrency(bookingSummary.baseAmount)}</Text>
       </Card>
       
+      {/* Included Basic Amenities */}
+      {bookingSummary.basicAmenities && bookingSummary.basicAmenities.length > 0 && (
+        <Card title={<Space><Badge status="success" />Included Basic Amenities</Space>} style={{ marginBottom: 24 }}>
+          <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+            The following amenities are included based on your total stall area of {bookingSummary.totalStallArea} sqm.
+          </Paragraph>
+          
+          <Table 
+            dataSource={bookingSummary.basicAmenities.filter(amenity => amenity.calculatedQuantity > 0)}
+            columns={[
+              {
+                title: 'Name',
+                dataIndex: 'name',
+                key: 'name',
+                render: (text, record: any) => (
+                  <Space>
+                    <Text strong>{text}</Text>
+                    <Tag color="blue">{record.type}</Tag>
+                  </Space>
+                )
+              },
+              {
+                title: 'Quantity',
+                dataIndex: 'calculatedQuantity',
+                key: 'calculatedQuantity',
+                width: 120,
+                render: (quantity: number) => (
+                  <Tag color="green">{quantity} {quantity === 1 ? 'unit' : 'units'}</Tag>
+                )
+              },
+              {
+                title: 'Allocation',
+                dataIndex: 'perSqm',
+                key: 'perSqm',
+                width: 180,
+                render: (perSqm: number, record: any) => (
+                  <Text type="secondary">
+                    <InfoCircleOutlined style={{ marginRight: 5 }} />
+                    1 {record.quantity > 1 ? `set of ${record.quantity}` : 'unit'} per {perSqm} sqm
+                  </Text>
+                )
+              },
+              {
+                title: 'Status',
+                key: 'status',
+                width: 100,
+                align: 'right' as 'right',
+                render: () => <Text type="success">Included</Text>
+              }
+            ]}
+            pagination={false}
+            size="small"
+            locale={{
+              emptyText: (
+                <Alert
+                  message="No basic amenities"
+                  description="Your stall area is too small to qualify for any basic amenities."
+                  type="info"
+                  showIcon
+                />
+              )
+            }}
+          />
+        </Card>
+      )}
+      
       {/* Selected Amenities */}
       {bookingSummary.amenities && bookingSummary.amenities.length > 0 && (
         <Card title="Selected Amenities" style={{ marginBottom: 24 }}>
-          {bookingSummary.amenities.map((amenity: any, index: number) => (
-            <div key={index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div>
-                <Text>{amenity.name}</Text>
-                <Tag color="blue" style={{ marginLeft: 8 }}>{amenity.type}</Tag>
-              </div>
-              <Text>{formatCurrency(amenity.rate)}</Text>
-            </div>
-          ))}
+          <Table
+            dataSource={bookingSummary.amenities.map((amenity: any, index: number) => ({ ...amenity, key: index }))}
+            columns={[
+              {
+                title: 'Name',
+                dataIndex: 'name',
+                key: 'name',
+                render: (text, record: any) => (
+                  <Space>
+                    <Text strong>{text}</Text>
+                    <Tag color="blue">{record.type}</Tag>
+                  </Space>
+                )
+              },
+              {
+                title: 'Description',
+                dataIndex: 'description',
+                key: 'description',
+                render: (text) => (
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    {text || 'No description provided'}
+                  </Text>
+                )
+              },
+              {
+                title: 'Rate',
+                dataIndex: 'rate',
+                key: 'rate',
+                width: 120,
+                align: 'right' as 'right',
+                render: (rate: number) => (
+                  <Text strong style={{ color: '#1890ff' }}>
+                    {formatCurrency(rate)}
+                  </Text>
+                )
+              }
+            ]}
+            pagination={false}
+            size="small"
+          />
           <Divider />
-          <Text strong>Amenities Total: {formatCurrency(bookingSummary.amenitiesTotal)}</Text>
+          <div style={{ textAlign: 'right' }}>
+            <Text strong>Amenities Total: {formatCurrency(bookingSummary.amenitiesTotal)}</Text>
+          </div>
         </Card>
       )}
       
@@ -363,9 +483,20 @@ const ReviewStep: React.FC<StepProps> = ({
         )}
         
         {bookingSummary.amenitiesTotal > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text>Amenities:</Text>
-            <Text>{formatCurrency(bookingSummary.amenitiesTotal)}</Text>
+          <div style={{ 
+            background: '#f9f9f9', 
+            padding: '8px', 
+            borderRadius: '4px', 
+            marginBottom: '8px',
+            border: '1px dashed #d9d9d9'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text type="secondary">Selected Amenities (for information only):</Text>
+              <Text type="secondary">{formatCurrency(bookingSummary.amenitiesTotal)}</Text>
+            </div>
+            <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic' }}>
+              Note: Amenities are not included in the total calculation
+            </Text>
           </div>
         )}
         

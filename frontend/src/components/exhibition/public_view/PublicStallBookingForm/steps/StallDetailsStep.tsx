@@ -161,7 +161,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
       taxes,
       totalTaxAmount,
       total,
-      selectedStallNumbers: selectedStalls.map(s => `${s.number} (${s.hallName || `Hall - ${s.hallId}`})`).join(', ')
+      selectedStallNumbers: selectedStalls.map(s => `${s.number || s.stallNumber || `Stall ${s.id}`} (${s.hallName || `Hall ${s.hallId || 1}`})`).join(', ')
     };
   }, [stallDetails, internalSelectedStallIds, exhibition?.taxConfig, exhibition?.publicDiscountConfig]);
 

@@ -82,6 +82,16 @@ interface ExhibitionFormData {
     description: string;
     rate: number;
   }>;
+  
+  // Basic amenities are included with stall booking - calculated based on stall size
+  basicAmenities?: Array<{
+    type: 'facility' | 'service' | 'equipment' | 'other';
+    name: string;
+    description: string;
+    perSqm: number; // How many square meters per 1 unit (e.g., 1 table per 9 sqm)
+    quantity: number; // The default quantity to provide per calculation
+  }>;
+  
   specialRequirements?: string;
 }
 
@@ -186,6 +196,13 @@ const ExhibitionEdit: React.FC = () => {
           description: amenity.description,
           rate: amenity.rate
         })) || [],
+        basicAmenities: values.basicAmenities?.map(amenity => ({
+          type: amenity.type,
+          name: amenity.name,
+          description: amenity.description,
+          perSqm: amenity.perSqm,
+          quantity: amenity.quantity
+        })) || [],
         specialRequirements: values.specialRequirements
       };
 
@@ -263,6 +280,7 @@ const ExhibitionEdit: React.FC = () => {
 
     // Amenities settings
     amenities: currentExhibition.amenities || [],
+    basicAmenities: currentExhibition.basicAmenities || [],
     specialRequirements: currentExhibition.specialRequirements
   };
 

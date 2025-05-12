@@ -301,45 +301,69 @@ const PublicLayoutView: React.FC = () => {
     }
   };
 
-  /**
-   * Opens the booking modal with selected stalls
-   */
+  // Book stall modal visibility and handlers
   const openBookingModal = async () => {
-    if (selectedStalls.length === 0) {
-      message.warning('Please select at least one stall to book');
-      return;
-    }
-
     try {
+      if (!layout) return;
+      
       setBookingLoading(true);
       
-      // Get details of the first selected stall to ensure API communication is working
-      await publicExhibitionService.getStallDetails(id!, selectedStalls[0]);
+      // If we have a single selected stall, fetch its details
+      let selectedStallDetail = null;
+      if (selectedStall) {
+        const hall = layout.layout.find(hall => 
+          hall.stalls.some(s => s.id === selectedStall)
+        );
+        if (hall) {
+          selectedStallDetail = hall.stalls.find(s => s.id === selectedStall) || null;
+        } else {
+          console.error('Selected stall not found in any hall');
+        }
+      }
       
-      // Create an array of stall details to pass to the form
-      const mappedStallDetails = layout?.layout.flatMap(hall => 
-        hall.stalls.map(s => ({
-          id: s.id,
-          number: s.stallNumber,
-          stallNumber: s.stallNumber,
-          price: s.price || 0,
-          ratePerSqm: s.dimensions?.width && s.dimensions?.height 
-            ? (s.price || 0) / (s.dimensions.width * s.dimensions.height) 
-            : 0,
-          dimensions: s.dimensions,
-          status: s.status,
+      // Combine all hall stalls into a single array for selection
+      const allStalls = layout.layout.flatMap(hall => {
+        return hall.stalls.map(stall => ({
+          ...stall,
           hallId: hall.id,
-          hallName: hall.name,
-          type: s.type || 'Standard',
-          typeName: s.typeName || s.type || 'Standard'
-        }))
-      ) || [];
+          hallName: hall.name
+        }));
+      }).filter(stall => stall.status === 'available'); // Only show available stalls
       
-      setSelectedStallDetails(mappedStallDetails);
+      // If there are no selected stalls and no available stalls, show error
+      if (selectedStalls.length === 0 && selectedStall === null && allStalls.length === 0) {
+        message.error('No stalls are available for booking');
+        return;
+      }
+      
+      // Make sure we have a properly populated exhibition object with all amenities
+      // This ensures basic amenities are available to the booking form
+      if (!layout.exhibition.basicAmenities) {
+        // If basicAmenities aren't in the layout, try to fetch them directly
+        try {
+          const exhibitionResponse = await publicExhibitionService.getExhibition(id || '');
+          if (exhibitionResponse?.data?.basicAmenities) {
+            // Update layout with complete exhibition data
+            setLayout({
+              ...layout,
+              exhibition: {
+                ...layout.exhibition,
+                basicAmenities: exhibitionResponse.data.basicAmenities
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching exhibition details with amenities:', error);
+          // Continue with what we have even if fetch fails
+        }
+      }
+      
+      // Set stall details and open modal
+      setSelectedStallDetails(allStalls);
       setShowBookingModal(true);
     } catch (error) {
-      console.error('Error preparing booking modal', error);
-      message.error('Failed to load stall details. Please try again.');
+      console.error('Error opening booking modal:', error);
+      message.error('Failed to open booking form');
     } finally {
       setBookingLoading(false);
     }

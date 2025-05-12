@@ -121,6 +121,15 @@ export interface IExhibition extends Document {
     rate: number;
   }>;
 
+  // Basic amenities are included with stall booking - calculated based on stall size
+  basicAmenities?: Array<{
+    type: 'facility' | 'service' | 'equipment' | 'other';
+    name: string;
+    description: string;
+    perSqm: number; // How many square meters per 1 unit (e.g., 1 table per 9 sqm)
+    quantity: number; // The default quantity to provide per calculation
+  }>;
+
   specialRequirements?: string;
 }
 
@@ -419,6 +428,37 @@ const exhibitionSchema = new Schema({
       maxlength: 200
     },
     rate: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  }],
+
+  // Basic amenities are included with stall booking - calculated based on stall size
+  basicAmenities: [{
+    type: {
+      type: String,
+      enum: ['facility', 'service', 'equipment', 'other'],
+      required: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 200
+    },
+    perSqm: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    quantity: {
       type: Number,
       required: true,
       min: 0
