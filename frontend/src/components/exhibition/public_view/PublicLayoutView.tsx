@@ -650,11 +650,13 @@ const PublicLayoutView: React.FC = () => {
               position: 'relative',
               border: '1px solid rgba(230, 235, 245, 0.8)',
               boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.03)',
-              willChange: 'transform' // Hint for browser optimization
+              willChange: 'transform', // Hint for browser optimization
+              contain: 'content',
+              isolation: 'isolate' 
             }}
             className="public-canvas-container"
           >
-            {/* CSS to hide context menu in public view */}
+            {/* CSS optimization for canvas performance */}
             <style>
               {`
                 /* Hide only canvas context menu in public view */
@@ -662,9 +664,12 @@ const PublicLayoutView: React.FC = () => {
                   display: none !important;
                 }
                 
-                /* Optimize rendering without affecting appearance */
+                /* Base canvas optimization */
                 .konvajs-content {
                   will-change: transform;
+                  transform: translateZ(0);
+                  backface-visibility: hidden;
+                  transition: filter 0.2s ease-out;
                 }
                 
                 /* Fast layer for static background */
@@ -672,10 +677,54 @@ const PublicLayoutView: React.FC = () => {
                   image-rendering: auto;
                 }
                 
-                /* Very subtle drag optimization for smoother experience */
+                /* Canvas optimization for all canvases */
                 .public-canvas-container canvas {
                   backface-visibility: hidden;
                   -webkit-backface-visibility: hidden;
+                  transition: filter 0.15s linear;
+                }
+                
+                /* Dragging state - apply blur effect with better control */
+                .public-canvas-container .konvajs-content.dragging {
+                  filter: blur(1px);
+                }
+                
+                /* Mobile-specific blur - slightly stronger */
+                @media (max-width: 768px) {
+                  .public-canvas-container .konvajs-content.dragging {
+                    filter: blur(1.5px);
+                  }
+                }
+                
+                /* Performance optimizations for dragging */
+                .public-canvas-container .konvajs-content:active canvas {
+                  image-rendering: optimizeSpeed;
+                }
+                
+                /* Touch device optimizations */
+                @media (pointer: coarse) {
+                  .public-canvas-container .konvajs-content:active {
+                    touch-action: none;
+                  }
+                  
+                  .public-canvas-container .konvajs-content.dragging {
+                    filter: blur(2px); /* Stronger blur for touch devices */
+                  }
+                }
+                
+                /* Animation smoothing to reduce flickering */
+                .public-canvas-container .konvajs-content canvas {
+                  will-change: filter;
+                  transform: translateZ(0);
+                }
+                
+                /* Low-end device optimizations */
+                @media (max-width: 480px), 
+                       (resolution: 150dpi),
+                       (any-pointer: coarse) {
+                  .public-canvas-container .konvajs-content:active canvas {
+                    image-rendering: optimizeSpeed;
+                  }
                 }
               `}
             </style>

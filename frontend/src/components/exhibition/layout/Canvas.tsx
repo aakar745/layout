@@ -10,6 +10,7 @@ import Fixture from './Fixture';
 import LayoutContextMenu from './LayoutContextMenu';
 import Stall from '../public_view/Stall';
 import { KonvaEventObject } from 'konva/lib/Node';
+import Konva from 'konva';
 
 interface CanvasProps {
   width: number;   // Canvas width in pixels
@@ -78,6 +79,7 @@ const Canvas: React.FC<CanvasProps> = ({
   const [isExhibitionSelected, setIsExhibitionSelected] = useState(false);
   const [isExhibitionFormVisible, setIsExhibitionFormVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [originalPixelRatio, setOriginalPixelRatio] = useState<number | undefined>(undefined);
   
   useEffect(() => {
     const checkMobile = () => {
@@ -162,22 +164,40 @@ const Canvas: React.FC<CanvasProps> = ({
     setPosition(newPos);
   }, [scale, position]);
 
+  const optimizeForDragging = useCallback((enable: boolean) => {
+    if (enable) {
+      setOriginalPixelRatio(Konva.pixelRatio);
+      Konva.pixelRatio = isMobile ? 0.8 : 1;
+    } else if (originalPixelRatio) {
+      Konva.pixelRatio = originalPixelRatio;
+    }
+  }, [originalPixelRatio, isMobile]);
+
   const handleDragStart = useCallback((e: any) => {
     if (e.target === stageRef.current) {
       setContextMenu({ ...contextMenu, visible: false });
       setIsDragging(true);
       
+      optimizeForDragging(true);
+      
       if (layerRef.current) {
-        // Disable hit detection during drag for better performance
+        if (isPublicView) {
+          const cacheConfig = isMobile ? 
+            { x: -10, y: -10, width: width + 20, height: height + 20 } : 
+            undefined;
+          layerRef.current.cache(cacheConfig);
+        }
+        
         layerRef.current.hitGraphEnabled(false);
         
-        // Apply performance optimizations for public view
         if (isPublicView) {
-          // Set lower quality settings for faster dragging
           if (stageRef.current) {
-            stageRef.current.container().style.cursor = 'grabbing';
+            const container = stageRef.current.container();
+            container.style.cursor = 'grabbing';
+            container.classList.add('dragging');
             
-            // Set all Konva nodes to use lower quality settings
+            stageRef.current.batchDraw();
+            
             const nodes = layerRef.current.getChildren();
             nodes.forEach((node: any) => {
               if (node.shadowForStrokeEnabled) {
@@ -188,21 +208,49 @@ const Canvas: React.FC<CanvasProps> = ({
                 node._savedPerfectDraw = node.perfectDrawEnabled();
                 node.perfectDrawEnabled(false);
               }
+              if (node.cache && !node.isCached && node.width && node.height) {
+                node._dragCached = true;
+                try {
+                  if (isMobile) {
+                    const padding = 10;
+                    node.cache({
+                      offset: padding,
+                      pixelRatio: 0.8
+                    });
+                  } else {
+                    node.cache();
+                  }
+                } catch (e) {
+                  node._dragCached = false;
+                }
+              }
             });
           }
         }
       }
     }
-  }, [contextMenu, isPublicView]);
+  }, [contextMenu, isPublicView, optimizeForDragging, isMobile, width, height]);
 
-  // Optimize drag move by avoiding re-renders
   const handleDragMove = useCallback((e: any) => {
-    // Skip processing in public view for maximum performance
     if (isPublicView && e.target === stageRef.current) {
-      return; // Just let the drag happen naturally without any additional processing
+      if (e.evt && e.evt._dragSkipUpdate) {
+        return;
+      }
+      
+      if (e.evt) {
+        e.evt._dragSkipUpdate = true;
+      }
+      
+      if (stageRef.current && layerRef.current) {
+        const renderThreshold = isMobile ? 0.85 : 0.7;
+        if (Math.random() > renderThreshold) {
+          stageRef.current.batchDraw();
+        }
+      }
+      
+      return;
     }
     
-    // For non-public view, maintain existing behavior
     if (e.target === stageRef.current) {
       if (isMobile && layerRef.current) {
         e.cancelBubble = true;
@@ -212,22 +260,26 @@ const Canvas: React.FC<CanvasProps> = ({
 
   const handleDragEnd = useCallback((e: any) => {
     if (e.target === stageRef.current) {
-      // Update position state only at the end of drag
       setPosition({
         x: e.target.x(),
         y: e.target.y()
       });
       
-      // Re-enable hit detection
+      optimizeForDragging(false);
+      
       if (layerRef.current) {
         layerRef.current.hitGraphEnabled(true);
         
-        // Restore quality settings in public view
+        if (isPublicView) {
+          layerRef.current.clearCache();
+        }
+        
         if (isPublicView) {
           if (stageRef.current) {
-            stageRef.current.container().style.cursor = '';
+            const container = stageRef.current.container();
+            container.style.cursor = '';
+            container.classList.remove('dragging');
             
-            // Restore quality settings of Konva nodes
             const nodes = layerRef.current.getChildren();
             nodes.forEach((node: any) => {
               if (node._savedShadowForStroke !== undefined) {
@@ -238,19 +290,24 @@ const Canvas: React.FC<CanvasProps> = ({
                 node.perfectDrawEnabled(node._savedPerfectDraw);
                 delete node._savedPerfectDraw;
               }
+              if (node._dragCached) {
+                node.clearCache();
+                delete node._dragCached;
+              }
             });
           }
         }
       }
       
-      // Draw everything at full quality after drag ends
-      if (stageRef.current) {
-        stageRef.current.batchDraw();
-      }
+      setTimeout(() => {
+        if (stageRef.current) {
+          stageRef.current.batchDraw();
+        }
+      }, 50);
       
       setIsDragging(false);
     }
-  }, [isPublicView]);
+  }, [isPublicView, optimizeForDragging]);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -377,7 +434,6 @@ const Canvas: React.FC<CanvasProps> = ({
     return child;
   });
 
-  // Create the background exhibition space element for FastLayer
   const backgroundExhibitionSpace = (
     <ExhibitionSpace
       width={exhibitionWidth}
@@ -478,16 +534,15 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
-        perfectDrawEnabled={!isDragging && !isPublicView} // Disable perfect drawing during drag in public view
-        hitGraphEnabled={!isDragging} // Disable hit detection during drag
-        pixelRatio={Math.min(1.5, window.devicePixelRatio || 1)} // Limit pixel ratio for better performance
-        dragDistance={isPublicView ? 0 : 3} // Optimize drag threshold for public view
+        perfectDrawEnabled={!isDragging && !isPublicView}
+        hitGraphEnabled={!isDragging}
+        pixelRatio={isDragging ? (isMobile ? 0.8 : 1) : Math.min(1.5, window.devicePixelRatio || 1)}
+        dragDistance={isPublicView ? (isMobile ? 5 : 3) : 0}
       >
-        {/* FastLayer for static background in public view */}
         {isPublicView && (
           <FastLayer 
             ref={fastLayerRef}
-            listening={false} // FastLayer doesn't support events
+            listening={false}
           >
             {backgroundExhibitionSpace}
           </FastLayer>
@@ -495,9 +550,8 @@ const Canvas: React.FC<CanvasProps> = ({
 
         <Layer 
           ref={layerRef}
-          imageSmoothingEnabled={!isDragging || !isPublicView} // Disable image smoothing during public view drag
+          imageSmoothingEnabled={!isDragging || !isPublicView}
         >
-          {/* Only render ExhibitionSpace in Layer if not using FastLayer */}
           {!isPublicView && (
             <ExhibitionSpace
               width={exhibitionWidth}

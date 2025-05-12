@@ -319,14 +319,6 @@ const Home: React.FC<HomeProps> = () => {
                   >
                     Explore Exhibitions
                   </CTAButton>
-                  <CTAButton 
-                    className="secondary-btn" 
-                    size="large" 
-                    onClick={() => navigate('/exhibitor/login')}
-                    icon={<UserOutlined />}
-                  >
-                    Exhibitor Portal
-                  </CTAButton>
                 </Space>
               </Col>
               <Col xs={24} lg={10}>
@@ -406,7 +398,7 @@ const Home: React.FC<HomeProps> = () => {
                               style={{ 
                                 width: '100%', 
                                 height: '100%', 
-                                objectFit: 'cover',
+                                objectFit: 'contain',
                                 filter: 'brightness(0.95)'
                               }} 
                             />
