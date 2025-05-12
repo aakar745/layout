@@ -492,38 +492,52 @@ const PublicLayoutView: React.FC = () => {
     <Layout>
       <GlobalHeader />
       <Content style={{ paddingTop: '64px', background: '#f7f8fa' }}>
+        {/* Add mobile-specific spacing to prevent header overlap */}
+        {isMobile && (
+          <div style={{ height: '16px', width: '100%' }} />
+        )}
         <Card 
           className="exhibition-card"
           style={{
             borderRadius: '8px',
             overflow: 'hidden',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-            margin: '10px 0px',
+            margin: isMobile ? '40px 0px 10px 0px' : '10px 0px',
             border: 'none'
           }}
+          bodyStyle={{ padding: isMobile ? '5px' : '24px' }}
         >
-          <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
+          <Row gutter={[24, 24]} style={{ marginBottom: isMobile ? 16 : 32 }}>
             {/* Left column: Exhibition logo and details */}
-            <Col xs={24} md={12}>
+            <Col xs={24} sm={24} md={12}>
               <div style={{ 
-                padding: '16px',
+                padding: isMobile ? '12px' : '16px',
                 background: 'linear-gradient(145deg, #ffffff, #f8faff)',
                 borderRadius: '8px',
                 border: '1px solid rgba(230, 235, 245, 0.8)',
                 height: '100%',
                 display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: '16px',
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                gap: isMobile ? '12px' : '16px',
                 boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)'
               }}>
-                {/* Logo on the left */}
-                <div style={{ flexShrink: 0 }}>
+                {/* Logo on the left/top */}
+                <div style={{ 
+                  flexShrink: 0,
+                  display: 'flex',
+                  justifyContent: isMobile ? 'center' : 'flex-start',
+                  width: isMobile ? '100%' : 'auto'
+                }}>
                   {layout.exhibition.headerLogo ? (
                     <Image 
                       src={getOptimizedImageUrl(layout.exhibition.headerLogo)} 
                       alt={`${layout.exhibition.name} logo`}
-                      style={{ maxHeight: 90, maxWidth: 250, objectFit: 'contain' }}
+                      style={{ 
+                        maxHeight: isMobile ? 70 : 90, 
+                        maxWidth: isMobile ? 200 : 250, 
+                        objectFit: 'contain'
+                      }}
                       preview={false}
                       fallback="/exhibition-placeholder.jpg"
                       placeholder={
@@ -531,8 +545,8 @@ const PublicLayoutView: React.FC = () => {
                           display: 'flex', 
                           justifyContent: 'center', 
                           alignItems: 'center', 
-                          width: 250, 
-                          height: 90,
+                          width: isMobile ? 200 : 250, 
+                          height: isMobile ? 70 : 90,
                           backgroundColor: '#f5f5f5',
                           borderRadius: '8px'
                         }}>
@@ -542,8 +556,8 @@ const PublicLayoutView: React.FC = () => {
                     />
                   ) : (
                     <div style={{ 
-                      width: 90, 
-                      height: 90, 
+                      width: isMobile ? 70 : 90, 
+                      height: isMobile ? 70 : 90, 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'center',
@@ -551,19 +565,21 @@ const PublicLayoutView: React.FC = () => {
                       borderRadius: '8px',
                       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.05)'
                     }}>
-                      <CalendarOutlined style={{ fontSize: 32, color: '#aaa' }} />
+                      <CalendarOutlined style={{ fontSize: isMobile ? 24 : 32, color: '#aaa' }} />
                     </div>
                   )}
                 </div>
                 
-                {/* Vertical divider */}
-                <Divider type="vertical" style={{ height: '90px', margin: '0 16px', opacity: 0.6 }} />
+                {/* Vertical divider - hide on mobile */}
+                {!isMobile && (
+                  <Divider type="vertical" style={{ height: '90px', margin: '0 16px', opacity: 0.6 }} />
+                )}
                 
-                {/* Exhibition details on the right */}
-                <div style={{ flex: 1 }}>
+                {/* Exhibition details on the right/bottom */}
+                <div style={{ flex: 1, width: isMobile ? '100%' : 'auto' }}>
                   <h3 style={{ 
                     margin: '0 0 12px 0', 
-                    fontSize: '22px', 
+                    fontSize: isMobile ? '18px' : '22px', 
                     fontWeight: 600,
                     background: 'linear-gradient(90deg, #333, #666)',
                     WebkitBackgroundClip: 'text',
@@ -575,10 +591,10 @@ const PublicLayoutView: React.FC = () => {
                     alignItems: 'center',
                     gap: '8px',
                     color: '#555',
-                    fontSize: '14px'
+                    fontSize: isMobile ? '13px' : '14px'
                   }}>
                     <CalendarOutlined style={{ 
-                      fontSize: '16px',
+                      fontSize: isMobile ? '14px' : '16px',
                       color: '#1890ff'
                     }} />
                     <span>
@@ -592,24 +608,31 @@ const PublicLayoutView: React.FC = () => {
                     alignItems: 'center',
                     gap: '8px',
                     color: '#555',
-                    fontSize: '14px'
+                    fontSize: isMobile ? '13px' : '14px'
                   }}>
                     <InfoCircleOutlined style={{ 
-                      fontSize: '16px',
+                      fontSize: isMobile ? '14px' : '16px',
                       color: '#1890ff'
                     }} />
-                    <span>{layout.exhibition.venue}</span>
+                    <span style={{ 
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: isMobile ? 'nowrap' : 'normal',
+                      maxWidth: isMobile ? '260px' : 'none'
+                    }}>
+                      {layout.exhibition.venue}
+                    </span>
                   </p>
                 </div>
               </div>
             </Col>
             
             {/* Right column: Stall status information */}
-            <Col xs={24} md={12}>
+            <Col xs={24} sm={24} md={12}>
               <div style={{ 
-                padding: '24px',
+                padding: isMobile ? '16px 5px' : '24px',
                 background: 'linear-gradient(145deg, #ffffff, #f9fbfd)',
-                borderRadius: '12px',
+                borderRadius: '8px',
                 border: '1px solid rgba(230, 235, 245, 0.8)',
                 height: '100%',
                 display: 'flex',
@@ -617,23 +640,68 @@ const PublicLayoutView: React.FC = () => {
                 justifyContent: 'center',
                 boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)'
               }}>
-                <div style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 500, color: '#444' }}>Stall Status:</div>
-                <Space size="middle" wrap>
-                  <Tag color="#87d068" style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)' }}>
-                    <Badge status="success" text="Available" />
-                  </Tag>
-                  <Tag color="#ffd591" style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)' }}>
-                    <Badge status="warning" text="Booked" />
-                  </Tag>
-                  <Tag color="#ffadd2" style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)' }}>
-                    <Badge status="processing" text="Reserved" />
-                  </Tag>
-                  {selectedStalls.length > 0 && (
-                    <Tag color="#1890ff" style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }}>
-                      <Badge status="processing" color="#1890ff" text={`Selected (${selectedStalls.length})`} />
-                    </Tag>
-                  )}
-                </Space>
+                <div style={{ 
+                  marginBottom: '16px', 
+                  fontSize: isMobile ? '15px' : '16px', 
+                  fontWeight: 600, 
+                  color: '#444',
+                  textAlign: 'center'
+                }}>
+                  Stall Status:
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: isMobile ? 'column' : 'row',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: isMobile ? '10px' : '16px',
+                  width: '100%'
+                }}>
+                  <div style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    background: '#f6ffed',
+                    border: '1px solid #b7eb8f',
+                    width: isMobile ? '90%' : '30%',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <Badge status="success" />
+                    <span style={{ marginLeft: '8px', fontWeight: 500 }}>Available</span>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    background: '#e6f7ff',
+                    border: '1px solid #91d5ff',
+                    width: isMobile ? '90%' : '30%',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <Badge status="processing" color="#1890ff" />
+                    <span style={{ marginLeft: '8px', fontWeight: 500 }}>Reserved</span>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    background: '#fff7e6',
+                    border: '1px solid #ffd591',
+                    width: isMobile ? '90%' : '30%',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <Badge status="warning" />
+                    <span style={{ marginLeft: '8px', fontWeight: 500 }}>Booked</span>
+                  </div>
+                </div>
               </div>
             </Col>
           </Row>
@@ -642,15 +710,15 @@ const PublicLayoutView: React.FC = () => {
             ref={canvasContainerRef}
             style={{ 
               width: '100%',
-              height: '80vh',  // Consistent height for exhibition display
-              minHeight: '600px', 
+              height: isMobile ? '70vh' : '80vh',  // Smaller height on mobile
+              minHeight: isMobile ? '400px' : '600px', 
               background: '#ffffff',
               borderRadius: '12px',
               overflow: 'hidden',
               position: 'relative',
               border: '1px solid rgba(230, 235, 245, 0.8)',
               boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.03)',
-              willChange: 'transform', // Hint for browser optimization
+              willChange: 'transform',
               contain: 'content',
               isolation: 'isolate' 
             }}

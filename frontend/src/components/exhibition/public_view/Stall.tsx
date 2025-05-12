@@ -269,10 +269,10 @@ const Stall: React.FC<StallProps> = ({
         <Circle
           x={dimensions.width - 2}
           y={2}
-          radius={1.5}
+          radius={Math.min(0.8, dimensions.width * 0.05)} // Smaller radius that scales with stall size
           fill="#1890ff"
           stroke="#ffffff"
-          strokeWidth={0.3 / scale}
+          strokeWidth={0.2 / scale}
           transformsEnabled="position"
           listening={false} // Circle doesn't need to listen for events
         />
