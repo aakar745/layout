@@ -136,6 +136,23 @@ export interface Booking {
   companyName: string;
   amount: number;
   calculations: BookingCalculations;
+  /** Included basic amenities based on stall area */
+  basicAmenities?: Array<{
+    name: string;
+    type: string;
+    perSqm: number;
+    quantity: number;
+    calculatedQuantity: number;
+    description?: string;
+  }>;
+  /** Additional amenities selected by the user */
+  extraAmenities?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    rate: number;
+    description?: string;
+  }>;
   status: 'pending' | 'confirmed' | 'cancelled' | 'approved' | 'rejected';
   rejectionReason?: string;
   paymentStatus: 'pending' | 'paid' | 'refunded';
@@ -168,6 +185,23 @@ export interface CreateBookingData {
     type: 'percentage' | 'fixed';
     value: number;
   };
+  /** Included basic amenities based on stall area */
+  basicAmenities?: Array<{
+    name: string;
+    type: string;
+    perSqm: number;
+    quantity: number;
+    calculatedQuantity: number;
+    description?: string;
+  }>;
+  /** Additional amenities selected by the user */
+  extraAmenities?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    rate: number;
+    description?: string;
+  }>;
   amount: number;
   calculations: {
     stalls: Array<{
