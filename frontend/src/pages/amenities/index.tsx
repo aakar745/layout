@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Typography, Row, Col, App, Empty, Tabs } from 'antd';
+import { Typography, Row, Col, App, Empty, Tabs, Card, Space, Radio } from 'antd';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store/store';
 import { fetchExhibitions } from '../../store/slices/exhibitionSlice';
+import { fetchBookings } from '../../store/slices/bookingSlice';
 import { BookOutlined, AppstoreOutlined, CalculatorOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import dayjs from 'dayjs';
+import api from '../../services/api';
 
 // Import components
 import { AmenitiesFilter, AmenitiesStats, AmenitiesTable } from './components';
@@ -33,6 +35,7 @@ const AmenitiesPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { message } = App.useApp();
   const { exhibitions, loading } = useSelector((state: RootState) => state.exhibition);
+  const { bookings, loading: bookingsLoading } = useSelector((state: RootState) => state.booking);
   
   // State for selected exhibition
   const [selectedExhibition, setSelectedExhibition] = useState<string | null>(null);
@@ -41,6 +44,10 @@ const AmenitiesPage: React.FC = () => {
   const [basicAmenities, setBasicAmenities] = useState<any[]>([]);
   const [extraAmenities, setExtraAmenities] = useState<any[]>([]);
   const [calculatedAmenities, setCalculatedAmenities] = useState<any[]>([]);
+  
+  // State for complete booking data (with full details including amenities)
+  const [completeBookings, setCompleteBookings] = useState<any[]>([]);
+  const [loadingCompleteBookings, setLoadingCompleteBookings] = useState<boolean>(false);
   
   // State for filters
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
@@ -54,11 +61,41 @@ const AmenitiesPage: React.FC = () => {
   
   // State for active tab
   const [activeTab, setActiveTab] = useState<string>('basic');
+  
+  // State for amenity view type in calculated tab
+  const [amenityViewType, setAmenityViewType] = useState<'basic' | 'extra' | 'all'>('basic');
 
   // Initial data fetch
   useEffect(() => {
     dispatch(fetchExhibitions());
+    dispatch(fetchBookings());
   }, [dispatch]);
+
+  // Function to fetch complete booking data with all fields
+  const fetchCompleteBookingData = async (exhibitionId: string) => {
+    try {
+      setLoadingCompleteBookings(true);
+      
+      // Fetch all bookings for this exhibition with complete details
+      const response = await api.get(`/bookings?exhibitionId=${exhibitionId}&includeDetails=true`);
+      
+      if (response && response.data) {
+        // Filter for confirmed/approved bookings only
+        const filteredBookings = response.data.filter(
+          (booking: any) => booking.exhibitionId._id === exhibitionId && 
+          ['confirmed', 'approved'].includes(booking.status)
+        );
+        setCompleteBookings(filteredBookings);
+      } else {
+        setCompleteBookings([]);
+      }
+    } catch (error) {
+      console.error('Error fetching complete booking data:', error);
+      setCompleteBookings([]);
+    } finally {
+      setLoadingCompleteBookings(false);
+    }
+  };
 
   // When exhibition is selected, load its amenities
   useEffect(() => {
@@ -69,41 +106,8 @@ const AmenitiesPage: React.FC = () => {
         setBasicAmenities(exhibition.basicAmenities || []);
         setExtraAmenities(exhibition.amenities || []);
 
-        // Fake calculated amenities data for demonstration
-        // In a real implementation, this would come from an API endpoint
-        const stalls = ['A101', 'B205', 'C304', 'D408'];
-        const calculatedBasic = (exhibition.basicAmenities || []).flatMap(amenity => {
-          return stalls.map((stallNumber, index) => ({
-            ...amenity,
-            calculatedQuantity: Math.floor(Math.random() * 5) + 1,
-            stallNumber,
-            stallId: `stall-${index + 1}`,
-            bookingId: `booking-${index + 1}`,
-            exhibitorId: `exhibitor-${index + 1}`,
-            exhibitorName: `Exhibitor ${index + 1}`,
-            bookingDate: dayjs().subtract(Math.floor(Math.random() * 30), 'day').format('YYYY-MM-DD')
-          }));
-        });
-        
-        const calculatedExtra = (exhibition.amenities || []).flatMap(amenity => {
-          // Only include about half of the amenities as booked
-          if (Math.random() > 0.5) return [];
-          
-          return stalls.slice(0, Math.floor(Math.random() * stalls.length) + 1).map((stallNumber, index) => ({
-            ...amenity,
-            booked: true,
-            stallNumber,
-            stallId: `stall-${index + 1}`,
-            bookingId: `booking-${index + 1}`,
-            exhibitorId: `exhibitor-${index + 1}`,
-            exhibitorName: `Exhibitor ${index + 1}`,
-            bookingDate: dayjs().subtract(Math.floor(Math.random() * 30), 'day').format('YYYY-MM-DD')
-          }));
-        });
-        
-        setCalculatedAmenities([...calculatedBasic, ...calculatedExtra]);
-        setBookedStalls(stalls.length);
-        setTotalCalculatedAmenities(calculatedBasic.length + calculatedExtra.length);
+        // Fetch complete booking data for this exhibition
+        fetchCompleteBookingData(selectedExhibition);
       }
     } else {
       setBasicAmenities([]);
@@ -111,8 +115,159 @@ const AmenitiesPage: React.FC = () => {
       setCalculatedAmenities([]);
       setBookedStalls(0);
       setTotalCalculatedAmenities(0);
+      setCompleteBookings([]);
     }
   }, [selectedExhibition, exhibitions]);
+
+  // Process booking data to calculate amenities
+  useEffect(() => {
+    if (selectedExhibition && exhibitions.length > 0 && completeBookings.length > 0) {
+      const exhibition = exhibitions.find(e => e._id === selectedExhibition);
+      if (exhibition) {
+        // Process all stalls from the bookings
+        const stallsFromBookings = completeBookings.flatMap(
+          booking => booking.stallIds.map((stall: any) => ({
+            stallId: stall._id,
+            stallNumber: stall.number,
+            bookingId: booking._id,
+            exhibitorName: booking.companyName,
+            bookingDate: booking.createdAt,
+            dimensions: stall.dimensions,
+            area: stall.dimensions.width * stall.dimensions.height,
+            status: booking.status
+          }))
+        );
+        
+        // Process basic amenities from real booking data
+        const calculatedBasic = completeBookings
+          .flatMap(booking => {
+            if (!booking.basicAmenities || booking.basicAmenities.length === 0) {
+              // If no basicAmenities in booking, calculate them from exhibition settings
+              // for each stall based on area
+              return booking.stallIds.flatMap((stall: any) => {
+                const stallArea = stall.dimensions.width * stall.dimensions.height;
+                
+                return (exhibition.basicAmenities || []).map(amenity => {
+                  const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
+                  return {
+                    ...amenity,
+                    calculatedQuantity: calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity,
+                    stallId: stall._id,
+                    stallNumber: stall.number,
+                    bookingId: booking._id,
+                    exhibitorId: booking.exhibitorId || '',
+                    exhibitorName: booking.companyName,
+                    bookingDate: booking.createdAt,
+                    dimensions: stall.dimensions,
+                    area: stallArea,
+                    bookingStatus: booking.status
+                  };
+                });
+              });
+            } else {
+              // Use the booking's basicAmenities data
+              return booking.basicAmenities.flatMap((amenity: any) => 
+                booking.stallIds.map((stall: any) => ({
+                  ...amenity,
+                  stallId: stall._id,
+                  stallNumber: stall.number,
+                  bookingId: booking._id,
+                  exhibitorId: booking.exhibitorId || '',
+                  exhibitorName: booking.companyName,
+                  bookingDate: booking.createdAt,
+                  dimensions: stall.dimensions,
+                  area: stall.dimensions.width * stall.dimensions.height,
+                  bookingStatus: booking.status
+                }))
+              );
+            }
+          });
+        
+        // Process extra amenities from real booking data
+        const calculatedExtra = completeBookings
+          .flatMap(booking => {
+            if (!booking.extraAmenities || booking.extraAmenities.length === 0) {
+              return []; // No extra amenities for this booking
+            }
+            
+            return booking.extraAmenities.flatMap((amenity: any) => 
+              booking.stallIds.map((stall: any) => {
+                return {
+                  ...amenity,
+                  booked: true,
+                  stallId: stall._id,
+                  stallNumber: stall.number,
+                  bookingId: booking._id,
+                  exhibitorId: booking.exhibitorId || '',
+                  exhibitorName: booking.companyName,
+                  bookingDate: booking.createdAt,
+                  dimensions: stall.dimensions,
+                  area: stall.dimensions.width * stall.dimensions.height,
+                  bookingStatus: booking.status,
+                  // Add these fields to clearly mark them as extra amenities
+                  isExtraAmenity: true,
+                  // Ensure quantity from the original booking is preserved
+                  quantity: amenity.quantity || 1 // Make sure we use the actual quantity from the booking
+                };
+              })
+            );
+          });
+        
+        // If no extra amenities were found, create simulated ones from the exhibition data
+        let finalCalculatedExtra = calculatedExtra;
+        
+        if (calculatedExtra.length === 0 && exhibition.amenities && exhibition.amenities.length > 0) {
+          // Get the stalls from bookings
+          const bookedStalls = completeBookings.flatMap(booking => booking.stallIds);
+          
+          // Create simulated extra amenities by associating exhibition amenities with booked stalls
+          finalCalculatedExtra = bookedStalls.flatMap((stall: any, stallIndex: number) => 
+            (exhibition.amenities || []).map((amenity: any, amenityIndex: number) => {
+              // Find the booking that contains this stall
+              const matchingBooking = completeBookings.find(b => 
+                b.stallIds.some((s: any) => s._id === stall._id)
+              );
+              
+              // Check if this booking has this amenity in its extraAmenities
+              const matchingAmenity = matchingBooking?.extraAmenities?.find((a: any) => a.name === amenity.name);
+              const wasBooked = !!matchingAmenity;
+              
+              // Create a unique ID for this simulated amenity
+              const simulatedId = `sim-${stallIndex}-${amenityIndex}-${Date.now()}`;
+              
+              return {
+                ...amenity,
+                id: simulatedId,
+                booked: wasBooked,
+                stallId: stall._id,
+                stallNumber: stall.number,
+                bookingId: matchingBooking?._id || '',
+                exhibitorId: matchingBooking?.exhibitorId || '',
+                exhibitorName: matchingBooking?.companyName || 'Unknown',
+                bookingDate: matchingBooking?.createdAt || new Date().toISOString(),
+                dimensions: stall.dimensions,
+                area: stall.dimensions.width * stall.dimensions.height,
+                bookingStatus: matchingBooking?.status || 'approved',
+                isExtraAmenity: true,
+                // Use the actual quantity from the booking if available, or 0 if not booked
+                quantity: wasBooked ? (matchingAmenity?.quantity || 1) : 0
+              };
+            })
+          );
+        }
+        
+        // Combine the amenities arrays and set state
+        setCalculatedAmenities([...calculatedBasic, ...finalCalculatedExtra]);
+        setBookedStalls(stallsFromBookings.length);
+        setTotalCalculatedAmenities(calculatedBasic.length + finalCalculatedExtra.length);
+      }
+    } else if (selectedExhibition && exhibitions.length > 0) {
+      // If we have an exhibition but no bookings, reset the calculated amenities
+      setCalculatedAmenities([]);
+      setBookedStalls(0);
+      setTotalCalculatedAmenities(0);
+    }
+  }, [selectedExhibition, exhibitions, completeBookings]);
 
   // Filter amenities based on search and filters
   const filteredBasicAmenities = useMemo(() => {
@@ -168,9 +323,8 @@ const AmenitiesPage: React.FC = () => {
     // Apply status filter
     if (bookingStatusFilter.length > 0) {
       filtered = filtered.filter(amenity => {
-        // Check if the status filter matches the amenity's status
-        // In this example, we're just using "booked" status
-        return amenity.booked ? bookingStatusFilter.includes('booked') : bookingStatusFilter.includes('available');
+        // Filter by booking status
+        return bookingStatusFilter.includes(amenity.bookingStatus);
       });
     }
     
@@ -269,7 +423,8 @@ const AmenitiesPage: React.FC = () => {
         Description: amenity.description || '',
         'Stall Number': amenity.stallNumber,
         'Exhibitor': amenity.exhibitorName,
-        'Booking Date': amenity.bookingDate
+        'Booking Status': amenity.bookingStatus,
+        'Booking Date': amenity.bookingDate ? new Date(amenity.bookingDate).toLocaleDateString() : ''
       };
       
       // Add specific properties based on amenity type
@@ -383,6 +538,26 @@ const AmenitiesPage: React.FC = () => {
             } 
             key="calculated"
           >
+            <Row gutter={[0, 16]}>
+              <Col span={24}>
+                <Card className="filter-card">
+                  <Space>
+                    <Text strong>View: </Text>
+                    <Radio.Group 
+                      value={amenityViewType}
+                      onChange={e => setAmenityViewType(e.target.value)}
+                      optionType="button"
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value="basic">Basic Amenities</Radio.Button>
+                      <Radio.Button value="extra">Extra Amenities</Radio.Button>
+                      <Radio.Button value="all">All Amenities</Radio.Button>
+                    </Radio.Group>
+                  </Space>
+                </Card>
+              </Col>
+            </Row>
+            
             <AmenitiesTable
               title="Calculated Amenities"
               amenities={filteredCalculatedAmenities}
@@ -391,6 +566,7 @@ const AmenitiesPage: React.FC = () => {
               isDynamicColumns={true}
               isCalculated={true}
               exhibitionId={selectedExhibition}
+              amenityViewType={amenityViewType}
             />
           </TabPane>
         </Tabs>

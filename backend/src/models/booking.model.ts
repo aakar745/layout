@@ -61,6 +61,7 @@ export interface IBooking extends Document {
     name: string;
     type: string;
     rate: number;
+    quantity: number;
     description?: string;
   }>;
   calculations: {
@@ -172,6 +173,7 @@ const bookingSchema = new Schema({
     name: { type: String, required: true },
     type: { type: String, required: true },
     rate: { type: Number, required: true },
+    quantity: { type: Number, required: true, default: 1 },
     description: { type: String }
   }],
   calculations: {

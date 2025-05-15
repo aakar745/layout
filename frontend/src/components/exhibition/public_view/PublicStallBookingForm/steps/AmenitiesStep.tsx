@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Alert, Card, Divider, Empty, Typography, Form, List, Checkbox, Tag, Space, Row, Col, Badge, Tooltip, Table, Button, Select, Collapse } from 'antd';
+import { Alert, Card, Divider, Empty, Typography, Form, List, Checkbox, Tag, Space, Row, Col, Badge, Tooltip, Table, Button, Select, Collapse, InputNumber, Input } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, RocketOutlined, InboxOutlined, PlusOutlined, InfoCircleOutlined, DownOutlined } from '@ant-design/icons';
 import { StepProps } from '../types';
 import { StepContent } from '../styles';
@@ -27,6 +27,7 @@ interface ExtraAmenity {
   name: string;
   description: string;
   rate: number;
+  quantity?: number;
 }
 
 const AmenitiesStep: React.FC<StepProps> = ({
@@ -43,6 +44,9 @@ const AmenitiesStep: React.FC<StepProps> = ({
   const [selectedExtraAmenities, setSelectedExtraAmenities] = useState<string[]>(
     form.getFieldValue('amenities') || []
   );
+
+  // State to track quantity for each selected amenity
+  const [amenityQuantities, setAmenityQuantities] = useState<Record<string, number>>({});
 
   // Find the selected stall details
   const selectedStallDetails = useMemo(() => {
@@ -83,6 +87,24 @@ const AmenitiesStep: React.FC<StepProps> = ({
 
   // Handle extra amenities selection
   const handleExtraAmenityChange = (amenityIds: string[]) => {
+    // Initialize quantity of 1 for newly selected amenities
+    const updatedQuantities = { ...amenityQuantities };
+    
+    // Set quantity = 1 for any newly selected amenities
+    amenityIds.forEach(id => {
+      if (!selectedExtraAmenities.includes(id)) {
+        updatedQuantities[id] = 1;
+      }
+    });
+    
+    // Remove quantities for deselected amenities
+    Object.keys(updatedQuantities).forEach(id => {
+      if (!amenityIds.includes(id)) {
+        delete updatedQuantities[id];
+      }
+    });
+    
+    setAmenityQuantities(updatedQuantities);
     setSelectedExtraAmenities(amenityIds);
   };
 
@@ -91,10 +113,24 @@ const AmenitiesStep: React.FC<StepProps> = ({
     return (amenity._id || amenity.id || '').toString();
   };
 
+  // Handle quantity change for an amenity
+  const handleQuantityChange = (amenityId: string, quantity: number) => {
+    setAmenityQuantities(prev => ({
+      ...prev,
+      [amenityId]: quantity
+    }));
+  };
+
   // Update form field when selected amenities change
   React.useEffect(() => {
-    form.setFieldsValue({ amenities: selectedExtraAmenities });
-  }, [selectedExtraAmenities, form]);
+    // Create an array of amenity objects with their quantities
+    const amenitiesWithQuantities = selectedExtraAmenities.map(id => ({
+      id,
+      quantity: amenityQuantities[id] || 1
+    }));
+    
+    form.setFieldsValue({ amenities: amenitiesWithQuantities });
+  }, [selectedExtraAmenities, amenityQuantities, form]);
 
   // Format currency display
   const formatCurrency = (amount: number) => {
@@ -109,9 +145,10 @@ const AmenitiesStep: React.FC<StepProps> = ({
       .filter((amenity: ExtraAmenity) => selectedExtraAmenities.includes(getAmenityId(amenity)))
       .map((amenity: ExtraAmenity) => ({
         ...amenity,
-        key: getAmenityId(amenity)
+        key: getAmenityId(amenity),
+        quantity: amenityQuantities[getAmenityId(amenity)] || 1
       }));
-  }, [exhibition, hasExtraAmenities, selectedExtraAmenities]);
+  }, [exhibition, hasExtraAmenities, selectedExtraAmenities, amenityQuantities]);
   
   // Basic Amenities table columns
   const basicAmenitiesColumns = [
@@ -177,6 +214,34 @@ const AmenitiesStep: React.FC<StepProps> = ({
           {formatCurrency(rate)}
         </Text>
       )
+    },
+    {
+      title: 'Quantity',
+      dataIndex: 'quantity',
+      key: 'quantity',
+      width: 120,
+      render: (_: any, record: ExtraAmenity & { key: string }) => (
+        <InputNumber
+          min={1}
+          value={amenityQuantities[record.key] || 1}
+          onChange={(value) => handleQuantityChange(record.key, value || 1)}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: 'Total',
+      key: 'total',
+      width: 120,
+      render: (_: unknown, record: ExtraAmenity & { key: string }) => {
+        const quantity = amenityQuantities[record.key] || 1;
+        const total = record.rate * quantity;
+        return (
+          <Text strong style={{ color: '#1890ff' }}>
+            {formatCurrency(total)}
+          </Text>
+        );
+      }
     }
   ];
   
@@ -293,12 +358,12 @@ const AmenitiesStep: React.FC<StepProps> = ({
       
       {/* Hidden form field to pass selected amenities */}
       <Form.Item name="amenities" hidden>
-        <input type="hidden" />
+        <Input type="hidden" />
       </Form.Item>
       
       {/* Make sure to maintain the selectedStalls field to pass it to the next step */}
       <Form.Item name="selectedStalls" hidden>
-        <input type="hidden" />
+        <Input type="hidden" />
       </Form.Item>
     </StepContent>
   );

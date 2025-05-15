@@ -11,7 +11,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Form, Input, Select, InputNumber, Button, Space, Typography, Row, Col, Modal, message, Descriptions, Divider, Table, Tag, Tooltip } from 'antd';
+import { Card, Form, Input, Select, InputNumber, Button, Space, Typography, Row, Col, Modal, message, Descriptions, Divider, Table, Tag, Tooltip, Layout, Radio, Switch, DatePicker } from 'antd';
 import { PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -43,6 +43,7 @@ const CreateBooking: React.FC = () => {
   const [selectedExhibition, setSelectedExhibition] = useState<Exhibition | null>(null);
   const [selectedDiscountId, setSelectedDiscountId] = useState<string | undefined>();
   const [selectedExtraAmenities, setSelectedExtraAmenities] = useState<string[]>([]);
+  const [extraAmenityQuantities, setExtraAmenityQuantities] = useState<Record<string, number>>({});
   const [basicAmenitiesWithQuantities, setBasicAmenitiesWithQuantities] = useState<any[]>([]);
   const [totalStallArea, setTotalStallArea] = useState<number>(0);
   const navigate = useNavigate();
@@ -409,18 +410,52 @@ const CreateBooking: React.FC = () => {
         const amenityId = amenity._id || amenity.id;
         return amenityId && selectedExtraAmenities.includes(amenityId.toString());
       })
-      .map((amenity: any) => ({
-        id: amenity._id || amenity.id,
-        name: amenity.name,
-        type: amenity.type,
-        rate: amenity.rate,
-        description: amenity.description
-      }));
+      .map((amenity: any) => {
+        const amenityId = (amenity._id || amenity.id).toString();
+        return {
+          id: amenityId,
+          name: amenity.name,
+          type: amenity.type,
+          rate: amenity.rate,
+          description: amenity.description,
+          quantity: extraAmenityQuantities[amenityId] || 1
+        };
+      });
   };
 
   // Handle extra amenities selection
   const handleExtraAmenitiesChange = (selectedIds: string[]) => {
+    // Initialize quantity of 1 for newly selected amenities
+    const updatedQuantities = { ...extraAmenityQuantities };
+    
+    // Set quantity = 1 for any newly selected amenities
+    selectedIds.forEach(id => {
+      if (!selectedExtraAmenities.includes(id)) {
+        updatedQuantities[id] = 1;
+      }
+    });
+    
+    // Remove quantities for deselected amenities
+    Object.keys(updatedQuantities).forEach(id => {
+      if (!selectedIds.includes(id)) {
+        delete updatedQuantities[id];
+      }
+    });
+    
+    setExtraAmenityQuantities(updatedQuantities);
     setSelectedExtraAmenities(selectedIds);
+  };
+
+  // Handle quantity change for extra amenities
+  const handleExtraAmenityQuantityChange = (amenityId: string, quantity: number) => {
+    setExtraAmenityQuantities(prev => ({
+      ...prev,
+      [amenityId]: quantity
+    }));
+  };
+
+  const handleInvoiceClick = (bookingId: string) => {
+    navigate(`/invoice/${bookingId}`);
   };
 
   return (
@@ -710,6 +745,35 @@ const CreateBooking: React.FC = () => {
                                               ₹{rate.toLocaleString('en-IN')}
                                             </Typography.Text>
                                           )
+                                        },
+                                        {
+                                          title: 'Quantity',
+                                          dataIndex: 'quantity',
+                                          key: 'quantity',
+                                          width: 120,
+                                          render: (_: any, record: any) => (
+                                            <InputNumber
+                                              min={1}
+                                              value={extraAmenityQuantities[record.id] || 1}
+                                              onChange={(value) => handleExtraAmenityQuantityChange(record.id, value || 1)}
+                                              style={{ width: '100%' }}
+                                            />
+                                          )
+                                        },
+                                        {
+                                          title: 'Total',
+                                          key: 'total',
+                                          width: 120,
+                                          align: 'right' as 'right',
+                                          render: (_: any, record: any) => {
+                                            const quantity = extraAmenityQuantities[record.id] || 1;
+                                            const total = record.rate * quantity;
+                                            return (
+                                              <Typography.Text strong style={{ color: '#1890ff' }}>
+                                                ₹{total.toLocaleString('en-IN')}
+                                              </Typography.Text>
+                                            );
+                                          }
                                         }
                                       ]}
                                       pagination={false}

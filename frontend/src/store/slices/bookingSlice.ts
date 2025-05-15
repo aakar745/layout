@@ -151,6 +151,7 @@ export interface Booking {
     name: string;
     type: string;
     rate: number;
+    quantity: number;
     description?: string;
   }>;
   status: 'pending' | 'confirmed' | 'cancelled' | 'approved' | 'rejected';
@@ -200,6 +201,7 @@ export interface CreateBookingData {
     name: string;
     type: string;
     rate: number;
+    quantity: number;
     description?: string;
   }>;
   amount: number;

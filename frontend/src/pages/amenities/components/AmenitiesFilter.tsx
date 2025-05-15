@@ -101,10 +101,11 @@ const AmenitiesFilter: React.FC<AmenitiesFilterProps> = ({
               onChange={setBookingStatusFilter}
               maxTagCount={2}
             >
-              <Option value="booked">Booked</Option>
-              <Option value="available">Available</Option>
-              <Option value="reserved">Reserved</Option>
+              <Option value="confirmed">Confirmed</Option>
+              <Option value="approved">Approved</Option>
               <Option value="pending">Pending</Option>
+              <Option value="rejected">Rejected</Option>
+              <Option value="cancelled">Cancelled</Option>
             </Select>
           </div>
         </Col>

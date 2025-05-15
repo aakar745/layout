@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Card, Typography, Tag, Space, Button, Tooltip, Badge, Dropdown, Menu, Empty, Alert, message } from 'antd';
 import { DownloadOutlined, EllipsisOutlined, EyeOutlined, EditOutlined, SettingOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -14,6 +14,7 @@ interface AmenitiesTableProps {
   isDynamicColumns?: boolean;
   isCalculated?: boolean;
   exhibitionId?: string;
+  amenityViewType?: 'basic' | 'extra' | 'all';
 }
 
 // Function to get color based on amenity type
@@ -37,87 +38,53 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
   onExport,
   isDynamicColumns = false,
   isCalculated = false,
-  exhibitionId
+  exhibitionId,
+  amenityViewType = 'all'
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
   
+  // Filter amenities based on the view type for calculated view
+  const filteredAmenities = useMemo(() => {
+    if (!isCalculated || amenityViewType === 'all') {
+      return amenities;
+    }
+    
+    if (amenityViewType === 'basic') {
+      // Only show basic amenities (with calculatedQuantity or perSqm)
+      return amenities.filter(amenity => 
+        amenity.hasOwnProperty('calculatedQuantity') || 
+        amenity.hasOwnProperty('perSqm')
+      );
+    } else if (amenityViewType === 'extra') {
+      // Only show extra amenities (with rate but no perSqm)
+      return amenities.filter(amenity => 
+        amenity.hasOwnProperty('rate') && 
+        !amenity.hasOwnProperty('perSqm')
+      );
+    }
+    
+    return amenities;
+  }, [amenities, isCalculated, amenityViewType]);
+  
   // Fetch bookings data for this exhibition
   useEffect(() => {
-    if (!exhibitionId) return;
+    if (!exhibitionId) {
+      setBookings([]);
+      setLoadingBookings(false);
+      return;
+    }
     
-    const fetchBookings = async () => {
-      try {
-        setLoadingBookings(true);
-        // In a real implementation, this would be an actual API call
-        // For demo purposes, we're creating mock booking data
-        
-        // Simulating API call delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Create mock data - in real app this would be fetched from backend
-        const mockBookings = [
-          {
-            id: 'booking-1',
-            exhibitorId: 'exhibitor-1',
-            exhibitorName: 'TechCorp Solutions',
-            stallId: 'stall-1',
-            stallNumber: 'A101',
-            stallDimension: '3x3m',
-            stallType: 'Standard',
-            area: 9,
-            status: 'confirmed',
-            bookingDate: '2023-10-15',
-          },
-          {
-            id: 'booking-2',
-            exhibitorId: 'exhibitor-2',
-            exhibitorName: 'Innovation Labs',
-            stallId: 'stall-2',
-            stallNumber: 'B205',
-            stallDimension: '4x3m',
-            stallType: 'Premium',
-            area: 12,
-            status: 'confirmed',
-            bookingDate: '2023-10-18',
-          },
-          {
-            id: 'booking-3',
-            exhibitorId: 'exhibitor-3',
-            exhibitorName: 'Global Gadgets Inc.',
-            stallId: 'stall-3',
-            stallNumber: 'C304',
-            stallDimension: '5x4m',
-            stallType: 'Premium',
-            area: 20,
-            status: 'confirmed',
-            bookingDate: '2023-10-20',
-          },
-          {
-            id: 'booking-4',
-            exhibitorId: 'exhibitor-4',
-            exhibitorName: 'Future Products Co.',
-            stallId: 'stall-4',
-            stallNumber: 'D408',
-            stallDimension: '6x5m',
-            stallType: 'Deluxe',
-            area: 30,
-            status: 'confirmed',
-            bookingDate: '2023-10-22',
-          }
-        ];
-        
-        setBookings(mockBookings);
-        setLoadingBookings(false);
-      } catch (error) {
-        console.error('Error fetching bookings:', error);
-        message.error('Failed to load exhibition bookings');
-        setLoadingBookings(false);
-      }
-    };
+    // Set loading state initially
+    setLoadingBookings(true);
     
-    fetchBookings();
+    // In a real implementation with an API, this would be where you'd fetch bookings
+    // Since we're now using data from the Redux store, we just simulate the loading state
+    setTimeout(() => {
+      setLoadingBookings(false);
+    }, 500);
+    
   }, [exhibitionId]);
   
   // This function consolidates amenities by stall for all views
@@ -125,174 +92,9 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
     // Create a map to organize amenities by stall
     const stallMap = new Map();
     
-    // If we have no bookings data but have amenities, create temporary bookings for demonstration
-    if (bookings.length === 0 && amenities.length > 0) {
-      // Create sample bookings for demonstration
-      const sampleBookings = [
-        {
-          stallId: 'sample-stall-1',
-          exhibitorName: 'Sample Company 1',
-          stallNumber: 'A101',
-          stallDimension: '3x3m',
-          stallType: 'Standard',
-          area: 9,
-          bookingDate: new Date().toISOString().slice(0, 10),
-          status: 'confirmed'
-        },
-        {
-          stallId: 'sample-stall-2',
-          exhibitorName: 'Sample Company 2',
-          stallNumber: 'B205',
-          stallDimension: '4x3m',
-          stallType: 'Premium',
-          area: 12,
-          bookingDate: new Date().toISOString().slice(0, 10),
-          status: 'confirmed'
-        },
-        {
-          stallId: 'sample-stall-3',
-          exhibitorName: 'Sample Company 3',
-          stallNumber: 'C304',
-          stallDimension: '5x4m',
-          stallType: 'Deluxe',
-          area: 20,
-          bookingDate: new Date().toISOString().slice(0, 10),
-          status: 'confirmed'
-        }
-      ];
-      
-      // Add sample bookings to stall map
-      sampleBookings.forEach(booking => {
-        stallMap.set(booking.stallId, {
-          key: booking.stallId,
-          companyName: booking.exhibitorName,
-          stallNumber: booking.stallNumber,
-          dimension: booking.stallDimension,
-          stallType: booking.stallType,
-          area: booking.area,
-          bookingDate: booking.bookingDate,
-          status: booking.status,
-          amenities: {}
-        });
-      });
-      
-      // Process all amenities for these sample stalls
-      amenities.forEach(amenity => {
-        // For basic amenities (with perSqm property)
-        if (title.toLowerCase().includes('basic') && amenity.hasOwnProperty('perSqm')) {
-          sampleBookings.forEach(booking => {
-            const stallId = booking.stallId;
-            const stall = stallMap.get(stallId);
-            if (!stall) return;
-            
-            const amenityName = amenity.name;
-            // Calculate quantity based on stall area
-            const stallArea = booking.area;
-            const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
-            stall.amenities[amenityName] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-          });
-        }
-        // For extra amenities (with rate property)
-        else if ((title.toLowerCase().includes('additional') || title.toLowerCase().includes('extra')) && 
-                 amenity.hasOwnProperty('rate')) {
-          // Randomly assign extras to stalls
-          const randomStallId = sampleBookings[Math.floor(Math.random() * sampleBookings.length)].stallId;
-          const stall = stallMap.get(randomStallId);
-          if (stall && Math.random() > 0.6) {
-            stall.amenities[amenity.name] = Math.ceil(Math.random() * 2); // Random quantity 1-2
-          }
-        }
-        // For calculated view
-        else if (isCalculated) {
-          sampleBookings.forEach(booking => {
-            const stall = stallMap.get(booking.stallId);
-            if (!stall) return;
-            
-            if (amenity.hasOwnProperty('perSqm')) {
-              const amenityName = amenity.name;
-              const stallArea = booking.area;
-              const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
-              stall.amenities[amenityName] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-            }
-            else if (amenity.hasOwnProperty('rate') && Math.random() > 0.7) {
-              stall.amenities[amenity.name] = Math.ceil(Math.random() * 2);
-            }
-          });
-        }
-      });
-      
-      return Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0);
-    }
-    
-    // Create stall entries from bookings
-    bookings.forEach(booking => {
-      stallMap.set(booking.stallId, {
-        key: booking.stallId,
-        companyName: booking.exhibitorName,
-        stallNumber: booking.stallNumber,
-        dimension: booking.stallDimension,
-        stallType: booking.stallType,
-        area: booking.area,
-        bookingDate: booking.bookingDate,
-        status: booking.status,
-        amenities: {}
-      });
-    });
-    
-    // Process all amenities
-    amenities.forEach(amenity => {
-      // For basic amenities (those with perSqm property)
-      if (title.toLowerCase().includes('basic') && amenity.hasOwnProperty('perSqm')) {
-        // Calculate amenities for each stall based on its area
-        bookings.forEach(booking => {
-          const stallId = booking.stallId;
-          const stall = stallMap.get(stallId);
-          if (!stall) return;
-          
-          const amenityName = amenity.name;
-          // Calculate quantity based on stall area and perSqm value
-          const stallArea = booking.area;
-          const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
-          stall.amenities[amenityName] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-        });
-      } 
-      // For extra amenities (those with rate property)
-      else if ((title.toLowerCase().includes('additional') || title.toLowerCase().includes('extra')) && 
-               amenity.hasOwnProperty('rate')) {
-        // If this were a real app, we'd have data about which extra amenities each stall has booked
-        // For demo purposes, we'll randomly assign extras to some stalls
-        if (Math.random() > 0.7) { // 30% chance of a stall having this extra amenity
-          const randomStallIndex = Math.floor(Math.random() * bookings.length);
-          const randomStall = bookings[randomStallIndex];
-          const stall = stallMap.get(randomStall.stallId);
-          if (stall) {
-            stall.amenities[amenity.name] = Math.ceil(Math.random() * 3); // Random quantity 1-3
-          }
-        }
-      }
-      // For calculated view (all amenities)
-      else if (isCalculated) {
-        // Assign all amenities to all stalls for demonstration
-        bookings.forEach(booking => {
-          const stallId = booking.stallId;
-          const stall = stallMap.get(stallId);
-          if (!stall) return;
-          
-          // Add basic amenities
-          if (amenity.hasOwnProperty('perSqm')) {
-            const amenityName = amenity.name;
-            const stallArea = booking.area;
-            const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
-            stall.amenities[amenityName] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-          }
-          // Add extra amenities (if they would be booked)
-          else if (amenity.hasOwnProperty('rate') && Math.random() > 0.7) {
-            stall.amenities[amenity.name] = Math.ceil(Math.random() * 3); // Random quantity 1-3
-          }
-        });
-      }
-      
-      // If amenity has stall info, use that instead (for real data)
+    // Process all amenities - focus on real data
+    filteredAmenities.forEach(amenity => {
+      // If amenity has stall info, use that (for real data from bookings)
       if (amenity.stallId && amenity.stallNumber) {
         // Check if this stall already exists in our map
         if (!stallMap.has(amenity.stallId)) {
@@ -301,10 +103,12 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
             key: amenity.stallId,
             companyName: amenity.exhibitorName || 'Unknown',
             stallNumber: amenity.stallNumber,
-            dimension: amenity.stallDimension || '-',
+            dimension: amenity.dimensions ? `${amenity.dimensions.width}x${amenity.dimensions.height}m` : '-',
             stallType: amenity.stallType || '-',
             area: amenity.area || (amenity.dimensions?.width && amenity.dimensions?.height ? 
               amenity.dimensions.width * amenity.dimensions.height : '-'),
+            bookingDate: amenity.bookingDate ? new Date(amenity.bookingDate).toISOString().slice(0, 10) : '-',
+            status: amenity.bookingStatus || '-',
             amenities: {}
           });
         }
@@ -314,28 +118,43 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
         
         // Add amenity based on type
         if (amenity.hasOwnProperty('calculatedQuantity')) {
+          // For basic amenities with calculated quantities
           stall.amenities[amenity.name] = amenity.calculatedQuantity;
         } else if (amenity.hasOwnProperty('perSqm')) {
+          // Fallback calculation if calculatedQuantity is not provided for basic amenities
           const stallArea = typeof stall.area === 'number' ? stall.area : 0;
           const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
           stall.amenities[amenity.name] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
         } else if (amenity.hasOwnProperty('booked') && amenity.booked) {
-          stall.amenities[amenity.name] = 1; // Mark as booked
+          // For extra amenities that are booked
+          
+          // Handle different possible formats for quantity
+          let quantity = 1;
+          if (typeof amenity.quantity === 'number') {
+            quantity = amenity.quantity;
+          } else if (typeof amenity.quantity === 'string') {
+            quantity = parseInt(amenity.quantity, 10);
+            if (isNaN(quantity)) quantity = 1;
+          }
+          
+          stall.amenities[amenity.name] = quantity; // Use actual quantity from booking
         } else if (amenity.hasOwnProperty('rate')) {
-          stall.amenities[amenity.name] = '✓'; // Mark as available
+          // For extra amenities with rate (available but not booked)
+          stall.amenities[amenity.name] = 0; // Show as 0 instead of checkmark
         }
       }
     });
     
     // Convert map to array and only include stalls with amenities
-    return Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0);
+    const result = Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0);
+    return result;
   };
   
   // Get all unique amenity names for the current view
   const getUniqueAmenityNames = () => {
     const amenityNames = new Set();
     
-    amenities.forEach(amenity => {
+    filteredAmenities.forEach(amenity => {
       // Filter amenities based on the current view
       const shouldIncludeAmenity = (amenity: any) => {
         if (isCalculated) {
@@ -417,6 +236,7 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
       width: 100,
       render: (value: any) => {
         if (value === undefined || value === null) return '-';
+        if (value === 0) return <Text type="secondary">0</Text>;
         if (value === '✓') return <Badge status="success" />;
         return <Text strong>{value}</Text>;
       },
@@ -458,7 +278,7 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
     setExpandedRowKeys(expandedKeys as string[]);
   };
   
-  // Process data for the table - use stall-based approach for all views
+  // Process stall data once
   const stallData = consolidateAmenitiesByStall();
   
   // Expanded row for stall-based view
@@ -510,7 +330,14 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
       title={
         <Space>
           <Title level={5} style={{ margin: 0 }}>{title}</Title>
-          {isCalculated && <Tag color="green">Calculated</Tag>}
+          {isCalculated && (
+            <>
+              <Tag color="green">Calculated</Tag>
+              {amenityViewType === 'basic' && <Tag color="blue">Basic Amenities</Tag>}
+              {amenityViewType === 'extra' && <Tag color="purple">Extra Amenities</Tag>}
+              {amenityViewType === 'all' && <Tag color="orange">All Amenities</Tag>}
+            </>
+          )}
         </Space>
       }
       extra={
@@ -519,17 +346,93 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
             type="primary" 
             icon={<DownloadOutlined />} 
             onClick={onExport}
-            disabled={amenities.length === 0 || stallData.length === 0}
+            disabled={filteredAmenities.length === 0}
           >
             Export
           </Button>
         </Space>
       }
     >
-      {amenities.length === 0 ? (
+      {filteredAmenities.length === 0 ? (
         <Empty 
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description="No amenities data available" 
+        />
+      ) : title.toLowerCase().includes('basic') && !isCalculated ? (
+        // Special view for basic amenities tab - shows amenities directly without needing stall data
+        <Table 
+          dataSource={filteredAmenities.map((amenity, index) => ({
+            key: amenity._id || amenity.id || `basic-${index}`,
+            ...amenity
+          }))}
+          columns={[
+            {
+              title: 'Name',
+              dataIndex: 'name',
+              key: 'name',
+              render: (text: string, record: any) => (
+                <Space>
+                  <Text strong>{text}</Text>
+                  <Tag color={getTypeColor(record.type).textColor}>{record.type}</Tag>
+                </Space>
+              )
+            },
+            {
+              title: 'Description',
+              dataIndex: 'description',
+              key: 'description'
+            },
+            {
+              title: 'Per SQM',
+              dataIndex: 'perSqm',
+              key: 'perSqm',
+              render: (value: number) => value ? `1 per ${value} sqm` : '-'
+            },
+            {
+              title: 'Quantity',
+              dataIndex: 'quantity',
+              key: 'quantity',
+              render: (qty: number) => <Tag color="blue">{qty}</Tag>
+            }
+          ]}
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          className="amenities-table"
+        />
+      ) : (title.toLowerCase().includes('additional') || title.toLowerCase().includes('extra')) && !isCalculated ? (
+        // Special view for extra amenities tab - shows amenities directly without needing stall data
+        <Table 
+          dataSource={filteredAmenities.map((amenity, index) => ({
+            key: amenity._id || amenity.id || `extra-${index}`,
+            ...amenity
+          }))}
+          columns={[
+            {
+              title: 'Name',
+              dataIndex: 'name',
+              key: 'name',
+              render: (text: string, record: any) => (
+                <Space>
+                  <Text strong>{text}</Text>
+                  <Tag color={getTypeColor(record.type).textColor}>{record.type}</Tag>
+                </Space>
+              )
+            },
+            {
+              title: 'Description',
+              dataIndex: 'description',
+              key: 'description'
+            },
+            {
+              title: 'Rate',
+              dataIndex: 'rate',
+              key: 'rate',
+              render: (value: number) => <Text style={{ color: '#1890ff' }}>₹{value.toLocaleString()}</Text>
+            }
+          ]}
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          className="amenities-table"
         />
       ) : stallData.length === 0 ? (
         <Alert

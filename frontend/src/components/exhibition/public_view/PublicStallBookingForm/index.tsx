@@ -154,11 +154,76 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
           customerPhone: form.getFieldValue('customerPhone')
         };
         
+        // Calculate amenities based on current form values
+        const selectedStalls = form.getFieldValue('selectedStalls') || [];
+        const amenitiesData = form.getFieldValue('amenities') || [];
+        
+        // Find the matching stalls in stallDetails
+        const selectedStallDetails = stallDetails.filter((stall: any) => 
+          selectedStalls.includes(String(stall.id))
+        );
+        
+        // Calculate total stall area
+        const totalStallArea = selectedStallDetails.reduce((total: number, stall: any) => 
+          total + (stall.dimensions.width * stall.dimensions.height),
+          0
+        );
+        
+        // Calculate basic amenities quantities based on total area
+        let basicAmenities: any[] = [];
+        if (exhibition?.basicAmenities && exhibition.basicAmenities.length > 0) {
+          basicAmenities = exhibition.basicAmenities
+            .filter((amenity: any) => {
+              const calculatedQuantity = Math.floor(totalStallArea / amenity.perSqm) * amenity.quantity;
+              return calculatedQuantity > 0;
+            })
+            .map((amenity: any) => {
+              const calculatedQuantity = Math.floor(totalStallArea / amenity.perSqm) * amenity.quantity;
+              return {
+                name: amenity.name,
+                type: amenity.type,
+                perSqm: amenity.perSqm,
+                quantity: amenity.quantity,
+                calculatedQuantity,
+                description: amenity.description || ''
+              };
+            });
+        }
+        
+        // Format the extra amenities
+        let extraAmenities: any[] = [];
+        if (amenitiesData && amenitiesData.length > 0) {
+          extraAmenities = amenitiesData.map((item: any) => {
+            const amenity = exhibition?.amenities?.find((a: any) => 
+              String(a._id || a.id) === String(item.id)
+            );
+            
+            if (!amenity) return null;
+            
+            return {
+              id: String(amenity._id || amenity.id),
+              name: amenity.name,
+              type: amenity.type,
+              rate: amenity.rate,
+              quantity: item.quantity || 1,
+              description: amenity.description || ''
+            };
+          }).filter(Boolean);
+        }
+        
         // Combine with all accumulated form values
-        const finalValues = { ...formValues, ...values, ...currentExhibitorInfo };
+        const finalValues = { 
+          ...formValues, 
+          ...values, 
+          ...currentExhibitorInfo,
+          basicAmenities,
+          extraAmenities
+        };
         
         // Log the final submission values
         console.log('Submitting booking with values:', finalValues);
+        console.log('Basic amenities:', basicAmenities);
+        console.log('Extra amenities:', extraAmenities);
         
         onSubmit(finalValues);
       })

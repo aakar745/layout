@@ -317,11 +317,34 @@ export const createBooking = async (req: Request, res: Response) => {
 
 export const getBookings = async (req: Request, res: Response) => {
   try {
-    const bookings = await Booking.find()
-      .sort({ createdAt: -1 })
-      .populate('exhibitionId', 'name')
-      .populate('stallIds', 'number dimensions ratePerSqm')
-      .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
+    // Check for query parameters
+    const { exhibitionId, includeDetails } = req.query;
+    
+    // Build query conditions
+    const conditions: any = {};
+    if (exhibitionId) {
+      conditions.exhibitionId = exhibitionId;
+    }
+    
+    let bookings;
+    
+    // Use different query approaches based on the includeDetails flag
+    if (includeDetails === 'true') {
+      // Full details query
+      bookings = await Booking.find(conditions)
+        .sort({ createdAt: -1 })
+        .populate('exhibitionId')
+        .populate('stallIds')
+        .populate('exhibitorId')
+        .populate('userId');
+    } else {
+      // Limited fields query for better performance
+      bookings = await Booking.find(conditions)
+        .sort({ createdAt: -1 })
+        .populate('exhibitionId', 'name')
+        .populate('stallIds', 'number dimensions ratePerSqm')
+        .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
+    }
     
     res.json(bookings);
   } catch (error) {

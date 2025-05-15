@@ -106,9 +106,6 @@ const ReviewStep: React.FC<StepProps> = ({
     }
   }, [stallDetails, allSelectedStallIds]);
   
-  // Get selected amenities 
-  const selectedAmenities = form.getFieldValue('amenities') || [];
-
   // Calculate booking summary with all stalls and amenities
   const bookingSummary = useMemo(() => {
     // Base stall amount
@@ -130,24 +127,42 @@ const ReviewStep: React.FC<StepProps> = ({
       };
     }) || [];
     
-    // Get selected amenities but don't include in price calculation
+    // Get selected amenities with their quantities
+    // First, get the amenities from the form
+    const selectedAmenitiesWithQuantities = form.getFieldValue('amenities') || [];
+    
+    console.log("ReviewStep - Selected amenities with quantities:", selectedAmenitiesWithQuantities);
+    
+    // Now process them to include details from the exhibition
     let amenitiesTotal = 0;
-    const amenityItems = selectedAmenities.map((amenityId: string) => {
+    const amenityItems = selectedAmenitiesWithQuantities.map((amenityData: any) => {
+      // Find the amenity details using the ID
+      const amenityId = amenityData.id;
+      const quantity = amenityData.quantity || 1;
+      
       const amenity = (exhibition as any)?.amenities?.find((a: any) => 
         (a.id === amenityId || a._id === amenityId)
       );
+      
       if (amenity) {
+        // Calculate price based on quantity
+        const total = (amenity.rate || 0) * quantity;
         // Track amenities total for display purposes only
-        amenitiesTotal += amenity.rate || 0;
+        amenitiesTotal += total;
+        
         return {
           name: amenity.name,
           rate: amenity.rate,
           type: amenity.type,
-          description: amenity.description
+          description: amenity.description,
+          quantity: quantity,
+          total: total
         };
       }
       return null;
     }).filter(Boolean);
+    
+    console.log("ReviewStep - Processed amenity items:", amenityItems);
     
     // Apply discounts
     const activeDiscounts = exhibition?.publicDiscountConfig?.filter((d: PublicDiscount) => d.isActive) || [];
@@ -196,7 +211,7 @@ const ReviewStep: React.FC<StepProps> = ({
       total: subtotal + totalTaxAmount,
       stallCount: formattedStallDetails.length
     };
-  }, [formattedStallDetails, selectedAmenities, exhibition]);
+  }, [formattedStallDetails, form, exhibition]);
   
   // Store discount in the form - properly moved outside of useMemo
   useEffect(() => {
@@ -230,8 +245,8 @@ const ReviewStep: React.FC<StepProps> = ({
       title: 'Stall Type',
       dataIndex: 'type',
       key: 'type',
-      render: (type: string) => (
-        <Tag color="purple">{type}</Tag>
+      render: (type: string, record: any) => (
+        <Tag key={`stall-type-${record.key}`} color="purple">{type}</Tag>
       )
     },
     {
@@ -243,19 +258,19 @@ const ReviewStep: React.FC<StepProps> = ({
       title: 'Area',
       dataIndex: 'area',
       key: 'area',
-      render: (area: number) => `${area} sqm`
+      render: (area: number, record: any) => <span key={`stall-area-${record.key}`}>{area} sqm</span>
     },
     {
       title: 'Rate',
       dataIndex: 'rate',
       key: 'rate',
-      render: (rate: number) => `₹${rate}/sqm`
+      render: (rate: number, record: any) => <span key={`stall-rate-${record.key}`}>₹{rate}/sqm</span>
     },
     {
       title: 'Price',
       dataIndex: 'price',
       key: 'price',
-      render: (price: number) => `₹${price.toLocaleString()}`
+      render: (price: number, record: any) => <span key={`stall-price-${record.key}`}>₹{price.toLocaleString()}</span>
     },
   ];
   
@@ -351,14 +366,14 @@ const ReviewStep: React.FC<StepProps> = ({
           </Paragraph>
           
           <Table 
-            dataSource={bookingSummary.basicAmenities.filter(amenity => amenity.calculatedQuantity > 0)}
+            dataSource={bookingSummary.basicAmenities.filter(amenity => amenity.calculatedQuantity > 0).map((amenity, index) => ({ ...amenity, key: `basic-${index}` }))}
             columns={[
               {
                 title: 'Name',
                 dataIndex: 'name',
                 key: 'name',
                 render: (text, record: any) => (
-                  <Space>
+                  <Space key={`name-${record.key}`}>
                     <Text strong>{text}</Text>
                     <Tag color="blue">{record.type}</Tag>
                   </Space>
@@ -369,8 +384,8 @@ const ReviewStep: React.FC<StepProps> = ({
                 dataIndex: 'calculatedQuantity',
                 key: 'calculatedQuantity',
                 width: 120,
-                render: (quantity: number) => (
-                  <Tag color="green">{quantity} {quantity === 1 ? 'unit' : 'units'}</Tag>
+                render: (quantity: number, record: any) => (
+                  <Tag key={`quantity-${record.key}`} color="green">{quantity} {quantity === 1 ? 'unit' : 'units'}</Tag>
                 )
               },
               {
@@ -379,7 +394,7 @@ const ReviewStep: React.FC<StepProps> = ({
                 key: 'perSqm',
                 width: 180,
                 render: (perSqm: number, record: any) => (
-                  <Text type="secondary">
+                  <Text key={`allocation-${record.key}`} type="secondary">
                     <InfoCircleOutlined style={{ marginRight: 5 }} />
                     1 {record.quantity > 1 ? `set of ${record.quantity}` : 'unit'} per {perSqm} sqm
                   </Text>
@@ -390,7 +405,7 @@ const ReviewStep: React.FC<StepProps> = ({
                 key: 'status',
                 width: 100,
                 align: 'right' as 'right',
-                render: () => <Text type="success">Included</Text>
+                render: (_: any, record: any) => <Text key={`status-${record.key}`} type="success">Included</Text>
               }
             ]}
             pagination={false}
@@ -420,7 +435,7 @@ const ReviewStep: React.FC<StepProps> = ({
                 dataIndex: 'name',
                 key: 'name',
                 render: (text, record: any) => (
-                  <Space>
+                  <Space key={`amenity-name-${record.key}`}>
                     <Text strong>{text}</Text>
                     <Tag color="blue">{record.type}</Tag>
                   </Space>
@@ -430,8 +445,8 @@ const ReviewStep: React.FC<StepProps> = ({
                 title: 'Description',
                 dataIndex: 'description',
                 key: 'description',
-                render: (text) => (
-                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                render: (text, record: any) => (
+                  <Text key={`amenity-desc-${record.key}`} type="secondary" style={{ fontSize: '13px' }}>
                     {text || 'No description provided'}
                   </Text>
                 )
@@ -440,11 +455,33 @@ const ReviewStep: React.FC<StepProps> = ({
                 title: 'Rate',
                 dataIndex: 'rate',
                 key: 'rate',
-                width: 120,
+                width: 110,
                 align: 'right' as 'right',
-                render: (rate: number) => (
-                  <Text strong style={{ color: '#1890ff' }}>
+                render: (rate: number, record: any) => (
+                  <Text key={`amenity-rate-${record.key}`} strong style={{ color: '#1890ff' }}>
                     {formatCurrency(rate)}
+                  </Text>
+                )
+              },
+              {
+                title: 'Quantity',
+                dataIndex: 'quantity',
+                key: 'quantity',
+                width: 90,
+                align: 'center' as 'center',
+                render: (quantity: number, record: any) => (
+                  <Tag key={`amenity-qty-${record.key}`} color="green">{quantity}</Tag>
+                )
+              },
+              {
+                title: 'Total',
+                dataIndex: 'total',
+                key: 'total',
+                width: 110,
+                align: 'right' as 'right',
+                render: (total: number, record: any) => (
+                  <Text key={`amenity-total-${record.key}`} strong style={{ color: '#1890ff' }}>
+                    {formatCurrency(total)}
                   </Text>
                 )
               }
