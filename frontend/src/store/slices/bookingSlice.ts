@@ -256,14 +256,20 @@ const initialState: BookingState = {
  */
 
 /**
- * Fetches all bookings
- * Retrieves the complete list of bookings from the API
+ * Async thunk for fetching all bookings
  */
 export const fetchBookings = createAsyncThunk(
   'booking/fetchBookings',
-  async () => {
-    const response = await api.get<Booking[]>('/bookings');
-    return response.data;
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/bookings');
+      
+      // Handle both paginated and non-paginated formats
+      // The new format is { data: Booking[], pagination: {...} }
+      return response.data?.data || response.data;
+    } catch (error: any) {
+      return rejectWithValue(error?.response?.data?.message || 'Failed to fetch bookings');
+    }
   }
 );
 

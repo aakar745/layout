@@ -150,7 +150,10 @@ const StallBookingManager: React.FC = () => {
     setFilters(newFilters);
   };
 
-  const filteredBookings = (bookings as BookingType[]).filter((booking: BookingType) => {
+  // Ensure bookings is an array before using filter
+  const bookingsArray = Array.isArray(bookings) ? bookings : [];
+
+  const filteredBookings = bookingsArray.filter((booking: BookingType) => {
     // Search filter
     if (filters.search && !booking.companyName?.toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
@@ -188,11 +191,11 @@ const StallBookingManager: React.FC = () => {
     const year = new Date(createdAt).getFullYear();
     
     // Find the current booking's exhibition
-    const booking = bookings.find(b => b._id === id) as BookingType | undefined;
+    const booking = bookingsArray.find(b => b._id === id) as BookingType | undefined;
     if (!booking) return `--/${year}/--`;
 
     // Get all bookings for this specific exhibition, sorted by creation date
-    const exhibitionBookings = (bookings as BookingType[])
+    const exhibitionBookings = bookingsArray
       .filter(b => b.exhibitionId._id === booking.exhibitionId._id)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
@@ -335,7 +338,7 @@ const StallBookingManager: React.FC = () => {
       width: 200,
       render: (_id: string, record: BookingType) => (
         <Button type="link" onClick={() => {
-          setSelectedBooking(bookings.find(b => b._id === _id) || null);
+          setSelectedBooking(bookingsArray.find(b => b._id === _id) || null);
           setIsDetailsModalVisible(true);
         }}>
           {formatBookingNumber(_id, record.createdAt)}
@@ -603,7 +606,7 @@ const StallBookingManager: React.FC = () => {
       >
         {selectedBooking && (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Descriptions bordered column={2}>
+            <Descriptions bordered={true} column={2}>
               <Descriptions.Item label="Booking Number" span={2}>
                 {formatBookingNumber(selectedBooking._id, selectedBooking.createdAt)}
                 <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
@@ -758,7 +761,7 @@ const StallBookingManager: React.FC = () => {
                 </div>
               }
               style={{ marginBottom: 16 }}
-              bordered={false}
+              variant="borderless"
               size="small"
             >
               <Row gutter={[16, 8]}>
@@ -807,7 +810,7 @@ const StallBookingManager: React.FC = () => {
                   <span>Update Status</span>
                 </div>
               }
-              bordered={false}
+              variant="borderless"
               size="small"
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

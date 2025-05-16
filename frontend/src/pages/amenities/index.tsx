@@ -49,6 +49,13 @@ const AmenitiesPage: React.FC = () => {
   const [completeBookings, setCompleteBookings] = useState<any[]>([]);
   const [loadingCompleteBookings, setLoadingCompleteBookings] = useState<boolean>(false);
   
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0
+  });
+  
   // State for filters
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [bookingStatusFilter, setBookingStatusFilter] = useState<string[]>([]);
@@ -71,27 +78,51 @@ const AmenitiesPage: React.FC = () => {
     dispatch(fetchBookings());
   }, [dispatch]);
 
-  // Function to fetch complete booking data with all fields
-  const fetchCompleteBookingData = async (exhibitionId: string) => {
+  // Function to fetch complete booking data with all fields and pagination
+  const fetchCompleteBookingData = async (exhibitionId: string, page = 1, pageSize = 10) => {
     try {
       setLoadingCompleteBookings(true);
       
-      // Fetch all bookings for this exhibition with complete details
-      const response = await api.get(`/bookings?exhibitionId=${exhibitionId}&includeDetails=true`);
+      // Fetch all bookings for this exhibition with complete details and pagination
+      const response = await api.get(`/bookings`, {
+        params: {
+          exhibitionId,
+          includeDetails: true,
+          page,
+          limit: pageSize
+        }
+      });
       
       if (response && response.data) {
-        // Filter for confirmed/approved bookings only
-        const filteredBookings = response.data.filter(
+        // Update bookings data
+        const filteredBookings = response.data.data.filter(
           (booking: any) => booking.exhibitionId._id === exhibitionId && 
           ['confirmed', 'approved'].includes(booking.status)
         );
         setCompleteBookings(filteredBookings);
+        
+        // Update pagination info
+        setPagination({
+          current: response.data.pagination.page,
+          pageSize: response.data.pagination.limit,
+          total: response.data.pagination.total
+        });
       } else {
         setCompleteBookings([]);
+        setPagination({
+          current: 1,
+          pageSize: 10,
+          total: 0
+        });
       }
     } catch (error) {
       console.error('Error fetching complete booking data:', error);
       setCompleteBookings([]);
+      setPagination({
+        current: 1,
+        pageSize: 10,
+        total: 0
+      });
     } finally {
       setLoadingCompleteBookings(false);
     }
@@ -107,7 +138,7 @@ const AmenitiesPage: React.FC = () => {
         setExtraAmenities(exhibition.amenities || []);
 
         // Fetch complete booking data for this exhibition
-        fetchCompleteBookingData(selectedExhibition);
+        fetchCompleteBookingData(selectedExhibition, pagination.current, pagination.pageSize);
       }
     } else {
       setBasicAmenities([]);
@@ -118,7 +149,7 @@ const AmenitiesPage: React.FC = () => {
       setCompleteBookings([]);
     }
   }, [selectedExhibition, exhibitions]);
-
+        
   // Process booking data to calculate amenities
   useEffect(() => {
     if (selectedExhibition && exhibitions.length > 0 && completeBookings.length > 0) {
@@ -449,6 +480,20 @@ const AmenitiesPage: React.FC = () => {
     message.success('Calculated amenities exported successfully');
   };
 
+  // Handle pagination changes
+  const handlePaginationChange = (page: number, pageSize?: number) => {
+    const newPageSize = pageSize || pagination.pageSize;
+    setPagination({
+      ...pagination,
+      current: page,
+      pageSize: newPageSize
+    });
+    
+    if (selectedExhibition) {
+      fetchCompleteBookingData(selectedExhibition, page, newPageSize);
+    }
+  };
+
   return (
     <div className="amenities-container">
       {/* Header Section */}
@@ -492,84 +537,88 @@ const AmenitiesPage: React.FC = () => {
           activeKey={activeTab} 
           onChange={setActiveTab}
           className="amenities-tabs"
-        >
-          <TabPane 
-            tab={
-              <span>
-                <BookOutlined />
-                Basic Amenities
-              </span>
-            } 
-            key="basic"
-          >
-            <AmenitiesTable
-              title="Basic Amenities"
-              amenities={filteredBasicAmenities}
-              loading={loading}
-              onExport={exportBasicAmenities}
-              exhibitionId={selectedExhibition}
-            />
-          </TabPane>
-          
-          <TabPane 
-            tab={
-              <span>
-                <AppstoreOutlined />
-                Extra Amenities
-              </span>
-            } 
-            key="extra"
-          >
-            <AmenitiesTable
-              title="Additional Amenities"
-              amenities={filteredExtraAmenities}
-              loading={loading}
-              onExport={exportExtraAmenities}
-              exhibitionId={selectedExhibition}
-            />
-          </TabPane>
-          
-          <TabPane 
-            tab={
-              <span>
-                <CalculatorOutlined />
-                Calculated Amenities
-              </span>
-            } 
-            key="calculated"
-          >
-            <Row gutter={[0, 16]}>
-              <Col span={24}>
-                <Card className="filter-card">
-                  <Space>
-                    <Text strong>View: </Text>
-                    <Radio.Group 
-                      value={amenityViewType}
-                      onChange={e => setAmenityViewType(e.target.value)}
-                      optionType="button"
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value="basic">Basic Amenities</Radio.Button>
-                      <Radio.Button value="extra">Extra Amenities</Radio.Button>
-                      <Radio.Button value="all">All Amenities</Radio.Button>
-                    </Radio.Group>
-                  </Space>
-                </Card>
-              </Col>
-            </Row>
-            
-            <AmenitiesTable
-              title="Calculated Amenities"
-              amenities={filteredCalculatedAmenities}
-              loading={loading}
-              onExport={exportCalculatedAmenities}
-              isDynamicColumns={true}
-              isCalculated={true}
-              exhibitionId={selectedExhibition}
-              amenityViewType={amenityViewType}
-            />
-          </TabPane>
-        </Tabs>
+          items={[
+            {
+              key: "basic",
+              label: (
+                <span>
+                  <BookOutlined />
+                  Basic Amenities
+                </span>
+              ),
+              children: (
+                <AmenitiesTable
+                  title="Basic Amenities"
+                  amenities={filteredBasicAmenities}
+                  loading={loading}
+                  onExport={exportBasicAmenities}
+                  exhibitionId={selectedExhibition}
+                />
+              )
+            },
+            {
+              key: "extra",
+              label: (
+                <span>
+                  <AppstoreOutlined />
+                  Extra Amenities
+                </span>
+              ),
+              children: (
+                <AmenitiesTable
+                  title="Additional Amenities"
+                  amenities={filteredExtraAmenities}
+                  loading={loading}
+                  onExport={exportExtraAmenities}
+                  exhibitionId={selectedExhibition}
+                />
+              )
+            },
+            {
+              key: "calculated",
+              label: (
+                <span>
+                  <CalculatorOutlined />
+                  Calculated Amenities
+                </span>
+              ),
+              children: (
+                <>
+                  <Row gutter={[0, 16]}>
+                    <Col span={24}>
+                      <Card className="filter-card">
+                        <Space>
+                          <Text strong>View: </Text>
+                          <Radio.Group 
+                            value={amenityViewType}
+                            onChange={e => setAmenityViewType(e.target.value)}
+                            optionType="button"
+                            buttonStyle="solid"
+                          >
+                            <Radio.Button value="basic">Basic Amenities</Radio.Button>
+                            <Radio.Button value="extra">Extra Amenities</Radio.Button>
+                            <Radio.Button value="all">All Amenities</Radio.Button>
+                          </Radio.Group>
+                        </Space>
+                      </Card>
+                    </Col>
+                  </Row>
+                  
+                  <AmenitiesTable
+                    title="Calculated Amenities"
+                    amenities={filteredCalculatedAmenities}
+                    loading={loading}
+                    onExport={exportCalculatedAmenities}
+                    isDynamicColumns={true}
+                    isCalculated={true}
+                    exhibitionId={selectedExhibition}
+                    amenityViewType={amenityViewType}
+                  />
+                </>
+              )
+            }
+          ]}
+        />
       ) : (
         <div style={{ marginTop: 24, textAlign: 'center', padding: 48, background: '#fff', borderRadius: 8 }}>
           <Empty 

@@ -24,7 +24,8 @@ const dashboardService = {
       
       // Fetch bookings
       const bookingsResponse = await api.get('/bookings');
-      const bookings = bookingsResponse.data || [];
+      // Handle both paginated and non-paginated response formats
+      const bookings = bookingsResponse.data?.data || bookingsResponse.data || [];
       
       // Fetch exhibitions
       const exhibitionsResponse = await api.get('/exhibitions');

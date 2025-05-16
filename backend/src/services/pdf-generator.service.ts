@@ -296,8 +296,8 @@ export const prepareInvoiceData = async (invoice: any, isAdmin: boolean = false)
   let exhibitionLogoPath = null;
   let globalLogoPath = null;
   
-  if (exhibition.headerLogo) {
-    exhibitionLogoPath = exhibition.headerLogo;
+  if (exhibition.logo) {
+    exhibitionLogoPath = exhibition.logo;
   }
   
   if (globalLogo) {

@@ -90,11 +90,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
         const unreadCountHandler = (count: number) => {
           setUnreadCount(count);
           if (count > 0 && !visible) {
-        setHasNewAnimation(true);
-        setTimeout(() => {
-          setHasNewAnimation(false);
-        }, 2000);
-      }
+            setHasNewAnimation(true);
+            setTimeout(() => {
+              setHasNewAnimation(false);
+            }, 2000);
+          }
         };
         
         const notificationHandler = (notification: NotificationData) => {
@@ -360,7 +360,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
             <span className="tab-label">
               Unread
               <Badge 
-                  count={unreadCount} 
+                count={unreadCount} 
                 size="small" 
                 offset={[5, -3]}
                 style={{ backgroundColor: '#1677ff' }}
@@ -369,7 +369,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
             )
           }
         ]}
-        />
+      />
       
       <div className="notification-list">
         <Spin spinning={loading}>
@@ -423,13 +423,16 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
         getPopupContainer={(trigger) => trigger.parentNode as HTMLElement}
         overlayClassName="notification-dropdown-overlay"
       >
-        <Badge 
-          count={unreadCount} 
-          offset={[-2, 10]}
-          size="small"
-        >
-          <BellOutlined className="notification-bell-icon" />
-        </Badge>
+        <div className="bell-trigger">
+          <Badge 
+            count={unreadCount} 
+            className="notification-badge"
+            size="default"
+            overflowCount={99}
+          >
+            <BellOutlined className="notification-bell-icon" />
+          </Badge>
+        </div>
       </Dropdown>
     </div>
   );

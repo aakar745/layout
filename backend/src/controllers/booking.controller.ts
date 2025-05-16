@@ -318,7 +318,11 @@ export const createBooking = async (req: Request, res: Response) => {
 export const getBookings = async (req: Request, res: Response) => {
   try {
     // Check for query parameters
-    const { exhibitionId, includeDetails } = req.query;
+    const { exhibitionId, includeDetails, page = '1', limit = '10' } = req.query;
+    
+    // Parse pagination parameters
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
     
     // Build query conditions
     const conditions: any = {};
@@ -326,27 +330,43 @@ export const getBookings = async (req: Request, res: Response) => {
       conditions.exhibitionId = exhibitionId;
     }
     
+    // Get total count for pagination info
+    const totalCount = await Booking.countDocuments(conditions);
+    
     let bookings;
     
     // Use different query approaches based on the includeDetails flag
     if (includeDetails === 'true') {
-      // Full details query
+      // Full details query with pagination
       bookings = await Booking.find(conditions)
         .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
         .populate('exhibitionId')
         .populate('stallIds')
         .populate('exhibitorId')
         .populate('userId');
     } else {
-      // Limited fields query for better performance
+      // Limited fields query with pagination for better performance
       bookings = await Booking.find(conditions)
         .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
         .populate('exhibitionId', 'name')
         .populate('stallIds', 'number dimensions ratePerSqm')
         .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
     }
     
-    res.json(bookings);
+    // Return paginated results with metadata
+    res.json({
+      data: bookings,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(totalCount / limitNum)
+      }
+    });
   } catch (error) {
     console.error('Error fetching bookings:', error);
     res.status(500).json({ message: 'Error fetching bookings', error });
