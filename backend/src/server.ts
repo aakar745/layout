@@ -56,14 +56,18 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:5173',
       'http://localhost:3000',
-      'http://127.0.0.1:5173'
+      'http://127.0.0.1:5173',
+      'https://aakardata.in',
+      'https://www.aakardata.in',
+      'http://aakardata.in',
+      'http://www.aakardata.in'
     ];
     
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
       console.warn(`CORS blocked request from origin: ${origin}`);
-      callback(null, true); // In development, allow all origins
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
@@ -72,16 +76,37 @@ app.use(cors({
   exposedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Add headers middleware for development
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-    next();
-  });
-}
+// Add headers middleware for all environments
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'https://aakardata.in',
+    'https://www.aakardata.in',
+    'http://aakardata.in',
+    'http://www.aakardata.in'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (process.env.NODE_ENV !== 'production') {
+    // In development, allow any origin
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 app.use(morgan('dev'));
 app.use(requestLogger);
@@ -96,13 +121,54 @@ app.use('/api/uploads', protectStatic, (req, res, next) => {
     headers: req.headers,
     method: req.method
   });
+  
+  // Add CORS headers for static files
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'https://aakardata.in',
+    'https://www.aakardata.in',
+    'http://aakardata.in',
+    'http://www.aakardata.in'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
   next();
 }, express.static(path.join(__dirname, '../uploads'), {
   fallthrough: false // Return 404 if file not found
 }));
 
 // Add public access to uploads for logos and images (no authentication required)
-app.use('/api/public/uploads', express.static(path.join(__dirname, '../uploads'), {
+app.use('/api/public/uploads', (req, res, next) => {
+  // Add CORS headers for public static files
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'https://aakardata.in',
+    'https://www.aakardata.in',
+    'http://aakardata.in',
+    'http://www.aakardata.in'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+}, express.static(path.join(__dirname, '../uploads'), {
   fallthrough: false // Return 404 if file not found
 }));
 
