@@ -231,6 +231,18 @@ export interface CreateBookingData {
   };
 }
 
+// Add a new interface for booking stats
+export interface BookingStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  confirmed: number;
+  cancelled: number;
+  totalRevenue: number;
+  totalBaseAmount: number;
+}
+
 /**
  * BookingState interface
  * Redux state structure for booking management
@@ -239,7 +251,15 @@ interface BookingState {
   bookings: Booking[];
   currentBooking: Booking | null;
   loading: boolean;
+  statsLoading: boolean;
   error: string | null;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+  stats: BookingStats;
 }
 
 // Initial state for the booking slice
@@ -247,7 +267,24 @@ const initialState: BookingState = {
   bookings: [],
   currentBooking: null,
   loading: false,
+  statsLoading: false,
   error: null,
+  pagination: {
+    total: 0,
+    page: 1,
+    limit: 10,
+    pages: 0
+  },
+  stats: {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    confirmed: 0,
+    cancelled: 0,
+    totalRevenue: 0,
+    totalBaseAmount: 0
+  }
 };
 
 /**
@@ -260,13 +297,20 @@ const initialState: BookingState = {
  */
 export const fetchBookings = createAsyncThunk(
   'booking/fetchBookings',
-  async (_, { rejectWithValue }) => {
+  async (pagination: { page?: number; limit?: number } = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/bookings');
+      const params: any = {};
       
-      // Handle both paginated and non-paginated formats
-      // The new format is { data: Booking[], pagination: {...} }
-      return response.data?.data || response.data;
+      // Add pagination parameters if provided
+      if (pagination.page) params.page = pagination.page;
+      if (pagination.limit) params.limit = pagination.limit;
+      
+      const response = await api.get('/bookings', { 
+        params 
+      });
+      
+      // Return both data and pagination metadata
+      return response.data;
     } catch (error: any) {
       return rejectWithValue(error?.response?.data?.message || 'Failed to fetch bookings');
     }
@@ -348,6 +392,21 @@ export const deleteBooking = createAsyncThunk(
 );
 
 /**
+ * Fetches booking statistics (counts by status, etc.) for dashboard display
+ */
+export const fetchBookingStats = createAsyncThunk(
+  'booking/fetchBookingStats',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/bookings/stats');
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error?.response?.data?.message || 'Failed to fetch booking statistics');
+    }
+  }
+);
+
+/**
  * Booking Slice
  * Redux slice containing reducers and extra reducers for booking state management
  */
@@ -377,7 +436,11 @@ const bookingSlice = createSlice({
       })
       .addCase(fetchBookings.fulfilled, (state, action) => {
         state.loading = false;
-        state.bookings = action.payload;
+        state.bookings = action.payload.data || [];
+        // Update pagination if available
+        if (action.payload.pagination) {
+          state.pagination = action.payload.pagination;
+        }
       })
       .addCase(fetchBookings.rejected, (state, action) => {
         state.loading = false;
@@ -447,6 +510,19 @@ const bookingSlice = createSlice({
       .addCase(updatePaymentStatus.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || 'Failed to update payment status';
+      })
+      // Fetch booking stats cases
+      .addCase(fetchBookingStats.pending, (state) => {
+        state.statsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchBookingStats.fulfilled, (state, action) => {
+        state.statsLoading = false;
+        state.stats = action.payload;
+      })
+      .addCase(fetchBookingStats.rejected, (state, action) => {
+        state.statsLoading = false;
+        state.error = action.error.message || 'Failed to fetch booking statistics';
       })
       // Delete booking
       .addCase(deleteBooking.pending, (state) => {

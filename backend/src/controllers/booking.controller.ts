@@ -318,7 +318,16 @@ export const createBooking = async (req: Request, res: Response) => {
 export const getBookings = async (req: Request, res: Response) => {
   try {
     // Check for query parameters
-    const { exhibitionId, includeDetails, page = '1', limit = '10' } = req.query;
+    const { 
+      exhibitionId, 
+      includeDetails, 
+      page = '1', 
+      limit = '10',
+      status,
+      startDate,
+      endDate,
+      search
+    } = req.query;
     
     // Parse pagination parameters
     const pageNum = parseInt(page as string, 10);
@@ -326,8 +335,36 @@ export const getBookings = async (req: Request, res: Response) => {
     
     // Build query conditions
     const conditions: any = {};
+    
+    // Filter by exhibition ID
     if (exhibitionId) {
       conditions.exhibitionId = exhibitionId;
+    }
+    
+    // Filter by status (can be an array)
+    if (status) {
+      if (Array.isArray(status)) {
+        conditions.status = { $in: status };
+      } else {
+        conditions.status = status;
+      }
+    }
+    
+    // Filter by date range
+    if (startDate && endDate) {
+      conditions.createdAt = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(endDate as string)
+      };
+    } else if (startDate) {
+      conditions.createdAt = { $gte: new Date(startDate as string) };
+    } else if (endDate) {
+      conditions.createdAt = { $lte: new Date(endDate as string) };
+    }
+    
+    // Search by company name
+    if (search) {
+      conditions.companyName = { $regex: search, $options: 'i' };
     }
     
     // Get total count for pagination info
@@ -343,9 +380,28 @@ export const getBookings = async (req: Request, res: Response) => {
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum)
         .populate('exhibitionId')
-        .populate('stallIds')
+        .populate({
+          path: 'stallIds',
+          populate: {
+            path: 'stallTypeId',
+            select: 'name'
+          }
+        })
         .populate('exhibitorId')
         .populate('userId');
+        
+      // Transform stalls to include type from stallTypeId
+      bookings = bookings.map(booking => {
+        const bookingObj = booking.toObject();
+        bookingObj.stallIds = bookingObj.stallIds.map((stall: any) => {
+          if (stall.stallTypeId && typeof stall.stallTypeId === 'object') {
+            // Add the type field based on stallTypeId name
+            stall.type = stall.stallTypeId.name;
+          }
+          return stall;
+        });
+        return bookingObj;
+      });
     } else {
       // Limited fields query with pagination for better performance
       bookings = await Booking.find(conditions)
@@ -353,8 +409,28 @@ export const getBookings = async (req: Request, res: Response) => {
         .skip((pageNum - 1) * limitNum)
         .limit(limitNum)
         .populate('exhibitionId', 'name')
-        .populate('stallIds', 'number dimensions ratePerSqm')
+        .populate({
+          path: 'stallIds',
+          select: 'number dimensions ratePerSqm stallTypeId',
+          populate: {
+            path: 'stallTypeId',
+            select: 'name'
+          }
+        })
         .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
+        
+      // Transform stalls to include type from stallTypeId
+      bookings = bookings.map(booking => {
+        const bookingObj = booking.toObject();
+        bookingObj.stallIds = bookingObj.stallIds.map((stall: any) => {
+          if (stall.stallTypeId && typeof stall.stallTypeId === 'object') {
+            // Add the type field based on stallTypeId name
+            stall.type = stall.stallTypeId.name;
+          }
+          return stall;
+        });
+        return bookingObj;
+      });
     }
     
     // Return paginated results with metadata
@@ -435,8 +511,6 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         const existingInvoice = await Invoice.findOne({ bookingId: booking._id });
         
         if (!existingInvoice) {
-          console.log(`Creating invoice for approved booking ${booking._id}`);
-          
           // Get the exhibition's creator as the userId (admin)
           const exhibitionData = await Exhibition.findById(booking.exhibitionId);
           if (!exhibitionData) {
@@ -485,8 +559,6 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
             dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           });
           
-          console.log(`Invoice created successfully for booking ${booking._id}`);
-
           // Notify exhibitor about booking approval and invoice
           if (booking.exhibitorId) {
             try {
@@ -626,5 +698,170 @@ export const deleteBooking = async (req: Request, res: Response) => {
     res.json({ message: 'Booking deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting booking', error });
+  }
+};
+
+/**
+ * Get booking statistics
+ * Returns counts for each booking status and total revenue
+ */
+export const getBookingStats = async (req: Request, res: Response) => {
+  try {
+    // Get all metrics in a single aggregation pipeline for better performance
+    const stats = await Booking.aggregate([
+      {
+        $facet: {
+          // Get counts by status
+          statusCounts: [
+            {
+              $group: {
+                _id: '$status',
+                count: { $sum: 1 }
+              }
+            }
+          ],
+          // Calculate total revenue from confirmed and approved bookings
+          revenue: [
+            {
+              $match: {
+                status: { $in: ['confirmed', 'approved'] }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+              }
+            }
+          ],
+          // Calculate total base amount (before tax/discount)
+          baseAmount: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: '$calculations.totalBaseAmount' }
+              }
+            }
+          ],
+          // Get total count
+          total: [
+            {
+              $count: 'count'
+            }
+          ]
+        }
+      }
+    ]);
+
+    // Process the aggregation results
+    const statusMap: Record<string, number> = {};
+    stats[0].statusCounts.forEach((item: { _id: string; count: number }) => {
+      statusMap[item._id] = item.count;
+    });
+
+    const totalRevenue = stats[0].revenue.length > 0 ? stats[0].revenue[0].total : 0;
+    const totalBaseAmount = stats[0].baseAmount.length > 0 ? stats[0].baseAmount[0].total : 0;
+    const total = stats[0].total.length > 0 ? stats[0].total[0].count : 0;
+
+    // Return the formatted statistics
+    res.json({
+      total,
+      pending: statusMap['pending'] || 0,
+      approved: statusMap['approved'] || 0,
+      rejected: statusMap['rejected'] || 0,
+      confirmed: statusMap['confirmed'] || 0,
+      cancelled: statusMap['cancelled'] || 0,
+      totalRevenue,
+      totalBaseAmount
+    });
+  } catch (error) {
+    console.error('Error fetching booking statistics:', error);
+    res.status(500).json({ message: 'Error fetching booking statistics', error });
+  }
+};
+
+/**
+ * Export bookings data without pagination limits
+ * Supports all the same filters as getBookings but returns all matching records
+ */
+export const exportBookings = async (req: Request, res: Response) => {
+  try {
+    // Check for query parameters
+    const { 
+      exhibitionId, 
+      status,
+      startDate,
+      endDate,
+      search
+    } = req.query;
+    
+    // Build query conditions
+    const conditions: any = {};
+    
+    // Filter by exhibition ID
+    if (exhibitionId) {
+      conditions.exhibitionId = exhibitionId;
+    }
+    
+    // Filter by status (can be an array)
+    if (status) {
+      if (Array.isArray(status)) {
+        conditions.status = { $in: status };
+      } else {
+        conditions.status = status;
+      }
+    }
+    
+    // Filter by date range
+    if (startDate && endDate) {
+      conditions.createdAt = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(endDate as string)
+      };
+    } else if (startDate) {
+      conditions.createdAt = { $gte: new Date(startDate as string) };
+    } else if (endDate) {
+      conditions.createdAt = { $lte: new Date(endDate as string) };
+    }
+    
+    // Search by company name
+    if (search) {
+      conditions.companyName = { $regex: search, $options: 'i' };
+    }
+    
+    // Get all matching bookings with no pagination limits
+    const bookings = await Booking.find(conditions)
+      .sort({ createdAt: -1 })
+      .populate('exhibitionId', 'name')
+      .populate({
+        path: 'stallIds',
+        select: 'number dimensions ratePerSqm type stallTypeId',
+        populate: {
+          path: 'stallTypeId',
+          select: 'name description'
+        }
+      })
+      .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
+      
+    // Transform stalls to include type from stallTypeId
+    const transformedBookings = bookings.map(booking => {
+      const bookingObj = booking.toObject();
+      if (bookingObj.stallIds) {
+        bookingObj.stallIds = bookingObj.stallIds.map((stall: any) => {
+          if (stall.stallTypeId && typeof stall.stallTypeId === 'object') {
+            // Add the type field based on stallTypeId name
+            stall.type = stall.stallTypeId.name;
+          }
+          return stall;
+        });
+      }
+      return bookingObj;
+    });
+    
+    // Return complete result set with transformed stalls
+    res.json(transformedBookings);
+  } catch (error) {
+    console.error('Error exporting bookings:', error);
+    res.status(500).json({ message: 'Error exporting bookings', error });
   }
 }; 

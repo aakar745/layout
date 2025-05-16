@@ -6,6 +6,11 @@ import { Exhibition } from '../../../store/slices/bookingSlice';
 export interface Stall {
   _id: string;
   number: string;
+  type?: string;
+  stallTypeId?: string | {
+    _id: string;
+    name: string;
+  };
   dimensions: {
     width: number;
     height: number;
