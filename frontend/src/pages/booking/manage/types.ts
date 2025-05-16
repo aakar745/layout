@@ -7,13 +7,13 @@ export interface Stall {
   _id: string;
   number: string;
   type?: string;
-  stallTypeId?: string | {
-    _id: string;
-    name: string;
-  };
-  dimensions: {
+  dimensions?: {
     width: number;
     height: number;
+  };
+  stallTypeId?: {
+    _id: string;
+    name: string;
   };
   ratePerSqm: number;
 }
