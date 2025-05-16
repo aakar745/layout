@@ -38,23 +38,32 @@ export default defineConfig({
       'axios',
       'dayjs',
       'lodash',
-      '@reduxjs/toolkit'
+      '@reduxjs/toolkit',
+      // Pre-bundle konva to avoid issues
+      'konva',
+      'react-konva'
     ]
   },
   build: {
     sourcemap: false,
-    minify: 'terser', // Use Terser for better minification
+    minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Remove console.logs in production
+        drop_console: true,
         drop_debugger: true
       }
     },
-    chunkSizeWarningLimit: 800, // Increase warning limit
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        // Improve code splitting
         manualChunks: (id) => {
+          // Handle key canvas dependencies differently
+          if (id.includes('node_modules/konva') || 
+              id.includes('node_modules/react-konva') || 
+              id.includes('node_modules/use-image')) {
+            return 'vendor-canvas';
+          }
+          
           // Split node_modules into chunks
           if (id.includes('node_modules')) {
             // Create more granular antd chunks to reduce size
@@ -72,12 +81,6 @@ export default defineConfig({
                 id.includes('react-router') || 
                 id.includes('react-redux')) {
               return 'vendor-react';
-            }
-            
-            if (id.includes('react-konva') || 
-                id.includes('konva') || 
-                id.includes('use-image')) {
-              return 'vendor-canvas';
             }
             
             // PDF related
