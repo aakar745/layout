@@ -48,18 +48,14 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
       const cacheKey = generateCacheKey(invoice);
       const cachedPDF = getCachedPDF(cacheKey, invoice, true);
       if (cachedPDF) {
-        console.log(`[DEBUG] Using cached PDF for invoice ${invoice._id}`);
         return cachedPDF;
       }
     }
     
     // Generate new PDF
-    console.log(`[DEBUG] Generating new PDF for invoice ${invoice._id}`);
-    
     // Use the queue system to prevent too many concurrent PDF generations
     try {
       // First attempt with full rendering
-      console.log('[DEBUG] Attempting PDF generation with full rendering');
       return await queuePdfGeneration(async () => {
         try {
           const pdfBuffer = await generatePDF(invoice, isAdmin);
@@ -76,18 +72,15 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
       });
     } catch (primaryError) {
       // If we get here, the primary generation method failed
-      console.log('[DEBUG] Primary PDF generation failed, attempting fallback mechanism');
       
       // Log the error for debugging
       console.error('[ERROR] Primary PDF generation failed:', primaryError);
       
       // See if we have a cached version we can use as a last resort, even if forceRegenerate was true
-      console.log('[DEBUG] Checking for any cached version as a last resort');
       const cacheKey = generateCacheKey(invoice);
       const cachedPDF = getCachedPDF(cacheKey, invoice, true); // true = ignore timestamp
       
       if (cachedPDF) {
-        console.log('[DEBUG] Using outdated cached PDF as fallback');
         return cachedPDF;
       }
       
@@ -110,8 +103,8 @@ export const getPDF = async (invoice: any, forceRegenerate = false, isAdmin = fa
 export const downloadInvoice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // Get force regeneration parameter, defaulting to true to always generate fresh PDFs
-    const forceRegenerate = req.query.force === 'true' || true; // Always regenerate unless explicitly set to false
+    // Check if force regeneration is explicitly requested
+    const forceRegenerate = req.query.force === 'true';
     
     // Check if user is authenticated
     if (!req.user?._id) {
@@ -128,7 +121,7 @@ export const downloadInvoice = async (req: Request, res: Response) => {
         populate: [
           { 
             path: 'exhibitionId',
-            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo'
+            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo'
           },
           { 
             path: 'stallIds', 
@@ -142,7 +135,7 @@ export const downloadInvoice = async (req: Request, res: Response) => {
       });
 
     if (!invoice) {
-      console.log(`[ERROR] Invoice ${id} not found in database`);
+      console.error(`[ERROR] Invoice ${id} not found in database`);
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
@@ -173,15 +166,14 @@ export const downloadInvoice = async (req: Request, res: Response) => {
     
     // If user doesn't have view all access, check if the invoice belongs to them
     if (!hasViewAllAccess && invoice.userId?.toString() !== req.user._id.toString()) {
-      console.log(`[ERROR] User ${req.user._id} doesn't have permission to view invoice ${id} (owned by ${invoice.userId})`);
+      console.error(`[ERROR] User ${req.user._id} doesn't have permission to view invoice ${id} (owned by ${invoice.userId})`);
       return res.status(403).json({ message: 'You do not have permission to view this invoice' });
     }
     
     try {
-      console.log(`[INFO] Generating fresh PDF for invoice ${id}`);
-      
-      // Always generate a fresh PDF with the latest data - bypassing the cache system
-      const pdfBuffer = await generatePDF(invoice, true);
+      // Use getPDF function which implements caching and queue management
+      // This is the admin interface, so pass isAdmin = true
+      const pdfBuffer = await getPDF(invoice, forceRegenerate, true);
       
       // Set response headers
       res.setHeader('Content-Type', 'application/pdf');
@@ -229,50 +221,52 @@ export const shareViaEmail = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Email address is required' });
     }
 
-    console.log(`[INFO] Processing email share request for invoice ${id} to ${email}`);
-
     // Get invoice with full population to ensure latest data
     const invoice = await Invoice.findById(id)
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo' },
           { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
         ],
       });
 
     if (!invoice) {
-      console.log(`[ERROR] Invoice ${id} not found for email share`);
+      console.error(`[ERROR] Invoice ${id} not found for email share`);
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    console.log(`[INFO] Generating fresh PDF for invoice ${id} with number ${invoice.invoiceNumber || 'unknown'}`);
+    try {
+      // Use getPDF which implements caching and queue management
+      // For sharing via email, we can use cached PDF if available
+      const pdfBuffer = await getPDF(invoice, false, true);
+      
+      // Create a safe filename for the PDF attachment
+      const invoiceNumber = invoice.invoiceNumber || `INV-${id}`;
+      const attachmentFilename = `invoice-${invoiceNumber}.pdf`;
+      
+      // Send email with PDF
+      const success = await sendPdfByEmail(
+        pdfBuffer,
+        email,
+        `Invoice - ${invoiceNumber}`,
+        message || `Please find attached the invoice ${invoiceNumber}.`,
+        attachmentFilename
+      );
+      
+      if (!success) {
+        console.error(`[ERROR] Failed to send email to ${email}`);
+        return res.status(500).json({ message: 'Failed to send email' });
+      }
 
-    // Generate a fresh PDF directly without using the cache system
-    const pdfBuffer = await generatePDF(invoice, true);
-    
-    // Create a safe filename for the PDF attachment
-    const invoiceNumber = invoice.invoiceNumber || `INV-${id}`;
-    const attachmentFilename = `invoice-${invoiceNumber}.pdf`;
-    
-    console.log(`[DEBUG] Sending email with attachment filename: ${attachmentFilename}`);
-    
-    // Send email with PDF
-    const success = await sendPdfByEmail(
-      pdfBuffer,
-      email,
-      `Invoice - ${invoiceNumber}`,
-      message || `Please find attached the invoice ${invoiceNumber}.`,
-      attachmentFilename
-    );
-    
-    if (!success) {
-      console.log(`[ERROR] Failed to send email to ${email}`);
-      return res.status(500).json({ message: 'Failed to send email' });
+      res.json({ message: 'Invoice shared via email successfully' });
+    } catch (pdfError) {
+      console.error(`[ERROR] PDF generation failed:`, pdfError);
+      return res.status(500).json({ 
+        message: 'Error generating invoice PDF for email', 
+        error: pdfError instanceof Error ? pdfError.message : 'Unknown error' 
+      });
     }
-
-    console.log(`[INFO] Email sent successfully to ${email}`);
-    res.json({ message: 'Invoice shared via email successfully' });
   } catch (error) {
     console.error('[ERROR] Email sharing error:', error);
     res.status(500).json({ 
@@ -295,7 +289,7 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName headerLogo' },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo' },
           { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
         ],
       });
@@ -304,53 +298,60 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    // Generate a fresh PDF directly without using the cache system
-    const pdfBuffer = await generatePDF(invoice, true);
-    
-    // Create temp directory if it doesn't exist
-    const tempDir = join(process.cwd(), 'temp');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
-    }
-    
-    // Create a safe filename by sanitizing the invoice number
-    const safeFilename = sanitizeFilename(`invoice-${invoice.invoiceNumber || id}.pdf`);
-    
-    // Create temporary file for message context with unique identifier
-    const timestamp = Date.now();
-    const pdfPath = join(tempDir, `whatsapp-${timestamp}-${safeFilename}`);
-    
-    console.log(`[DEBUG] Writing WhatsApp PDF to temporary file: ${pdfPath}`);
-    writeFileSync(pdfPath, pdfBuffer);
-
-    // Generate a public URL for the invoice
-    // This would ideally be implemented with your file storage
-    const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/invoices/${id}/download`;
-    
-    // Send WhatsApp message
-    const success = await sendPdfByWhatsApp(
-      pdfBuffer,
-      phoneNumber,
-      `Here's your invoice`,
-      pdfUrl
-    );
-    
-    // Clean up temporary file
     try {
-      if (existsSync(pdfPath)) {
-        console.log(`[DEBUG] Cleaning up WhatsApp temporary file: ${pdfPath}`);
-        unlinkSync(pdfPath);
+      // Use getPDF which implements caching and queue management
+      // For sharing via WhatsApp, we can use cached PDF if available
+      const pdfBuffer = await getPDF(invoice, false, true);
+      
+      // Create temp directory if it doesn't exist
+      const tempDir = join(process.cwd(), 'temp');
+      if (!existsSync(tempDir)) {
+        mkdirSync(tempDir, { recursive: true });
       }
-    } catch (cleanupErr) {
-      console.error('[ERROR] Failed to clean up temporary file:', cleanupErr);
-      // Continue processing - non-critical error
-    }
-    
-    if (!success) {
-      return res.status(500).json({ message: 'Failed to send WhatsApp message' });
-    }
+      
+      // Create a safe filename by sanitizing the invoice number
+      const safeFilename = sanitizeFilename(`invoice-${invoice.invoiceNumber || id}.pdf`);
+      
+      // Create temporary file for message context with unique identifier
+      const timestamp = Date.now();
+      const pdfPath = join(tempDir, `whatsapp-${timestamp}-${safeFilename}`);
+      
+      writeFileSync(pdfPath, pdfBuffer);
 
-    res.json({ message: 'Invoice shared successfully via WhatsApp' });
+      // Generate a public URL for the invoice
+      // This would ideally be implemented with your file storage
+      const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/invoices/${id}/download`;
+      
+      // Send WhatsApp message
+      const success = await sendPdfByWhatsApp(
+        pdfBuffer,
+        phoneNumber,
+        `Here's your invoice`,
+        pdfUrl
+      );
+      
+      // Clean up temporary file
+      try {
+        if (existsSync(pdfPath)) {
+          unlinkSync(pdfPath);
+        }
+      } catch (cleanupErr) {
+        console.error('[ERROR] Failed to clean up temporary file:', cleanupErr);
+        // Continue processing - non-critical error
+      }
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to send WhatsApp message' });
+      }
+
+      res.json({ message: 'Invoice shared successfully via WhatsApp' });
+    } catch (pdfError) {
+      console.error('[ERROR] PDF generation failed:', pdfError);
+      return res.status(500).json({ 
+        message: 'Error generating invoice PDF for WhatsApp', 
+        error: pdfError instanceof Error ? pdfError.message : 'Unknown error' 
+      });
+    }
   } catch (error) {
     console.error('WhatsApp sharing error:', error);
     res.status(500).json({ 

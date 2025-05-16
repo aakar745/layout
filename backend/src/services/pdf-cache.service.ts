@@ -66,7 +66,6 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
   try {
     // Check if cache file exists
     if (!existsSync(cachePath) || !existsSync(metaPath)) {
-      console.log(`[DEBUG] Cache file not found for ${cacheKey}`);
       return null;
     }
     
@@ -80,7 +79,6 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
     
     // Skip timestamp validation if ignoreTimestamp is true - use for emergency fallback
     if (!ignoreTimestamp && now - cacheTime > PDF_CACHE_MAX_AGE) {
-      console.log(`[DEBUG] Cache expired for ${cacheKey}`);
       // Delete expired files
       try {
         unlinkSync(cachePath);
@@ -97,7 +95,6 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
       
       // If the invoice was updated after the cache was created
       if (invoiceUpdatedTime > cacheTime) {
-        console.log(`[DEBUG] Invoice ${invoice._id} has been updated since cache was created`);
         return null;
       }
       
@@ -105,7 +102,6 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
       if (metadata.bookingUpdatedAt && invoice.bookingId?.updatedAt) {
         const bookingUpdatedTime = new Date(invoice.bookingId.updatedAt).getTime();
         if (bookingUpdatedTime > cacheTime) {
-          console.log(`[DEBUG] Related booking has been updated since cache was created`);
           return null;
         }
       }
@@ -114,14 +110,12 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
       if (metadata.exhibitionUpdatedAt && invoice.bookingId?.exhibitionId?.updatedAt) {
         const exhibitionUpdatedTime = new Date(invoice.bookingId.exhibitionId.updatedAt).getTime();
         if (exhibitionUpdatedTime > cacheTime) {
-          console.log(`[DEBUG] Related exhibition has been updated since cache was created`);
           return null;
         }
       }
     }
     
     // All checks passed, read and return the cached PDF
-    console.log(`[DEBUG] Using cached PDF for invoice ${invoice._id}`);
     return readFileSync(cachePath);
   } catch (err) {
     console.error(`[ERROR] Error reading from cache:`, err);
@@ -160,7 +154,6 @@ export const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): voi
     };
     
     writeFileSync(metaPath, JSON.stringify(metadata, null, 2));
-    console.log(`[DEBUG] Cached PDF for invoice ${invoice._id} with key ${cacheKey}`);
   } catch (error) {
     console.error(`[ERROR] Failed to cache PDF:`, error);
     // Continue without caching - non-critical error
@@ -172,7 +165,6 @@ export const cachePDF = (cacheKey: string, pdfBuffer: Buffer, invoice: any): voi
  */
 export const cleanupPdfCache = () => {
   try {
-    console.log('[INFO] Running PDF cache cleanup');
     if (!existsSync(PDF_CACHE_DIR)) {
       return;
     }
@@ -204,14 +196,11 @@ export const cleanupPdfCache = () => {
       }
     }
     
-    console.log(`[INFO] Current PDF cache size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-    
     // Remove files by age
     for (const file of fileDetails) {
       if (now - file.lastModified > PDF_CACHE_MAX_AGE) {
         try {
           unlinkSync(file.path);
-          console.log(`[INFO] Removed expired cache file: ${file.name}`);
         } catch (err) {
           console.error(`[ERROR] Failed to remove expired cache file: ${file.name}`, err);
         }
@@ -242,8 +231,6 @@ export const cleanupPdfCache = () => {
     
     // If still over limit, remove oldest accessed files until under limit
     if (currentSize > PDF_CACHE_MAX_SIZE) {
-      console.log(`[INFO] Cache still over size limit (${(currentSize / 1024 / 1024).toFixed(2)} MB), removing oldest files`);
-      
       for (const file of remainingFiles) {
         if (currentSize <= PDF_CACHE_MAX_SIZE) break;
         
@@ -251,15 +238,12 @@ export const cleanupPdfCache = () => {
           if (existsSync(file.path)) {
             unlinkSync(file.path);
             currentSize -= file.size;
-            console.log(`[INFO] Removed oldest cache file: ${file.name}`);
           }
         } catch (err) {
           console.error(`[ERROR] Failed to remove cache file: ${file.name}`, err);
         }
       }
     }
-    
-    console.log(`[INFO] PDF cache cleanup completed. New size: ${(currentSize / 1024 / 1024).toFixed(2)} MB`);
   } catch (error) {
     console.error('[ERROR] Failed to clean up PDF cache:', error);
   }
@@ -273,14 +257,12 @@ export const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Pro
   if (currentPdfGenerations < MAX_CONCURRENT_PDF_GENERATIONS) {
     currentPdfGenerations++;
     try {
-      console.log(`[DEBUG] Starting PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
       return await generateFn();
     } catch (error) {
       console.error('[ERROR] PDF generation failed in queue processor:', error);
       throw error;
     } finally {
       currentPdfGenerations--;
-      console.log(`[DEBUG] Completed PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
       
       // Process next item in queue if any
       if (pdfGenerationQueue.length > 0) {
@@ -291,8 +273,6 @@ export const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Pro
   }
   
   // If too many concurrent generations, add to queue with timeout
-  console.log(`[DEBUG] Queuing PDF generation (${pdfGenerationQueue.length + 1} waiting)`);
-  
   return new Promise((resolve, reject) => {
     // Add timeout to prevent indefinite waiting
     const timeoutMs = 120000; // 2 minutes timeout
@@ -310,7 +290,6 @@ export const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Pro
       clearTimeout(timeout);
       currentPdfGenerations++;
       try {
-        console.log(`[DEBUG] Processing queued PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
         const result = await generateFn();
         resolve(result);
       } catch (error) {
@@ -318,7 +297,6 @@ export const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Pro
         reject(error);
       } finally {
         currentPdfGenerations--;
-        console.log(`[DEBUG] Completed queued PDF generation (${currentPdfGenerations}/${MAX_CONCURRENT_PDF_GENERATIONS} active)`);
         
         // Process next item in queue
         if (pdfGenerationQueue.length > 0) {
@@ -346,7 +324,6 @@ export const initializeCache = () => {
     // Schedule cleanup to run every 24 hours
     setInterval(cleanupPdfCache, 24 * 60 * 60 * 1000);
     
-    console.log('[INFO] PDF cache initialized successfully');
     return true;
   } catch (error) {
     console.error('[ERROR] Error creating PDF cache directory:', error);

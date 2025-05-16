@@ -435,18 +435,28 @@ export const downloadExhibitorBookingInvoice = async (req: Request, res: Respons
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate a fresh PDF directly instead of using the cache
-    const pdfBuffer = await generatePDF(invoice, false);
+    try {
+      // Use getPDF which implements caching and queue management
+      // Only force regenerate if explicitly requested
+      const forceRegenerate = req.query.force === 'true';
+      const pdfBuffer = await getPDF(invoice, forceRegenerate, false);
 
-    // Set headers to prevent caching
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // Send the fresh PDF
-    res.send(pdfBuffer);
+      // Set headers to prevent caching
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice._id}.pdf`);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      // Send the PDF
+      res.send(pdfBuffer);
+    } catch (pdfError) {
+      console.error('[ERROR] PDF generation failed:', pdfError);
+      return res.status(500).json({ 
+        message: 'Error generating invoice PDF', 
+        error: pdfError instanceof Error ? pdfError.message : 'Unknown error' 
+      });
+    }
   } catch (error) {
     res.status(500).json({ 
       message: 'Error downloading exhibitor booking invoice', 
@@ -495,23 +505,32 @@ export const shareInvoiceViaEmail = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate a fresh PDF directly instead of using the cache
-    const pdfBuffer = await generatePDF(invoice, false);
-    
-    // Send the email
-    const success = await sendPdfByEmail(
-      pdfBuffer,
-      email,
-      `Invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'Your Booking'}`,
-      message || 'Please find the attached invoice.',
-      `invoice-${invoice._id}.pdf`
-    );
-    
-    if (!success) {
-      return res.status(500).json({ message: 'Failed to send email' });
-    }
+    try {
+      // Use getPDF which implements caching and queue management
+      // For sharing, we can use the cached version if available
+      const pdfBuffer = await getPDF(invoice, false, false);
+      
+      // Send the email
+      const success = await sendPdfByEmail(
+        pdfBuffer,
+        email,
+        `Invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'Your Booking'}`,
+        message || 'Please find the attached invoice.',
+        `invoice-${invoice._id}.pdf`
+      );
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to send email' });
+      }
 
-    res.json({ message: 'Invoice shared via email successfully' });
+      res.json({ message: 'Invoice shared via email successfully' });
+    } catch (pdfError) {
+      console.error('[ERROR] PDF generation failed:', pdfError);
+      return res.status(500).json({ 
+        message: 'Error generating invoice PDF for email', 
+        error: pdfError instanceof Error ? pdfError.message : 'Unknown error' 
+      });
+    }
   } catch (error) {
     res.status(500).json({ 
       message: 'Error sharing invoice via email', 
@@ -560,25 +579,34 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found for this booking' });
     }
 
-    // Generate a fresh PDF directly instead of using the cache
-    const pdfBuffer = await generatePDF(invoice, false);
-    
-    // Generate a URL for the PDF download
-    const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/exhibitor-bookings/${req.params.id}/invoice/download`;
-    
-    // Send via WhatsApp
-    const success = await sendPdfByWhatsApp(
-      pdfBuffer,
-      phoneNumber,
-      `Your invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'your booking'}`,
-      pdfUrl
-    );
-    
-    if (!success) {
-      return res.status(500).json({ message: 'Failed to send WhatsApp message' });
-    }
+    try {
+      // Use getPDF which implements caching and queue management
+      // For sharing, we can use the cached version if available
+      const pdfBuffer = await getPDF(invoice, false, false);
+      
+      // Generate a URL for the PDF download
+      const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/exhibitor-bookings/${req.params.id}/invoice/download`;
+      
+      // Send via WhatsApp
+      const success = await sendPdfByWhatsApp(
+        pdfBuffer,
+        phoneNumber,
+        `Your invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'your booking'}`,
+        pdfUrl
+      );
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to send WhatsApp message' });
+      }
 
-    res.json({ message: 'Invoice shared successfully via WhatsApp' });
+      res.json({ message: 'Invoice shared successfully via WhatsApp' });
+    } catch (pdfError) {
+      console.error('[ERROR] PDF generation failed:', pdfError);
+      return res.status(500).json({ 
+        message: 'Error generating invoice PDF for WhatsApp', 
+        error: pdfError instanceof Error ? pdfError.message : 'Unknown error' 
+      });
+    }
   } catch (error) {
     res.status(500).json({ 
       message: 'Error sharing invoice via WhatsApp', 

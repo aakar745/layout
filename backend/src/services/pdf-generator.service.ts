@@ -410,7 +410,6 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     // Use custom Chrome executable path if specified in environment
     const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
     if (executablePath) {
-      console.log(`[DEBUG] Using custom Chrome executable path: ${executablePath}`);
       puppeteerOptions.executablePath = executablePath;
     }
     
@@ -418,7 +417,6 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
     let browser;
     try {
       browser = await puppeteer.launch(puppeteerOptions);
-      console.log('[DEBUG] Puppeteer browser launched successfully');
     } catch (browserError) {
       console.error('[ERROR] Failed to launch puppeteer browser:', browserError);
       throw browserError;
@@ -501,8 +499,6 @@ export const generatePDF = async (invoice: any, isAdmin: boolean = false): Promi
       const contentHeight = await page.evaluate(() => {
         return document.body.scrollHeight;
       });
-      
-      console.log(`[DEBUG] Content height: ${contentHeight}px`);
       
       // A4 height at 96 DPI is approximately 1123px with margins
       const a4HeightWithMargins = 1123; 
