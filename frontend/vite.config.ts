@@ -77,7 +77,6 @@ export default defineConfig({
           'vendor-utils': [
             'lodash',
             'dayjs',
-            'moment',
             'axios',
             'jwt-decode'
           ],
