@@ -36,7 +36,7 @@ import { GlobalHeader } from '../../../components/layout';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../../store/store';
 import { showLoginModal } from '../../../store/slices/exhibitorAuthSlice';
-import { publicApi } from '../../../services/api';
+import api from '../../../services/api';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -55,7 +55,7 @@ const getOptimizedImageUrl = (path: string | undefined): string => {
   
   // Check if the path includes logos directory - use public endpoint with no auth
   if (normalizedPath.includes('logos/')) {
-    return `${publicApi.defaults.baseURL}/public/images/${normalizedPath}`;
+    return `${api.defaults.baseURL}/public/images/${normalizedPath}`;
   }
   
   // For non-logo images, use the regular authenticated endpoint
@@ -67,9 +67,9 @@ const getOptimizedImageUrl = (path: string | undefined): string => {
     
   // For authenticated images, include the token
   if (token) {
-    return `${publicApi.defaults.baseURL}/${imagePath}?token=${token}`;
+    return `${api.defaults.baseURL}/${imagePath}?token=${token}`;
   } else {
-    return `${publicApi.defaults.baseURL}/${imagePath}`;
+    return `${api.defaults.baseURL}/${imagePath}`;
   }
 };
 

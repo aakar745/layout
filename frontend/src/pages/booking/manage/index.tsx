@@ -32,7 +32,6 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import BookingTable from './BookingTable';
 import { BookingDetailsModal, StatusUpdateModal } from './BookingModals';
-import api from '../../../services/api';
 
 const { Title, Text } = Typography;
 
@@ -205,6 +204,10 @@ const StallBookingManager: React.FC = () => {
         params.startDate = filters.dateRange[0];
         params.endDate = filters.dateRange[1];
       }
+      
+      // Use the API client instead of direct fetch to ensure proper authentication
+      // Import the api client from services directory
+      const api = (await import('../../../services/api')).default;
       
       // Fetch data for export using the dedicated export endpoint with proper authentication
       const response = await api.get('/bookings/export', { params });

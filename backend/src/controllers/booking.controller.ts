@@ -558,7 +558,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
             })),
             dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           });
-          
+
           // Notify exhibitor about booking approval and invoice
           if (booking.exhibitorId) {
             try {
@@ -842,7 +842,7 @@ export const exportBookings = async (req: Request, res: Response) => {
         }
       })
       .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
-      
+    
     // Transform stalls to include type from stallTypeId
     const transformedBookings = bookings.map(booking => {
       const bookingObj = booking.toObject();
