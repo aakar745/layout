@@ -27,99 +27,24 @@ export default defineConfig({
   css: {
     devSourcemap: true
   },
-  // Optimize dependencies
+  // Basic optimization for dependencies
   optimizeDeps: {
-    include: [
-      '@ant-design/icons',
-      'antd',
-      'react',
-      'react-dom',
-      'react-router-dom',
-      'axios',
-      'dayjs',
-      'lodash',
-      '@reduxjs/toolkit',
-      // Pre-bundle konva to avoid issues
-      'konva',
-      'react-konva'
-    ]
+    include: ['@ant-design/icons']
   },
   build: {
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    },
-    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          // Handle key canvas dependencies differently
-          if (id.includes('node_modules/konva') || 
-              id.includes('node_modules/react-konva') || 
-              id.includes('node_modules/use-image')) {
-            return 'vendor-canvas';
-          }
-          
-          // Split node_modules into chunks
-          if (id.includes('node_modules')) {
-            // Create more granular antd chunks to reduce size
-            if (id.includes('antd/')) {
-              if (id.includes('antd/es/table')) return 'vendor-antd-table';
-              if (id.includes('antd/es/form')) return 'vendor-antd-form';
-              if (id.includes('antd/es/modal')) return 'vendor-antd-modal';
-              if (id.includes('antd/es/button')) return 'vendor-antd-buttons';
-              if (id.includes('@ant-design/icons')) return 'vendor-antd-icons';
-              return 'vendor-antd-core';
-            }
-            
-            // React ecosystem
-            if (id.includes('react-dom') || 
-                id.includes('react-router') || 
-                id.includes('react-redux')) {
-              return 'vendor-react';
-            }
-            
-            // PDF related
-            if (id.includes('pdf')) return 'vendor-pdf';
-            
-            // UI libraries
-            if (id.includes('emotion') || 
-                id.includes('classnames')) {
-              return 'vendor-ui';
-            }
-            
-            // Common utilities
-            if (id.includes('lodash') || 
-                id.includes('dayjs') || 
-                id.includes('axios') || 
-                id.includes('jwt-decode')) {
-              return 'vendor-utils';
-            }
-            
-            // Editor
-            if (id.includes('tinymce')) return 'vendor-editor';
-            
-            // Other common node_modules 
-            return 'vendor-others';
-          }
-          
-          // Split application code by top-level directories
-          if (id.includes('/src/pages/')) {
-            const page = id.split('/src/pages/')[1].split('/')[0];
-            return `page-${page}`;
-          }
-          
-          if (id.includes('/src/components/')) {
-            const component = id.split('/src/components/')[1].split('/')[0];
-            return `component-${component}`;
-          }
-          
-          if (id.includes('/src/services/')) return 'services';
-          if (id.includes('/src/store/')) return 'store';
+        manualChunks: {
+          // Split vendor chunks
+          'vendor-antd': ['antd', '@ant-design/icons'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom', 'react-redux', '@reduxjs/toolkit'],
+          'vendor-pdf': ['@react-pdf/renderer', 'react-pdf'],
+          'vendor-ui': ['@emotion/react', '@emotion/styled', 'classnames'],
+          'vendor-utils': ['lodash', 'dayjs', 'axios', 'jwt-decode'],
+          'vendor-canvas': ['konva', 'react-konva', 'use-image'],
+          // Only add tinymce when it's actually imported
+          'vendor-editor': ['@tinymce/tinymce-react', 'tinymce'],
         }
       }
     }

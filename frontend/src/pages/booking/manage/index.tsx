@@ -113,7 +113,7 @@ const StallBookingManager: React.FC = () => {
   useEffect(() => {
     if (bookings.length > 0) {
       // Get unique exhibition IDs from all bookings
-      const uniqueExhibitionIds = [...new Set((bookings as unknown as BookingType[]).map(b => b.exhibitionId._id))];
+      const uniqueExhibitionIds = [...new Set(bookings.map(b => b.exhibitionId._id))];
       
       // Fetch details for each unique exhibition
       uniqueExhibitionIds.forEach(exhibitionId => {
@@ -220,10 +220,10 @@ const StallBookingManager: React.FC = () => {
       // Format booking data for Excel
       const exportData = result.map((booking: BookingType) => {
         // Calculate total area for all stalls
-        const totalArea = (booking.stallIds as any).reduce(
-          (sum: number, stall: any) => {
-            if (!stall.dimensions) return sum;
-            return sum + (stall.dimensions.width * stall.dimensions.height);
+        const totalArea = booking.stallIds.reduce(
+          (sum, stall) => {
+            if (!(stall as any).dimensions) return sum;
+            return sum + ((stall as any).dimensions.width * (stall as any).dimensions.height);
           }, 
           0
         );
@@ -235,14 +235,14 @@ const StallBookingManager: React.FC = () => {
           'Customer Name': booking.customerName,
           'Customer Email': booking.customerEmail,
           'Customer Phone': booking.customerPhone,
-          'Stall Numbers': booking.stallIds.map((stall: any) => stall.number).join(', '),
-          'Stall Types': Array.from(new Set(booking.stallIds.map((stall: any) => 
-            stall.type || (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
-            stall.stallTypeId.name : '-')
+          'Stall Numbers': booking.stallIds.map(stall => stall.number).join(', '),
+          'Stall Types': Array.from(new Set(booking.stallIds.map(stall => 
+            stall.type || ((stall as any).stallTypeId && typeof (stall as any).stallTypeId === 'object' ? 
+            (stall as any).stallTypeId.name : '-')
           ))).join(', '),
-          'Dimensions': booking.stallIds.map((stall: any) => 
-              stall.dimensions ? 
-              `${stall.dimensions.width}m × ${stall.dimensions.height}m` : 
+          'Dimensions': booking.stallIds.map(stall => 
+              (stall as any).dimensions ? 
+              `${(stall as any).dimensions.width}m × ${(stall as any).dimensions.height}m` : 
               'No dimensions'
             ).join(', '),
           'Total Area (sqm)': Math.round(totalArea),
@@ -317,7 +317,7 @@ const StallBookingManager: React.FC = () => {
 
       {/* Statistics */}
       <BookingStatistics 
-        bookings={(bookings as unknown as BookingType[])} 
+        bookings={bookings as unknown as BookingType[]} 
         paginationTotal={pagination.total} 
         stats={stats}
         statsLoading={statsLoading}
@@ -341,7 +341,7 @@ const StallBookingManager: React.FC = () => {
         title="Booking List"
       >
         <BookingTable
-          bookings={(bookingsArray as unknown as BookingType[])}
+          bookings={bookingsArray as unknown as BookingType[]}
           loading={loading}
           fetchBookingsWithPagination={fetchBookingsWithPagination}
           pagination={pagination}

@@ -11,10 +11,6 @@ export interface Stall {
     width: number;
     height: number;
   };
-  stallTypeId?: {
-    _id: string;
-    name: string;
-  };
   ratePerSqm: number;
 }
 
