@@ -44,26 +44,26 @@ export default defineConfig({
         manualChunks: (id) => {
           // Vendor chunks - more granular to reduce chunk sizes
           if (id.includes('node_modules')) {
-            // UI Framework - split Ant Design into smaller chunks
-            if (id.includes('@ant-design/icons')) {
-              return 'vendor-antd-icons';
-            }
-            if (id.includes('antd') || id.includes('@ant-design')) {
-              return 'vendor-antd-core';
+            // CRITICAL: Keep React and ReactDOM together to prevent SECRET_INTERNALS errors
+            if (id.includes('react') || id.includes('react-dom') || 
+                id.includes('scheduler') || id.includes('react-is')) {
+              return 'vendor-react-core';
             }
             
-            // React ecosystem
-            if (id.includes('react-dom')) {
-              return 'vendor-react-dom';
-            }
+            // React ecosystem - keep these separate
             if (id.includes('react-router')) {
               return 'vendor-react-router';
             }
             if (id.includes('react-redux') || id.includes('@reduxjs/toolkit')) {
               return 'vendor-redux';
             }
-            if (id.includes('react') && !id.includes('react-konva')) {
-              return 'vendor-react-core';
+            
+            // UI Framework - split Ant Design into smaller chunks
+            if (id.includes('@ant-design/icons')) {
+              return 'vendor-antd-icons';
+            }
+            if (id.includes('antd') || id.includes('@ant-design')) {
+              return 'vendor-antd-core';
             }
             
             // Canvas/layout related
