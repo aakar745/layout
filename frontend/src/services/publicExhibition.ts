@@ -1,4 +1,4 @@
-import { publicApi } from './api';
+import { publicApi, exhibitorApi } from './api';
 import api from './api';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -143,19 +143,19 @@ const publicExhibitionService = {
 
   // New methods for authenticated exhibitor booking
   exhibitorBookStalls: (bookingData: any) =>
-    api.post(`/exhibitor-bookings/${bookingData.exhibitionId}`, bookingData),
+    exhibitorApi.post(`/exhibitor-bookings/${bookingData.exhibitionId}`, bookingData),
     
   getExhibitorBookings: () =>
-    api.get('/exhibitor-bookings/my-bookings'),
+    exhibitorApi.get('/exhibitor-bookings/my-bookings'),
     
   getExhibitorBooking: (bookingId: string) =>
-    api.get(`/exhibitor-bookings/${bookingId}`),
+    exhibitorApi.get(`/exhibitor-bookings/${bookingId}`),
     
   cancelExhibitorBooking: (bookingId: string) =>
-    api.patch(`/exhibitor-bookings/${bookingId}/cancel`),
+    exhibitorApi.patch(`/exhibitor-bookings/${bookingId}/cancel`),
     
   getExhibitorBookingInvoice: (bookingId: string) =>
-    api.get(`/exhibitor-bookings/${bookingId}/invoice`),
+    exhibitorApi.get(`/exhibitor-bookings/${bookingId}/invoice`),
 };
 
 export default publicExhibitionService; 
