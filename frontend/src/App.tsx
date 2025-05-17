@@ -8,35 +8,41 @@ import ExhibitorLayout from './layouts/ExhibitorLayout';
 import Login from './pages/auth/Login';
 import Dashboard from './pages/dashboard/Dashboard';
 import ExhibitorDashboard from './pages/exhibitor/Dashboard';
+import Home from './pages/home/Home';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import { PublicLayoutView, PublicExhibitionDetails, PublicExhibitionList } from './components/exhibition/public_view';
+import lazyLoad from './utils/lazyLoad';
+
+// Lazily load components that aren't critical for initial render
+const Profile = lazyLoad(() => import('./pages/account/Profile'));
+const Settings = lazyLoad(() => import('./pages/settings/Settings'));
+const Roles = lazyLoad(() => import('./pages/roles/index'));
+const Users = lazyLoad(() => import('./pages/users/index'));
+const NotificationsPage = lazyLoad(() => import('./pages/notifications/index'));
+const ExhibitionList = lazyLoad(() => import('./pages/exhibition/list'));
+const ExhibitionCreate = lazyLoad(() => import('./pages/exhibition/create'));
+const ExhibitionDetails = lazyLoad(() => import('./pages/exhibition/[id]'));
+const ExhibitionEdit = lazyLoad(() => import('./pages/exhibition/[id]/edit'));
+const ExhibitionSpace = lazyLoad(() => import('./pages/exhibition/[id]/space'));
+const LayoutBuilder = lazyLoad(() => import('./pages/exhibition/[id]/layout'));
+const HallManager = lazyLoad(() => import('./pages/exhibition/[id]/halls'));
+const StallManager = lazyLoad(() => import('./pages/exhibition/[id]/stalls'));
+const FixtureManager = lazyLoad(() => import('./pages/exhibition/[id]/fixtures'));
+const StallList = lazyLoad(() => import('./pages/stall/list'));
+const StallType = lazyLoad(() => import('./pages/stall/type'));
+const StallBookingManager = lazyLoad(() => import('./pages/booking/manage'));
+const CreateBooking = lazyLoad(() => import('./pages/booking/create'));
+const InvoiceDetails = lazyLoad(() => import('./pages/invoice/[id]'));
+const InvoiceList = lazyLoad(() => import('./pages/invoice/list'));
+const ExhibitorManagement = lazyLoad(() => import('./pages/exhibitors'));
+const AmenitiesPage = lazyLoad(() => import('./pages/amenities/index'));
+
+// These are used more frequently by exhibitors, so keep them eagerly loaded
 import ExhibitorBookings from './pages/exhibitor/Bookings';
 import ExhibitorBookingDetails from './pages/exhibitor/BookingDetails';
 import ExhibitorProfile from './pages/exhibitor/Profile';
 import ExhibitorInvoiceDetails from './pages/exhibitor/InvoiceDetails';
-import Profile from './pages/account/Profile';
-import Settings from './pages/settings/Settings';
-import Roles from './pages/roles/index';
-import Users from './pages/users/index';
-import NotificationsPage from './pages/notifications/index';
-import ErrorBoundary from './components/common/ErrorBoundary';
-import ExhibitionList from './pages/exhibition/list';
-import ExhibitionCreate from './pages/exhibition/create';
-import ExhibitionDetails from './pages/exhibition/[id]';
-import ExhibitionEdit from './pages/exhibition/[id]/edit';
-import ExhibitionSpace from './pages/exhibition/[id]/space';
-import LayoutBuilder from './pages/exhibition/[id]/layout';
-import HallManager from './pages/exhibition/[id]/halls';
-import StallManager from './pages/exhibition/[id]/stalls';
-import FixtureManager from './pages/exhibition/[id]/fixtures';
-import { PublicLayoutView, PublicExhibitionDetails, PublicExhibitionList } from './components/exhibition/public_view';
-import StallList from './pages/stall/list';
-import StallType from './pages/stall/type';
-import StallBookingManager from './pages/booking/manage';
-import CreateBooking from './pages/booking/create';
-import InvoiceDetails from './pages/invoice/[id]';
-import InvoiceList from './pages/invoice/list';
-import Home from './pages/home/Home';
-import ExhibitorManagement from './pages/exhibitors';
-import AmenitiesPage from './pages/amenities/index';
+
 import './styles/modal.css';
 
 // Admin private route
