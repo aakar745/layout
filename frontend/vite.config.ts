@@ -41,123 +41,57 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
         // Ensure chunks are compatible with React.lazy dynamic imports
-        manualChunks: (id) => {
-          // Vendor chunks - more granular to reduce chunk sizes
-          if (id.includes('node_modules')) {
-            // CRITICAL: Keep React and ReactDOM together to prevent SECRET_INTERNALS errors
-            if (id.includes('react') || id.includes('react-dom') || 
-                id.includes('scheduler') || id.includes('react-is')) {
-              return 'vendor-react-core';
-            }
-            
-            // React ecosystem - keep these separate
-            if (id.includes('react-router')) {
-              return 'vendor-react-router';
-            }
-            if (id.includes('react-redux') || id.includes('@reduxjs/toolkit')) {
-              return 'vendor-redux';
-            }
-            
-            // UI Framework - split Ant Design into smaller chunks
-            if (id.includes('@ant-design/icons')) {
-              return 'vendor-antd-icons';
-            }
-            if (id.includes('antd') || id.includes('@ant-design')) {
-              return 'vendor-antd-core';
-            }
-            
-            // Canvas/layout related
-            if (id.includes('konva') || id.includes('use-image')) {
-              return 'vendor-canvas';
-            }
-            
-            // PDF rendering
-            if (id.includes('pdf')) {
-              return 'vendor-pdf';
-            }
-            
-            // Editor components
-            if (id.includes('tinymce')) {
-              return 'vendor-editor';
-            }
-            
-            // Common utilities
-            if (id.includes('lodash') || id.includes('dayjs') || id.includes('moment')) {
-              return 'vendor-date-utils';
-            }
-            if (id.includes('axios') || id.includes('jwt')) {
-              return 'vendor-http';
-            }
-            
-            // Other UI utilities
-            if (id.includes('@emotion') || id.includes('classnames')) {
-              return 'vendor-ui-utils';
-            }
-            
-            // Excel/CSV processing
-            if (id.includes('xlsx') || id.includes('file-saver')) {
-              return 'vendor-export';
-            }
-            
-            // Group remaining dependencies
-            return 'vendor-deps';
-          }
-          
-          // Application code chunks - group by feature areas
-          // This approach doesn't use dynamic imports but still splits the app logically
-          
-          // Core/layouts/common components
-          if (id.includes('/src/layouts') || id.includes('/src/components/common') || 
-              id.includes('/src/components/layout') || id.includes('/src/services')) {
-            return 'app-core';
-          }
-          
-          // Authentication related
-          if (id.includes('/src/pages/auth') || id.includes('/auth') || 
-              id.includes('/src/store/slices/authSlice')) {
-            return 'app-auth';
-          }
-          
-          // Exhibition management
-          if (id.includes('/src/pages/exhibition') || id.includes('/src/store/slices/exhibitionSlice') || 
-              id.includes('/src/components/exhibition')) {
-            return 'app-exhibition';
-          }
-          
-          // Stall management
-          if (id.includes('/src/pages/stall') || id.includes('/stall/') || 
-              id.includes('/src/store/slices/stallSlice')) {
-            return 'app-stall';
-          }
-          
-          // Booking management
-          if (id.includes('/src/pages/booking') || id.includes('/booking/') || 
-              id.includes('/src/store/slices/bookingSlice')) {
-            return 'app-booking';
-          }
-          
-          // Exhibitor portal
-          if (id.includes('/src/pages/exhibitor') || id.includes('/exhibitor/') || 
-              id.includes('/src/store/slices/exhibitorSlice')) {
-            return 'app-exhibitor';
-          }
-          
-          // Invoice/Financial management
-          if (id.includes('/src/pages/invoice') || id.includes('/invoice/') || 
-              id.includes('/src/store/services/invoice')) {
-            return 'app-invoice';
-          }
-          
-          // Settings, users, roles
-          if (id.includes('/src/pages/settings') || id.includes('/src/pages/users') || 
-              id.includes('/src/pages/roles')) {
-            return 'app-admin';
-          }
-          
-          // Dashboard and reports
-          if (id.includes('/src/pages/dashboard') || id.includes('/dashboard/')) {
-            return 'app-dashboard';
-          }
+        manualChunks: {
+          // Keep all the React ecosystem together to avoid reference errors
+          'vendor-react': [
+            'react', 
+            'react-dom', 
+            'scheduler', 
+            'react-is',
+            'react-router',
+            'react-router-dom',
+            'react-redux',
+            '@reduxjs/toolkit'
+          ],
+          // UI libraries
+          'vendor-antd': [
+            'antd', 
+            '@ant-design/icons',
+            '@ant-design/colors'
+          ],
+          // Keep all styling libraries together
+          'vendor-styling': [
+            '@emotion/react', 
+            '@emotion/styled', 
+            '@emotion/cache',
+            '@emotion/serialize',
+            '@emotion/utils',
+            '@emotion/hash',
+            '@emotion/memoize',
+            '@emotion/unitless',
+            '@emotion/weak-memoize',
+            'classnames',
+            'hoist-non-react-statics'
+          ],
+          // Utilities
+          'vendor-utils': [
+            'lodash',
+            'dayjs',
+            'moment',
+            'axios',
+            'jwt-decode'
+          ],
+          // File exports
+          'vendor-export': [
+            'xlsx',
+            'file-saver'
+          ],
+          // Canvas related
+          'vendor-canvas': [
+            'konva',
+            'react-konva',
+            'use-image'
+          ]
         }
       }
     }
