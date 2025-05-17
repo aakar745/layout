@@ -38,7 +38,7 @@ export default defineConfig({
   },
   // Basic optimization for dependencies
   optimizeDeps: {
-    include: ['@ant-design/icons', 'lodash', 'dayjs']
+    include: ['@ant-design/icons', 'lodash', 'dayjs', 'axios']
   },
   build: {
     sourcemap: false,
@@ -52,20 +52,13 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         // Main bundle naming
         entryFileNames: 'assets/[name]-[hash].js',
-        // Better code splitting 
+        // Simplified chunking strategy that's less likely to break exhibitor functionality
         manualChunks: {
-          // Split vendor chunks
-          'vendor-antd': ['antd'],
-          'vendor-antd-icons': ['@ant-design/icons'],
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-redux': ['react-redux', '@reduxjs/toolkit'],
-          'vendor-pdf': ['@react-pdf/renderer', 'react-pdf'],
-          'vendor-ui': ['@emotion/react', '@emotion/styled', 'classnames'],
-          'vendor-http': ['axios'],
-          'vendor-date': ['dayjs'],
-          'vendor-utils': ['lodash', 'jwt-decode'],
-          'vendor-canvas': ['konva', 'react-konva', 'use-image'],
-          'vendor-editor': ['@tinymce/tinymce-react', 'tinymce'],
+          'vendor': ['react', 'react-dom', 'react-router-dom', 'react-redux', '@reduxjs/toolkit', 'antd', '@ant-design/icons'],
+          'apis': ['axios', './src/services/api.ts'],
+          'utils': ['lodash', 'dayjs', 'jwt-decode'],
+          'canvas': ['konva', 'react-konva', 'use-image'],
+          'editor': ['@tinymce/tinymce-react', 'tinymce'],
         }
       }
     }

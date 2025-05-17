@@ -13,7 +13,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import { PublicLayoutView, PublicExhibitionDetails, PublicExhibitionList } from './components/exhibition/public_view';
 import lazyLoad from './utils/lazyLoad';
 
-// Lazily load components that aren't critical for initial render
+// Lazily load components that aren't critical for initial render or exhibitor flow
 const Profile = lazyLoad(() => import('./pages/account/Profile'));
 const Settings = lazyLoad(() => import('./pages/settings/Settings'));
 const Roles = lazyLoad(() => import('./pages/roles/index'));
@@ -30,12 +30,14 @@ const StallManager = lazyLoad(() => import('./pages/exhibition/[id]/stalls'));
 const FixtureManager = lazyLoad(() => import('./pages/exhibition/[id]/fixtures'));
 const StallList = lazyLoad(() => import('./pages/stall/list'));
 const StallType = lazyLoad(() => import('./pages/stall/type'));
-const StallBookingManager = lazyLoad(() => import('./pages/booking/manage'));
-const CreateBooking = lazyLoad(() => import('./pages/booking/create'));
-const InvoiceDetails = lazyLoad(() => import('./pages/invoice/[id]'));
-const InvoiceList = lazyLoad(() => import('./pages/invoice/list'));
-const ExhibitorManagement = lazyLoad(() => import('./pages/exhibitors'));
-const AmenitiesPage = lazyLoad(() => import('./pages/amenities/index'));
+
+// Keep these components eagerly loaded to prevent authentication issues
+import StallBookingManager from './pages/booking/manage';
+import CreateBooking from './pages/booking/create';
+import InvoiceDetails from './pages/invoice/[id]';
+import InvoiceList from './pages/invoice/list';
+import ExhibitorManagement from './pages/exhibitors';
+import AmenitiesPage from './pages/amenities/index';
 
 // These are used more frequently by exhibitors, so keep them eagerly loaded
 import ExhibitorBookings from './pages/exhibitor/Bookings';
