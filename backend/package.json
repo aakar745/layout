@@ -12,7 +12,8 @@
     "seed": "ts-node src/seed/seed.js",
     "test": "jest",
     "setup": "ts-node src/scripts/setup.ts",
-    "generate-slugs": "ts-node src/scripts/generate-slugs.ts"
+    "generate-slugs": "ts-node src/scripts/generate-slugs.ts",
+    "optimize-db-indexes": "ts-node src/scripts/optimize-database-indexes.ts"
   },
   "keywords": [],
   "author": "",

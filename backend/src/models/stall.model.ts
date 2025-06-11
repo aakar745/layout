@@ -75,4 +75,19 @@ const stallSchema = new Schema({
 stallSchema.index({ exhibitionId: 1, hallId: 1 });
 stallSchema.index({ number: 1, exhibitionId: 1 }, { unique: true });
 
+// Additional indexes for common query patterns
+stallSchema.index({ status: 1 }); // Frequent filtering by status
+stallSchema.index({ stallTypeId: 1 }); // Queries by stall type
+stallSchema.index({ createdAt: 1 }); // Sorting by creation date
+
+// Enhanced compound indexes for common query combinations
+stallSchema.index({ exhibitionId: 1, status: 1 }); // Available/booked stalls by exhibition
+stallSchema.index({ hallId: 1, status: 1 }); // Available stalls by hall
+stallSchema.index({ stallTypeId: 1, status: 1 }); // Available stalls by type
+stallSchema.index({ exhibitionId: 1, stallTypeId: 1 }); // Stalls by exhibition and type
+stallSchema.index({ exhibitionId: 1, status: 1, stallTypeId: 1 }); // Complex filtering
+
+// Spatial/dimensional queries (for layout positioning)
+stallSchema.index({ 'dimensions.x': 1, 'dimensions.y': 1 }); // Position-based queries
+
 export default mongoose.model<IStall>('Stall', stallSchema); 

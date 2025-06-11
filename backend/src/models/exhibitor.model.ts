@@ -116,6 +116,25 @@ const exhibitorSchema = new Schema({
   timestamps: true
 });
 
+// Add indexes for better query performance
+// Single field indexes
+// exhibitorSchema.index({ email: 1 }); // Already unique, no need for additional index
+exhibitorSchema.index({ status: 1 }); // Frequent filtering by status
+exhibitorSchema.index({ isActive: 1 }); // Frequent filtering by active state
+exhibitorSchema.index({ createdAt: 1 }); // Sorting by creation date
+
+// Compound indexes for common query combinations
+exhibitorSchema.index({ status: 1, isActive: 1 }); // Active exhibitors by status
+exhibitorSchema.index({ isActive: 1, createdAt: -1 }); // Active exhibitors sorted by creation
+exhibitorSchema.index({ status: 1, createdAt: -1 }); // Exhibitors by status sorted by creation
+
+// Text search index for company search
+exhibitorSchema.index({ 
+  companyName: 'text', 
+  contactPerson: 'text',
+  email: 'text'
+}); // Text search on company details
+
 // Hash password before saving
 exhibitorSchema.pre('save', async function(next) {
   const exhibitor = this;
