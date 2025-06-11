@@ -310,6 +310,34 @@ bookingSchema.index({ stallIds: 1 });
 bookingSchema.index({ userId: 1 });
 bookingSchema.index({ status: 1 });
 
+// Additional single field indexes for frequent queries
+bookingSchema.index({ exhibitorId: 1 }); // Queries by exhibitor
+bookingSchema.index({ createdAt: 1 }); // Date range queries and sorting
+bookingSchema.index({ updatedAt: 1 }); // Recently updated bookings
+bookingSchema.index({ customerEmail: 1 }); // Customer lookup
+bookingSchema.index({ paymentStatus: 1 }); // Payment status filtering
+bookingSchema.index({ bookingSource: 1 }); // Admin vs exhibitor bookings
+
+// Enhanced compound indexes for common query combinations
+bookingSchema.index({ exhibitionId: 1, status: 1 }); // Bookings by exhibition and status
+bookingSchema.index({ exhibitorId: 1, status: 1 }); // Exhibitor bookings by status
+bookingSchema.index({ userId: 1, status: 1 }); // Admin user bookings by status
+bookingSchema.index({ exhibitionId: 1, createdAt: -1 }); // Exhibition bookings sorted by date
+bookingSchema.index({ status: 1, createdAt: -1 }); // Bookings by status sorted by date
+bookingSchema.index({ exhibitorId: 1, createdAt: -1 }); // Exhibitor bookings sorted by date
+bookingSchema.index({ paymentStatus: 1, status: 1 }); // Payment and booking status combination
+
+// Text search index for customer search
+bookingSchema.index({ 
+  companyName: 'text', 
+  customerName: 'text',
+  customerEmail: 'text'
+}); // Text search on customer details
+
+// Date range query optimization
+bookingSchema.index({ createdAt: -1, status: 1 }); // Latest bookings by status
+bookingSchema.index({ updatedAt: -1, exhibitionId: 1 }); // Recently updated exhibition bookings
+
 // Ensure stalls can only be booked once per exhibition
 bookingSchema.index(
   { exhibitionId: 1, stallIds: 1, status: 1 },

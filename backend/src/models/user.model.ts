@@ -46,6 +46,19 @@ const userSchema = new Schema({
   timestamps: true,
 });
 
+// Add indexes for better query performance
+// Single field indexes
+// userSchema.index({ email: 1 }); // Already unique, no need for additional index
+// userSchema.index({ username: 1 }); // Already unique, no need for additional index
+userSchema.index({ role: 1 }); // Frequent queries by role
+userSchema.index({ isActive: 1 }); // Frequent filtering by active state
+userSchema.index({ createdAt: 1 }); // Sorting by creation date
+
+// Compound indexes for common query combinations
+userSchema.index({ isActive: 1, role: 1 }); // Active users by role
+userSchema.index({ role: 1, createdAt: -1 }); // Users by role sorted by creation
+userSchema.index({ isActive: 1, createdAt: -1 }); // Active users sorted by creation
+
 // Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {

@@ -96,4 +96,21 @@ notificationSchema.index({ recipient: 1, isRead: 1 });
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipientType: 1, type: 1 });
 
+// Additional indexes for common query patterns
+notificationSchema.index({ isRead: 1 }); // Filtering by read status
+notificationSchema.index({ type: 1 }); // Filtering by notification type
+notificationSchema.index({ priority: 1 }); // Filtering by priority
+notificationSchema.index({ createdAt: 1 }); // Date-based queries
+notificationSchema.index({ entityId: 1, entityType: 1 }); // Related entity queries
+
+// Enhanced compound indexes for common query combinations
+notificationSchema.index({ recipient: 1, recipientType: 1, isRead: 1 }); // Recipient unread notifications
+notificationSchema.index({ recipientType: 1, isRead: 1, createdAt: -1 }); // Unread notifications by type
+notificationSchema.index({ recipient: 1, type: 1, createdAt: -1 }); // Recipient notifications by type
+notificationSchema.index({ priority: 1, isRead: 1, createdAt: -1 }); // High priority unread notifications
+notificationSchema.index({ recipient: 1, priority: 1, isRead: 1 }); // Recipient priority notifications
+
+// TTL index for automatic cleanup of old read notifications (optional)
+// notificationSchema.index({ readAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 }); // 30 days
+
 export default mongoose.model<INotification>('Notification', notificationSchema); 

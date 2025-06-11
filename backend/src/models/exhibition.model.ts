@@ -474,6 +474,23 @@ const exhibitionSchema = new Schema({
   timestamps: true,
 });
 
+// Add indexes for better query performance
+// Single field indexes for frequent queries
+// exhibitionSchema.index({ slug: 1 }); // Already unique, no need for additional index
+exhibitionSchema.index({ status: 1 }); // Frequent filtering by status
+exhibitionSchema.index({ isActive: 1 }); // Frequent filtering by active state
+exhibitionSchema.index({ createdBy: 1 }); // Queries by creator
+exhibitionSchema.index({ startDate: 1 }); // Date range queries and sorting
+exhibitionSchema.index({ endDate: 1 }); // Date range queries
+exhibitionSchema.index({ createdAt: 1 }); // Sorting by creation date
+
+// Compound indexes for common query combinations
+exhibitionSchema.index({ status: 1, isActive: 1 }); // Public exhibitions
+exhibitionSchema.index({ isActive: 1, createdAt: -1 }); // Active exhibitions sorted by creation
+exhibitionSchema.index({ createdBy: 1, isActive: 1 }); // User's active exhibitions
+exhibitionSchema.index({ status: 1, startDate: 1 }); // Published exhibitions by start date
+exhibitionSchema.index({ name: 'text', description: 'text' }); // Text search on name and description
+
 // Add a pre-save hook to generate the slug from the name
 exhibitionSchema.pre('save', function(next) {
   // Generate slug from name if name is modified or slug doesn't exist
