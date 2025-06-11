@@ -263,80 +263,98 @@ const AmenitiesPage: React.FC = () => {
               return []; // No extra amenities for this booking
             }
             
-            return booking.extraAmenities.flatMap((amenity: any) => 
-              booking.stallIds.map((stall: any) => {
-                // Use the stall's type property from the populated data, or fall back to stall types map without 'Standard' fallback
-                const stallTypeName = stall.type || (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
-                  stall.stallTypeId.name : stallTypes[stall.stallTypeId]) || '-';
-                
-                return {
-                  ...amenity,
-                  booked: true,
-                  stallId: stall._id,
-                  stallNumber: stall.number,
-                  bookingId: booking._id,
-                  exhibitorId: booking.exhibitorId || '',
-                  exhibitorName: booking.companyName,
-                  bookingDate: booking.createdAt,
-                  dimensions: stall.dimensions,
-                  area: stall.dimensions.width * stall.dimensions.height,
-                  bookingStatus: booking.status,
-                  stallType: stallTypeName,
-                  // Add these fields to clearly mark them as extra amenities
-                  isExtraAmenity: true,
-                  // Ensure quantity from the original booking is preserved
-                  quantity: amenity.quantity || 1 // Make sure we use the actual quantity from the booking
-                };
-              })
-            );
+            // FIXED: Extra amenities are booking-level, not per-stall
+            // Create one entry per extra amenity per booking, not per stall
+            return booking.extraAmenities.map((amenity: any) => {
+              // Collect data from all stalls in the booking
+              const stallDimensions = booking.stallIds.map((stall: any) => 
+                `${stall.dimensions.width}x${stall.dimensions.height}m`).join(', ');
+              
+              // Collect all unique stall types
+              const stallTypesArray = booking.stallIds.map((stall: any) => {
+                return stall.type || 
+                  (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
+                    stall.stallTypeId.name : stallTypes[stall.stallTypeId]) || '-';
+              });
+              const uniqueStallTypes = [...new Set(stallTypesArray)];
+              const stallTypeDisplay = uniqueStallTypes.length === 1 ? uniqueStallTypes[0] : uniqueStallTypes.join(', ');
+              
+              return {
+                ...amenity,
+                booked: true,
+                // Use first stall for stallId reference but amenity applies to entire booking
+                stallId: booking.stallIds[0]?._id || '',
+                stallNumber: booking.stallIds.map((s: any) => s.number).join(', '), // Show all stall numbers
+                bookingId: booking._id,
+                exhibitorId: booking.exhibitorId || '',
+                exhibitorName: booking.companyName,
+                bookingDate: booking.createdAt,
+                dimensions: stallDimensions, // All stall dimensions
+                area: booking.stallIds.reduce((total: number, stall: any) => 
+                  total + (stall.dimensions.width * stall.dimensions.height), 0), // Total area of all stalls
+                bookingStatus: booking.status,
+                stallType: stallTypeDisplay, // All stall types
+                allStalls: booking.stallIds, // Keep reference to all stalls
+                isExtraAmenity: true,
+                isBookingLevel: true, // Flag to indicate this is a booking-level amenity
+                stallCount: booking.stallIds.length, // Number of stalls in this booking
+                quantity: amenity.quantity || 1 // Preserve the actual quantity from booking
+              };
+            });
           });
         
         // If no extra amenities were found, create simulated ones from the exhibition data
         let finalCalculatedExtra = calculatedExtra;
         
         if (calculatedExtra.length === 0 && exhibition.amenities && exhibition.amenities.length > 0) {
-          // Get the stalls from bookings
-          const bookedStalls = completeBookings.flatMap(booking => booking.stallIds);
+          // FIXED: Create booking-level simulated extra amenities, not per-stall
+          const processedBookings = new Set(); // Track processed bookings to avoid duplicates
           
-          // Create simulated extra amenities by associating exhibition amenities with booked stalls
-          finalCalculatedExtra = bookedStalls.flatMap((stall: any, stallIndex: number) => 
-            (exhibition.amenities || []).map((amenity: any, amenityIndex: number) => {
-              // Find the booking that contains this stall
-              const matchingBooking = completeBookings.find(b => 
-                b.stallIds.some((s: any) => s._id === stall._id)
-              );
-              
+          finalCalculatedExtra = completeBookings.flatMap(booking => {
+            if (processedBookings.has(booking._id)) return [];
+            processedBookings.add(booking._id);
+            
+            return (exhibition.amenities || []).map((amenity: any, amenityIndex: number) => {
               // Check if this booking has this amenity in its extraAmenities
-              const matchingAmenity = matchingBooking?.extraAmenities?.find((a: any) => a.name === amenity.name);
+              const matchingAmenity = booking.extraAmenities?.find((a: any) => a.name === amenity.name);
               const wasBooked = !!matchingAmenity;
               
-              // Create a unique ID for this simulated amenity
-              const simulatedId = `sim-${stallIndex}-${amenityIndex}-${Date.now()}`;
+              // Collect data from all stalls in the booking
+              const stallDimensions = booking.stallIds.map((stall: any) => 
+                `${stall.dimensions.width}x${stall.dimensions.height}m`).join(', ');
               
-              // Use the stall's type property from the populated data, or fall back to stall types map without 'Standard' fallback
-              const stallTypeName = stall.type || (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
-                stall.stallTypeId.name : stallTypes[stall.stallTypeId]) || '-';
+              // Collect all unique stall types
+              const stallTypesArray = booking.stallIds.map((stall: any) => {
+                return stall.type || 
+                  (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
+                    stall.stallTypeId.name : stallTypes[stall.stallTypeId]) || '-';
+              });
+              const uniqueStallTypes = [...new Set(stallTypesArray)];
+              const stallTypeDisplay = uniqueStallTypes.length === 1 ? uniqueStallTypes[0] : uniqueStallTypes.join(', ');
               
               return {
                 ...amenity,
-                id: simulatedId,
+                id: `sim-booking-${booking._id}-${amenityIndex}`, // Unique per booking, not per stall
                 booked: wasBooked,
-                stallId: stall._id,
-                stallNumber: stall.number,
-                bookingId: matchingBooking?._id || '',
-                exhibitorId: matchingBooking?.exhibitorId || '',
-                exhibitorName: matchingBooking?.companyName || 'Unknown',
-                bookingDate: matchingBooking?.createdAt || new Date().toISOString(),
-                dimensions: stall.dimensions,
-                area: stall.dimensions.width * stall.dimensions.height,
-                bookingStatus: matchingBooking?.status || 'approved',
-                stallType: stallTypeName,
+                stallId: booking.stallIds[0]?._id || '',
+                stallNumber: booking.stallIds.map((s: any) => s.number).join(', '), // Show all stall numbers
+                bookingId: booking._id,
+                exhibitorId: booking.exhibitorId || '',
+                exhibitorName: booking.companyName || 'Unknown',
+                bookingDate: booking.createdAt || new Date().toISOString(),
+                dimensions: stallDimensions, // All stall dimensions
+                area: booking.stallIds.reduce((total: number, stall: any) => 
+                  total + (stall.dimensions.width * stall.dimensions.height), 0), // Total area of all stalls
+                bookingStatus: booking.status || 'approved',
+                stallType: stallTypeDisplay, // All stall types
+                allStalls: booking.stallIds, // Keep reference to all stalls
                 isExtraAmenity: true,
-                // Use the actual quantity from the booking if available, or 0 if not booked
+                isBookingLevel: true, // Flag to indicate this is a booking-level amenity
+                stallCount: booking.stallIds.length, // Number of stalls in this booking
                 quantity: wasBooked ? (matchingAmenity?.quantity || 1) : 0
               };
-            })
-          );
+            });
+          });
         }
         
         // Combine the amenities arrays and set state
@@ -498,8 +516,9 @@ const AmenitiesPage: React.FC = () => {
       return;
     }
 
-    // Create a map to organize amenities by stall (similar to what happens in AmenitiesTable)
+    // Create a map to organize amenities by stall for basic amenities and by booking for extra amenities
     const stallMap = new Map();
+    const extraAmenitiesMap = new Map(); // Separate map for booking-level extra amenities
     
     // Filter amenities based on the current view type
     const viewFilteredAmenities = filteredCalculatedAmenities.filter(amenity => {
@@ -517,18 +536,33 @@ const AmenitiesPage: React.FC = () => {
       return true;
     });
     
-    // Process all amenities - focus on real data
+    // Process amenities - separate handling for basic (stall-level) and extra (booking-level)
     viewFilteredAmenities.forEach(amenity => {
-      // Only process if amenity has stall info
-      if (amenity.stallId && amenity.stallNumber) {
-        // Check if this stall already exists in our map
+      if (amenity.isExtraAmenity && amenity.isBookingLevel) {
+        // Handle booking-level extra amenities
+        if (!extraAmenitiesMap.has(amenity.bookingId)) {
+          extraAmenitiesMap.set(amenity.bookingId, {
+            'Company Name': amenity.exhibitorName || 'Unknown',
+            'Stall No.': amenity.stallNumber, // Already contains all stall numbers
+            'Total Area (SQM)': amenity.area || 0,
+            'Stall Count': amenity.stallCount || 1,
+            'Booking Date': amenity.bookingDate ? new Date(amenity.bookingDate).toLocaleDateString() : '-',
+            'Booking Status': amenity.bookingStatus || '-',
+            'Booking Type': 'Extra Amenities'
+          });
+        }
+        
+        const booking = extraAmenitiesMap.get(amenity.bookingId);
+        if (amenity.booked && amenity.quantity > 0) {
+          booking[amenity.name] = amenity.quantity;
+        }
+      } else if (amenity.stallId && amenity.stallNumber) {
+        // Handle stall-level basic amenities (existing logic)
         if (!stallMap.has(amenity.stallId)) {
-          // Add null checks for dimensions
           const dimensions = amenity.dimensions || { width: 0, height: 0 };
           const area = amenity.area || 
             (dimensions.width && dimensions.height ? dimensions.width * dimensions.height : 0);
           
-          // Create stall entry if it doesn't exist
           stallMap.set(amenity.stallId, {
             'Company Name': amenity.exhibitorName || 'Unknown',
             'Stall No.': amenity.stallNumber,
@@ -536,44 +570,34 @@ const AmenitiesPage: React.FC = () => {
             'Stall Type': amenity.stallType || '-',
             'Area (SQM)': typeof area === 'number' ? area : 0,
             'Booking Date': amenity.bookingDate ? new Date(amenity.bookingDate).toLocaleDateString() : '-',
-            'Booking Status': amenity.bookingStatus || '-'
+            'Booking Status': amenity.bookingStatus || '-',
+            'Booking Type': 'Basic Amenities'
           });
         }
         
-        // Get stall and add this amenity
         const stall = stallMap.get(amenity.stallId);
         
-        // Add amenity based on type
+        // Add basic amenity
         if (amenity.hasOwnProperty('calculatedQuantity')) {
-          // For basic amenities with calculated quantities
           stall[amenity.name] = amenity.calculatedQuantity;
         } else if (amenity.hasOwnProperty('perSqm')) {
-          // Fallback calculation if calculatedQuantity is not provided for basic amenities
           const stallArea = typeof stall['Area (SQM)'] === 'number' ? stall['Area (SQM)'] : 0;
           const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
           stall[amenity.name] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-        } else if (amenity.hasOwnProperty('booked') && amenity.booked) {
-          // For extra amenities that are booked
-          
-          // Handle different possible formats for quantity
-          let quantity = 1;
-          if (typeof amenity.quantity === 'number') {
-            quantity = amenity.quantity;
-          } else if (typeof amenity.quantity === 'string') {
-            quantity = parseInt(amenity.quantity, 10);
-            if (isNaN(quantity)) quantity = 1;
-          }
-          
-          stall[amenity.name] = quantity; // Use actual quantity from booking
-        } else if (amenity.hasOwnProperty('rate')) {
-          // For extra amenities with rate (available but not booked)
-          stall[amenity.name] = 0; // Show as 0 instead of checkmark
         }
       }
     });
     
-    // Convert map to array 
-    const dataToExport = Array.from(stallMap.values());
+    // Combine stall-level and booking-level data
+    let dataToExport: any[] = [];
+    
+    if (amenityViewType === 'basic' || amenityViewType === 'all') {
+      dataToExport = [...dataToExport, ...Array.from(stallMap.values())];
+    }
+    
+    if (amenityViewType === 'extra' || amenityViewType === 'all') {
+      dataToExport = [...dataToExport, ...Array.from(extraAmenitiesMap.values())];
+    }
 
     const exhibition = exhibitions.find(e => e._id === selectedExhibition);
     const viewTypeName = amenityViewType === 'basic' ? 'Basic' : amenityViewType === 'extra' ? 'Extra' : 'All';

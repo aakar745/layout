@@ -87,16 +87,40 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
     
   }, [exhibitionId]);
   
-  // This function consolidates amenities by stall for all views
+  // This function consolidates amenities by stall for basic amenities and by booking for extra amenities
   const consolidateAmenitiesByStall = () => {
-    // Create a map to organize amenities by stall
+    // Create maps to organize amenities by stall (for basic) and booking (for extra)
     const stallMap = new Map();
+    const bookingMap = new Map();
     
-    // Process all amenities - focus on real data
+    // Process all amenities - separate handling for basic and extra
     filteredAmenities.forEach(amenity => {
-      // If amenity has stall info, use that (for real data from bookings)
-      if (amenity.stallId && amenity.stallNumber) {
-        // Check if this stall already exists in our map
+      // Handle booking-level extra amenities
+      if (amenity.isExtraAmenity && amenity.isBookingLevel) {
+        if (!bookingMap.has(amenity.bookingId)) {
+          // Create booking entry for extra amenities
+          bookingMap.set(amenity.bookingId, {
+            key: `booking-${amenity.bookingId}`,
+            companyName: amenity.exhibitorName || 'Unknown',
+            stallNumber: amenity.stallNumber, // Already contains all stall numbers
+            dimension: amenity.dimensions, // Already formatted with all stall dimensions
+            stallType: amenity.stallType, // Already formatted with all stall types
+            area: amenity.area || 0,
+            bookingDate: amenity.bookingDate ? new Date(amenity.bookingDate).toISOString().slice(0, 10) : '-',
+            status: amenity.bookingStatus || '-',
+            amenities: {},
+            isBookingLevel: true,
+            stallCount: amenity.stallCount || 1
+          });
+        }
+        
+        const booking = bookingMap.get(amenity.bookingId);
+        if (amenity.booked && amenity.quantity > 0) {
+          booking.amenities[amenity.name] = amenity.quantity;
+        }
+      }
+      // Handle stall-level basic amenities (existing logic for stalls)
+      else if (amenity.stallId && amenity.stallNumber && !amenity.isBookingLevel) {
         if (!stallMap.has(amenity.stallId)) {
           // Create stall entry if it doesn't exist
           stallMap.set(amenity.stallId, {
@@ -109,14 +133,15 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
               amenity.dimensions.width * amenity.dimensions.height : '-'),
             bookingDate: amenity.bookingDate ? new Date(amenity.bookingDate).toISOString().slice(0, 10) : '-',
             status: amenity.bookingStatus || '-',
-            amenities: {}
+            amenities: {},
+            isBookingLevel: false
           });
         }
         
         // Get stall and add this amenity
         const stall = stallMap.get(amenity.stallId);
         
-        // Add amenity based on type
+        // Add basic amenity
         if (amenity.hasOwnProperty('calculatedQuantity')) {
           // For basic amenities with calculated quantities
           stall.amenities[amenity.name] = amenity.calculatedQuantity;
@@ -125,28 +150,21 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
           const stallArea = typeof stall.area === 'number' ? stall.area : 0;
           const calculatedQuantity = Math.floor(stallArea / amenity.perSqm) * amenity.quantity;
           stall.amenities[amenity.name] = calculatedQuantity > 0 ? calculatedQuantity : amenity.quantity;
-        } else if (amenity.hasOwnProperty('booked') && amenity.booked) {
-          // For extra amenities that are booked
-          
-          // Handle different possible formats for quantity
-          let quantity = 1;
-          if (typeof amenity.quantity === 'number') {
-            quantity = amenity.quantity;
-          } else if (typeof amenity.quantity === 'string') {
-            quantity = parseInt(amenity.quantity, 10);
-            if (isNaN(quantity)) quantity = 1;
-          }
-          
-          stall.amenities[amenity.name] = quantity; // Use actual quantity from booking
-        } else if (amenity.hasOwnProperty('rate')) {
-          // For extra amenities with rate (available but not booked)
-          stall.amenities[amenity.name] = 0; // Show as 0 instead of checkmark
         }
       }
     });
     
-    // Convert map to array and only include stalls with amenities
-    const result = Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0);
+    // Combine stall-level and booking-level data based on view type
+    let result: any[] = [];
+    
+    if (amenityViewType === 'basic' || amenityViewType === 'all') {
+      result = [...result, ...Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0)];
+    }
+    
+    if (amenityViewType === 'extra' || amenityViewType === 'all') {
+      result = [...result, ...Array.from(bookingMap.values()).filter(booking => Object.keys(booking.amenities).length > 0)];
+    }
+    
     return result;
   };
   
@@ -195,8 +213,13 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
         title: 'Stall No.',
         dataIndex: 'stallNumber',
         key: 'stallNumber',
-        width: 100,
-        render: (text: string) => <Badge status="success" text={text} />,
+        width: 150,
+        render: (text: string, record: any) => {
+          if (record.isBookingLevel) {
+            return <Badge status="processing" text={text} />;
+          }
+          return <Badge status="success" text={text} />;
+        },
         sorter: (a: any, b: any) => a.stallNumber.localeCompare(b.stallNumber),
       },
       {
