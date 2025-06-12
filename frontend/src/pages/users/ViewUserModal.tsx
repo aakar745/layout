@@ -19,6 +19,12 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({ visible, user, onClose })
            (role && typeof role === 'object' && role.name) ? role.name : 'Unknown';
   };
 
+  // Helper function to check if user is admin
+  const isAdminUser = (user: User): boolean => {
+    const roleName = getRoleName(user.role);
+    return roleName.toLowerCase().includes('admin');
+  };
+
   return (
     <Modal
       title="User Details"
@@ -50,6 +56,39 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({ visible, user, onClose })
         <Descriptions.Item label="Username">{user.username}</Descriptions.Item>
         <Descriptions.Item label="Email">{user.email}</Descriptions.Item>
         <Descriptions.Item label="Role">{getRoleName(user.role)}</Descriptions.Item>
+        <Descriptions.Item label="Assigned Exhibitions">
+          {isAdminUser(user) ? (
+            <div style={{ 
+              padding: '6px 10px', 
+              backgroundColor: '#f6ffed', 
+              border: '1px solid #b7eb8f', 
+              borderRadius: '4px',
+              color: '#52c41a',
+              fontSize: '14px'
+            }}>
+              ✅ <strong>Admin - Access to all exhibitions</strong>
+            </div>
+          ) : user.assignedExhibitions && user.assignedExhibitions.length > 0 ? (
+            <Space wrap>
+              {user.assignedExhibitions.map((exhibition: any, index: number) => {
+                // Handle both populated exhibition objects and plain IDs
+                const exhibitionName = typeof exhibition === 'string' 
+                  ? `Exhibition ${exhibition.slice(-4)}...`
+                  : exhibition?.name 
+                    ? `${exhibition.name}`
+                    : `Exhibition ${(exhibition?._id || exhibition).toString().slice(-4)}...`;
+                
+                return (
+                  <Tag key={index} color="blue">
+                    {exhibitionName}
+                  </Tag>
+                );
+              })}
+            </Space>
+          ) : (
+            <Text type="secondary">No exhibitions assigned</Text>
+          )}
+        </Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tag color={user.isActive ? 'success' : 'default'}>
             {user.isActive ? 'Active' : 'Inactive'}

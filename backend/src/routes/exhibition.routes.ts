@@ -6,7 +6,11 @@ import {
   updateExhibition,
   deleteExhibition,
   updateExhibitionStatus,
-  getActiveExhibitions
+  getActiveExhibitions,
+  assignUsersToExhibition,
+  unassignUserFromExhibition,
+  getAssignedUsers,
+  getAllExhibitionsForAssignment
 } from '../controllers/exhibition.controller';
 import { protect, authorize } from '../middleware/auth.middleware';
 import hallRoutes from './hall.routes';
@@ -87,6 +91,11 @@ router
   .route('/active')
   .get(getActiveExhibitions);
 
+// Route for admin to get all exhibitions for user assignment (no access control filtering)
+router
+  .route('/all-for-assignment')
+  .get(authorize('admin'), getAllExhibitionsForAssignment);
+
 router
   .route('/:id')
   .get(getExhibition)
@@ -96,6 +105,19 @@ router
 router
   .route('/:id/status')
   .patch(authorize('admin'), updateExhibitionStatus);
+
+// User assignment routes (Admin only)
+router
+  .route('/:id/assign-users')
+  .post(authorize('admin'), assignUsersToExhibition);
+
+router
+  .route('/:id/unassign-user/:userId')
+  .delete(authorize('admin'), unassignUserFromExhibition);
+
+router
+  .route('/:id/assigned-users')
+  .get(authorize('admin'), getAssignedUsers);
 
 // Route to delete a file
 router.delete('/file/:type/:filename', authorize('admin'), (req, res) => {

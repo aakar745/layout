@@ -17,14 +17,15 @@ declare global {
  */
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { username, name, email, password, role: roleInput, isActive } = req.body;
+    const { username, name, email, password, role: roleInput, isActive, assignedExhibitions } = req.body;
 
     console.log('Create user request:', { 
       username, 
       email, 
       hasPassword: !!password, 
       roleInput, 
-      isActive 
+      isActive,
+      assignedExhibitions: assignedExhibitions?.length || 0
     });
 
     // Check if user already exists
@@ -99,7 +100,8 @@ export const createUser = async (req: Request, res: Response) => {
       email,
       password,
       role: role._id,
-      isActive: isActive !== undefined ? isActive : true
+      isActive: isActive !== undefined ? isActive : true,
+      assignedExhibitions: assignedExhibitions || []
     });
 
     console.log('User created successfully:', { 
@@ -107,6 +109,25 @@ export const createUser = async (req: Request, res: Response) => {
       username: user.username,
       role: role.name
     });
+
+    // Assign user to exhibitions if provided
+    if (assignedExhibitions && Array.isArray(assignedExhibitions) && assignedExhibitions.length > 0) {
+      try {
+        // Import Exhibition model
+        const Exhibition = require('../models/exhibition.model').default;
+        
+        // Add user to the assignedUsers array of selected exhibitions
+        await Exhibition.updateMany(
+          { _id: { $in: assignedExhibitions } },
+          { $addToSet: { assignedUsers: user._id } }
+        );
+        
+        console.log(`User ${user.username} assigned to ${assignedExhibitions.length} exhibitions`);
+      } catch (assignmentError) {
+        console.error('Error assigning user to exhibitions:', assignmentError);
+        // Don't fail user creation if exhibition assignment fails
+      }
+    }
 
     // Remove password from response
     const userResponse: Record<string, any> = user.toObject();
@@ -116,7 +137,8 @@ export const createUser = async (req: Request, res: Response) => {
 
     res.status(201).json({
       ...userResponse,
-      role
+      role,
+      assignedExhibitions: user.assignedExhibitions || []
     });
   } catch (error) {
     console.error('Error creating user:', error);
@@ -137,6 +159,7 @@ export const getUsers = async (req: Request, res: Response) => {
     const users = await User.find()
       .select('-password')
       .populate('role')
+      .populate('assignedExhibitions')
       .then(users => users.filter(user => {
         // Check if role is populated and has a name property
         return user.role && typeof user.role === 'object' && 'name' in user.role && user.role.name !== 'Exhibitor';
@@ -155,7 +178,7 @@ export const getUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
-    const { username, email, name, role: roleInput, isActive, password } = req.body;
+    const { username, email, name, role: roleInput, isActive, password, assignedExhibitions } = req.body;
     
     // Check if user exists
     const user = await User.findById(userId);
@@ -216,13 +239,76 @@ export const updateUser = async (req: Request, res: Response) => {
       user.password = password;
     }
     
-    // Save updated user
+    // Handle exhibition assignments if provided
+    if (assignedExhibitions !== undefined) {
+      try {
+        // Import Exhibition model
+        const Exhibition = require('../models/exhibition.model').default;
+        
+        // Update user's assignedExhibitions field
+        user.assignedExhibitions = assignedExhibitions || [];
+        
+        // First, remove user from all exhibitions
+        await Exhibition.updateMany(
+          { assignedUsers: userId },
+          { $pull: { assignedUsers: userId } }
+        );
+        
+        // Then add user to the new assigned exhibitions
+        if (Array.isArray(assignedExhibitions) && assignedExhibitions.length > 0) {
+          await Exhibition.updateMany(
+            { _id: { $in: assignedExhibitions } },
+            { $addToSet: { assignedUsers: userId } }
+          );
+          
+          console.log(`User ${user.username} reassigned to ${assignedExhibitions.length} exhibitions`);
+        } else {
+          console.log(`User ${user.username} removed from all exhibitions`);
+        }
+      } catch (assignmentError) {
+        console.error('Error updating user exhibition assignments:', assignmentError);
+        // Don't fail user update if exhibition assignment fails
+      }
+    }
+    
+    // Check if user is being deactivated
+    const wasActive = user.isActive;
+    const isBeingDeactivated = wasActive && isActive === false;
+    
+    // Save the updated user
     await user.save();
     
-    // Populate role for response
-    const updatedUser = await User.findById(userId).populate('role').select('-password');
+    // If user is being deactivated, emit socket event to force logout
+    if (isBeingDeactivated) {
+      try {
+        // Import socket service
+        const { emitUserDeactivated } = require('../services/socket.service');
+        emitUserDeactivated(userId);
+        console.log(`User ${user.username} deactivated - logout signal sent`);
+      } catch (socketError) {
+        console.error('Error emitting user deactivation event:', socketError);
+        // Don't fail user update if socket emission fails
+      }
+    }
     
-    res.status(200).json(updatedUser);
+    // Populate the role for response
+    await user.populate('role');
+    await user.populate('assignedExhibitions');
+    
+    // Remove password from response
+    const userResponse: Record<string, any> = user.toObject();
+    if (userResponse.password) {
+      delete userResponse.password;
+    }
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      user: {
+        ...userResponse,
+        assignedExhibitions: user.assignedExhibitions || []
+      }
+    });
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({

@@ -173,19 +173,33 @@ const FixtureManager: React.FC = () => {
 
   const handleFixtureSubmit = async (fixture: FixtureType) => {
     try {
+      // Calculate the highest zIndex among existing fixtures
+      const maxZIndex = fixtures.reduce((max, f) => Math.max(max, f.zIndex || 1), 1);
+      
       if (fixture.id || fixture._id) {
         // Update existing fixture
+        // If this is a position/edit change, bring it to front by giving it the highest zIndex
+        const updatedFixture = {
+          ...fixture,
+          zIndex: maxZIndex + 1
+        };
+        
         await dispatch(updateFixture({ 
           exhibitionId, 
           id: fixture.id || fixture._id || '', 
-          data: fixture 
+          data: updatedFixture 
         })).unwrap();
         message.success('Fixture updated successfully');
       } else {
-        // Create new fixture
+        // Create new fixture with highest zIndex so it appears on top
+        const newFixture = {
+          ...fixture,
+          zIndex: maxZIndex + 1
+        };
+        
         await dispatch(createFixture({ 
           exhibitionId, 
-          data: fixture 
+          data: newFixture 
         })).unwrap();
         message.success('Fixture created successfully');
       }

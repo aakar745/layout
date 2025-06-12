@@ -8,6 +8,7 @@ export interface IUser extends Document {
   password: string;
   role: mongoose.Types.ObjectId;
   isActive: boolean;
+  assignedExhibitions?: mongoose.Types.ObjectId[]; // Exhibition IDs the user is assigned to
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -42,6 +43,10 @@ const userSchema = new Schema({
     type: Boolean,
     default: true,
   },
+  assignedExhibitions: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Exhibition'
+  }],
 }, {
   timestamps: true,
 });

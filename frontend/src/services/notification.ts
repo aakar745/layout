@@ -122,6 +122,7 @@ class NotificationService {
       this.socket.on('error', this.handleError);
       this.socket.on('new_notification', this.handleNewNotification);
       this.socket.on('notification_update', this.handleNotificationUpdate);
+      this.socket.on('user_deactivated', this.handleUserDeactivated);
     } catch (error) {
       console.error('Error initializing notification socket:', error);
       this.scheduleReconnect();
@@ -219,6 +220,31 @@ class NotificationService {
       data.newNotifications.forEach(notification => {
         this.triggerEvent('notification', notification);
       });
+    }
+  };
+
+  // Handle user deactivated event
+  private handleUserDeactivated = (data: { message: string }) => {
+    console.warn('User deactivated event received:', data.message);
+    
+    // Clear all tokens and user data
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('exhibitor_token');
+    localStorage.removeItem('exhibitor');
+    
+    // Store the deactivation message for display on login page
+    localStorage.setItem('loginMessage', data.message || 'Your account has been deactivated. Please contact the administrator.');
+    
+    // Disconnect socket
+    this.disconnect();
+    
+    // Trigger logout event for any listeners
+    this.triggerEvent('user_deactivated', data);
+    
+    // Redirect to login page
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
     }
   };
 

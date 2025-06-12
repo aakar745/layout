@@ -46,6 +46,7 @@ export interface IExhibition extends Document {
   status: 'draft' | 'published' | 'completed';
   isActive: boolean;
   createdBy: mongoose.Types.ObjectId;
+  assignedUsers?: mongoose.Types.ObjectId[]; // Users assigned to manage this exhibition
   invoicePrefix?: string;
   slug?: string;
   dimensions?: {
@@ -177,6 +178,10 @@ const exhibitionSchema = new Schema({
     ref: 'User',
     required: true,
   },
+  assignedUsers: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   invoicePrefix: {
     type: String,
     trim: true,
@@ -490,6 +495,13 @@ exhibitionSchema.index({ isActive: 1, createdAt: -1 }); // Active exhibitions so
 exhibitionSchema.index({ createdBy: 1, isActive: 1 }); // User's active exhibitions
 exhibitionSchema.index({ status: 1, startDate: 1 }); // Published exhibitions by start date
 exhibitionSchema.index({ name: 'text', description: 'text' }); // Text search on name and description
+
+// User's active exhibitions
+exhibitionSchema.index({ status: 1, startDate: 1 });
+// Exhibition assignments for access control
+exhibitionSchema.index({ assignedUsers: 1 });
+// Combined index for user-specific active exhibitions
+exhibitionSchema.index({ assignedUsers: 1, status: 1, isActive: 1 });
 
 // Add a pre-save hook to generate the slug from the name
 exhibitionSchema.pre('save', function(next) {

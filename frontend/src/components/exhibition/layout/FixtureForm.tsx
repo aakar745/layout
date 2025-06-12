@@ -543,13 +543,13 @@ const FixtureForm: React.FC<FixtureFormProps> = ({
       setBorderColor(values.borderColor ? normalizeColor(values.borderColor) : null);
       setBorderRadius(values.borderRadius || 0);
       
-      // Use the helper function to clean the icon path
-      // Preserve original icon if the form field is empty but we had an icon before
+      // Handle icon path - allow deletion when explicitly set to empty
       let iconPath = '';
-      if (values.icon) {
-        iconPath = cleanIconPath(values.icon);
+      if (values.icon !== undefined) {
+        // If icon field is touched (either with value or empty string), use that value
+        iconPath = values.icon ? cleanIconPath(values.icon) : '';
       } else if (fixture?.icon) {
-        // If editing and no new icon specified, keep original icon
+        // Only preserve original icon if the field was never touched
         iconPath = fixture.icon;
       }
       

@@ -208,4 +208,20 @@ export const emitToExhibitors = (event: string, data: any) => {
   if (io) {
     io.to('exhibitors').emit(event, data);
   }
+};
+
+/**
+ * Emit user deactivation event to force logout
+ * @param userId User ID that was deactivated
+ */
+export const emitUserDeactivated = (userId: string | mongoose.Types.ObjectId) => {
+  if (io) {
+    const userRoom = `user-${userId}`;
+    console.log(`Emitting user deactivation to room: ${userRoom}`);
+    io.to(userRoom).emit('user_deactivated', {
+      message: 'Your account has been deactivated. You will be logged out.',
+      userId: userId.toString(),
+      timestamp: new Date().toISOString()
+    });
+  }
 }; 

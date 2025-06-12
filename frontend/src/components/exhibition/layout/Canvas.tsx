@@ -331,6 +331,11 @@ const Canvas: React.FC<CanvasProps> = ({
       onSelectHall(null);
       onSelectFixture(null);
       
+      if (isFixtureMode) {
+        setContextMenu({ ...contextMenu, visible: false });
+        return;
+      }
+      
       const pointerPosition = stageRef.current?.getPointerPosition();
       if (pointerPosition && isWithinExhibitionBounds(pointerPosition)) {
         const { x, y } = pointerPosition;
@@ -604,30 +609,33 @@ const Canvas: React.FC<CanvasProps> = ({
             );
           })}
           
-          {fixtures.map((fixture) => {
-            const fixtureId = fixture._id || fixture.id;
-            const selectedId = selectedFixture?._id || selectedFixture?.id;
-            const isFixtureSelected = selectedId === fixtureId;
-            
-            return (
-              <Fixture
-                key={fixtureId}
-                fixture={{
-                  ...fixture,
-                  _id: fixtureId,
-                  id: fixtureId
-                }}
-                isSelected={isFixtureSelected}
-                onSelect={() => onSelectFixture(fixture)}
-                onChange={isFixtureMode ? onFixtureChange : undefined}
-                scale={scale}
-                position={{ x: 0, y: 0 }}
-                exhibitionWidth={exhibitionWidth}
-                exhibitionHeight={exhibitionHeight}
-                isEditable={isFixtureMode}
-              />
-            );
-          })}
+          {/* Sort fixtures by zIndex so higher zIndex appears on top */}
+          {[...fixtures]
+            .sort((a, b) => (a.zIndex || 1) - (b.zIndex || 1))
+            .map((fixture) => {
+              const fixtureId = fixture._id || fixture.id;
+              const selectedId = selectedFixture?._id || selectedFixture?.id;
+              const isFixtureSelected = selectedId === fixtureId;
+              
+              return (
+                <Fixture
+                  key={fixtureId}
+                  fixture={{
+                    ...fixture,
+                    _id: fixtureId,
+                    id: fixtureId
+                  }}
+                  isSelected={isFixtureSelected}
+                  onSelect={() => onSelectFixture(fixture)}
+                  onChange={isFixtureMode ? onFixtureChange : undefined}
+                  scale={scale}
+                  position={{ x: 0, y: 0 }}
+                  exhibitionWidth={exhibitionWidth}
+                  exhibitionHeight={exhibitionHeight}
+                  isEditable={isFixtureMode}
+                />
+              );
+            })}
           
           {childrenWithProps}
         </Layer>

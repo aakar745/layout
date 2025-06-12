@@ -70,6 +70,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({ 
+        message: 'Your account has been deactivated. Please contact the administrator for assistance.',
+        code: 'ACCOUNT_INACTIVE'
+      });
+    }
+
     // Verify password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -89,7 +97,8 @@ export const login = async (req: Request, res: Response) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role
+        role: user.role,
+        isActive: user.isActive
       }
     });
   } catch (error) {

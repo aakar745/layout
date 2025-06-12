@@ -28,6 +28,7 @@ import NotificationBell from '../pages/notifications/components/NotificationBell
 import { fetchSettings } from '../store/slices/settingsSlice';
 import styled from '@emotion/styled';
 import api from '../services/api';
+import notificationService from '../services/notification';
 
 // Permission hook to check if the current user has specific permissions
 const usePermission = () => {
@@ -182,6 +183,22 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Fetch settings on component mount
   useEffect(() => {
     dispatch(fetchSettings());
+  }, [dispatch]);
+
+  // Listen for user deactivation events
+  useEffect(() => {
+    const handleUserDeactivated = () => {
+      // Dispatch logout action to update Redux state
+      dispatch(logout());
+    };
+
+    // Add event listener for user deactivation
+    notificationService.addEventListener('user_deactivated', handleUserDeactivated);
+
+    // Cleanup on unmount
+    return () => {
+      notificationService.removeEventListener('user_deactivated', handleUserDeactivated);
+    };
   }, [dispatch]);
 
   // Define menu items with their required permissions

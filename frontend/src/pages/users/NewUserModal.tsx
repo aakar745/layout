@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store/store';
 import { CreateUserData } from '../../services/user.service';
 import { fetchRoles } from '../../store/slices/roleSlice';
+import { fetchAllExhibitionsForAssignment } from '../../store/slices/exhibitionSlice';
 import { addUser } from '../../store/slices/userSlice';
 
 const { Option } = Select;
@@ -23,15 +24,24 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const dispatch = useDispatch<AppDispatch>();
+  const [selectedRole, setSelectedRole] = useState<string>('');
   
   // Get roles and loading state from Redux
   const { roles, loading: rolesLoading } = useSelector((state: RootState) => state.role);
+  const { exhibitions, loading: exhibitionsLoading } = useSelector((state: RootState) => state.exhibition);
   const { loading: usersLoading } = useSelector((state: RootState) => state.user);
 
-  // Fetch roles when modal becomes visible
+  // Helper function to check if a role is admin
+  const isAdminRole = (roleId: string): boolean => {
+    const role = roles.find(r => r._id === roleId);
+    return role?.name?.toLowerCase().includes('admin') || false;
+  };
+
+  // Fetch roles and exhibitions when modal becomes visible
   useEffect(() => {
     if (visible) {
       dispatch(fetchRoles());
+      dispatch(fetchAllExhibitionsForAssignment());
     }
   }, [visible, dispatch]);
 
@@ -39,8 +49,17 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
   useEffect(() => {
     if (visible) {
       form.resetFields();
+      setSelectedRole('');
     }
   }, [visible, form]);
+
+  const handleRoleChange = (roleId: string) => {
+    setSelectedRole(roleId);
+    // Clear exhibition assignments if switching to admin role
+    if (isAdminRole(roleId)) {
+      form.setFieldsValue({ assignedExhibitions: [] });
+    }
+  };
 
   const handleSubmit = async () => {
     try {
@@ -53,7 +72,9 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
         email: values.email,
         password: values.password,
         role: values.role,
-        isActive: values.status
+        isActive: values.status,
+        // Don't send exhibition assignments for admin users
+        assignedExhibitions: isAdminRole(values.role) ? [] : (values.assignedExhibitions || [])
       };
       
       dispatch(addUser(userData))
@@ -145,6 +166,8 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
           <Select 
             placeholder="Select role"
             loading={rolesLoading}
+            value={selectedRole}
+            onChange={handleRoleChange}
           >
             {roles.length > 0 ? (
               roles.map(role => (
@@ -161,6 +184,47 @@ const NewUserModal: React.FC<NewUserModalProps> = ({
             )}
           </Select>
         </Form.Item>
+        
+        {!isAdminRole(selectedRole) && (
+          <Form.Item
+            name="assignedExhibitions"
+            label="Assigned Exhibitions"
+            tooltip="Select exhibitions this user can manage. If none selected, user won't have access to any exhibition data."
+          >
+            <Select 
+              mode="multiple"
+              placeholder="Select exhibitions to assign"
+              loading={exhibitionsLoading}
+              allowClear
+            >
+              {exhibitions.map(exhibition => (
+                <Option key={exhibition._id} value={exhibition._id}>
+                  {exhibition.name} ({exhibition.venue})
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+        )}
+        
+        {isAdminRole(selectedRole) && (
+          <Form.Item
+            label="Exhibition Access"
+          >
+            <div style={{ 
+              padding: '8px 12px', 
+              backgroundColor: '#f6ffed', 
+              border: '1px solid #b7eb8f', 
+              borderRadius: '6px',
+              color: '#52c41a'
+            }}>
+              ✅ <strong>Admin users have access to all exhibitions</strong>
+              <br />
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                No exhibition assignment needed - admins can manage all exhibitions in the system.
+              </Text>
+            </div>
+          </Form.Item>
+        )}
         
         <Form.Item
           name="status"

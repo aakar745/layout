@@ -228,6 +228,19 @@ const Fixture: React.FC<FixtureProps> = ({
     );
   };
 
+  // Helper function to format dimensions for display
+  const formatDimensions = (width: number, height: number): string => {
+    return `${Math.round(width)} m x ${Math.round(height)} m`;
+  };
+
+  // Helper function to calculate appropriate font size based on fixture size
+  const calculateFontSize = (width: number, height: number): number => {
+    const baseSize = Math.min(width, height) * 0.12; // 12% of smaller dimension
+    const minSize = 8 / scale; // Minimum readable size
+    const maxSize = 16 / scale; // Maximum size to prevent oversized text
+    return Math.max(minSize, Math.min(maxSize, baseSize));
+  };
+
   return (
     <>
       <Group
@@ -247,7 +260,8 @@ const Fixture: React.FC<FixtureProps> = ({
       >
         {renderFixture()}
         
-        {fixture.name && fixture.showName !== false && (
+        {/* For fixtures WITH icons, show name based on showName setting */}
+        {image && fixture.name && fixture.showName !== false && (
           <Text
             text={fixture.name}
             fontSize={12 / scale}
@@ -256,6 +270,39 @@ const Fixture: React.FC<FixtureProps> = ({
             align="center"
             y={-16 / scale}
           />
+        )}
+        
+        {/* For fixtures WITHOUT icons, always show name and dimensions */}
+        {!image && (
+          <>
+            {/* Fixture Name */}
+            {fixture.name && (
+              <Text
+                text={fixture.name}
+                fontSize={calculateFontSize(fixture.dimensions.width, fixture.dimensions.height)}
+                fill="#333333"
+                fontStyle="bold"
+                width={fixture.dimensions.width}
+                height={fixture.dimensions.height * 0.6}
+                align="center"
+                verticalAlign="middle"
+                wrap="word"
+                x={0}
+                y={fixture.dimensions.height * 0.2}
+              />
+            )}
+            
+            {/* Fixture Dimensions */}
+            <Text
+              text={formatDimensions(fixture.dimensions.width, fixture.dimensions.height)}
+              fontSize={calculateFontSize(fixture.dimensions.width, fixture.dimensions.height) * 0.8}
+              fill="#666666"
+              width={fixture.dimensions.width}
+              align="center"
+              x={0}
+              y={fixture.dimensions.height * 0.75}
+            />
+          </>
         )}
       </Group>
       {isSelected && isEditable && (

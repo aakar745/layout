@@ -57,6 +57,34 @@ const distributeFixedDiscount = (
 };
 
 /**
+ * Helper function to check if user has admin privileges
+ */
+const isAdminUser = (user: any): boolean => {
+  if (!user?.role?.permissions) return false;
+  
+  const permissions = user.role.permissions;
+  return permissions.includes('manage_all') ||
+         permissions.includes('admin') ||
+         permissions.includes('*') ||
+         user.role.name?.toLowerCase() === 'admin';
+};
+
+/**
+ * Get exhibitions accessible to the user
+ */
+const getUserAccessibleExhibitions = async (user: any) => {
+  // Admin users can access all exhibitions
+  if (isAdminUser(user)) {
+    return await Exhibition.find().select('_id');
+  }
+  
+  // Regular users can only access exhibitions they're assigned to
+  return await Exhibition.find({ 
+    assignedUsers: user._id 
+  }).select('_id');
+};
+
+/**
  * Creates a new booking with the following workflow:
  * 1. Validates input data and exhibitor
  * 2. Checks exhibition existence and stall availability
@@ -333,12 +361,26 @@ export const getBookings = async (req: Request, res: Response) => {
     const pageNum = parseInt(page as string, 10);
     const limitNum = parseInt(limit as string, 10);
     
+    // Get accessible exhibitions for the current user
+    const accessibleExhibitions = await getUserAccessibleExhibitions(req.user);
+    const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
+    
     // Build query conditions
     const conditions: any = {};
     
-    // Filter by exhibition ID
+    // Apply exhibition access control for non-admin users
+    if (!isAdminUser(req.user)) {
+      conditions.exhibitionId = { $in: accessibleExhibitionIds };
+    }
+    
+    // Filter by specific exhibition ID (if provided and accessible)
     if (exhibitionId) {
-      conditions.exhibitionId = exhibitionId;
+      if (isAdminUser(req.user) || accessibleExhibitionIds.some(id => id.toString() === exhibitionId)) {
+        conditions.exhibitionId = exhibitionId;
+      } else {
+        // User doesn't have access to this exhibition
+        return res.status(403).json({ message: 'Access denied to this exhibition' });
+      }
     }
     
     // Filter by status (can be an array)
@@ -665,7 +707,19 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
 
 export const getBookingsByExhibition = async (req: Request, res: Response) => {
   try {
-    const bookings = await Booking.find({ exhibitionId: req.params.exhibitionId })
+    const { exhibitionId } = req.params;
+    
+    // Check if user has access to this exhibition
+    if (!isAdminUser(req.user)) {
+      const accessibleExhibitions = await getUserAccessibleExhibitions(req.user);
+      const hasAccess = accessibleExhibitions.some(ex => ex._id.toString() === exhibitionId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied to this exhibition' });
+      }
+    }
+    
+    const bookings = await Booking.find({ exhibitionId })
       .sort({ createdAt: -1 })
       .populate('stallId', 'number')
       .populate('userId', 'username');
@@ -795,12 +849,26 @@ export const exportBookings = async (req: Request, res: Response) => {
       search
     } = req.query;
     
+    // Get accessible exhibitions for the current user
+    const accessibleExhibitions = await getUserAccessibleExhibitions(req.user);
+    const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
+    
     // Build query conditions
     const conditions: any = {};
     
-    // Filter by exhibition ID
+    // Apply exhibition access control for non-admin users
+    if (!isAdminUser(req.user)) {
+      conditions.exhibitionId = { $in: accessibleExhibitionIds };
+    }
+    
+    // Filter by specific exhibition ID (if provided and accessible)
     if (exhibitionId) {
-      conditions.exhibitionId = exhibitionId;
+      if (isAdminUser(req.user) || accessibleExhibitionIds.some(id => id.toString() === exhibitionId)) {
+        conditions.exhibitionId = exhibitionId;
+      } else {
+        // User doesn't have access to this exhibition
+        return res.status(403).json({ message: 'Access denied to this exhibition' });
+      }
     }
     
     // Filter by status (can be an array)

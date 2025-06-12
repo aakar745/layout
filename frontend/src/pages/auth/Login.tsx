@@ -501,6 +501,16 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberedUser');
       }
     }
+    
+    // Check for login message (from API interceptor for inactive accounts)
+    const loginMessage = localStorage.getItem('loginMessage');
+    if (loginMessage) {
+      setError({
+        title: 'Account Inactive',
+        message: loginMessage
+      });
+      localStorage.removeItem('loginMessage');
+    }
   }, [form]);
   
   // Set animation ready state after a delay to ensure smooth entrance

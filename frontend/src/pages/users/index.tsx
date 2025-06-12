@@ -141,6 +141,41 @@ export default function UsersPage() {
       },
     },
     {
+      title: 'Assigned Exhibitions',
+      key: 'assignedExhibitions',
+      render: (_: any, record: User) => (
+        <Space direction="vertical" size={2}>
+          {isAdminUser(record) ? (
+            <Tag color="green" style={{ fontSize: '12px' }}>
+              ✅ All exhibitions
+            </Tag>
+          ) : record.assignedExhibitions && record.assignedExhibitions.length > 0 ? (
+            record.assignedExhibitions.slice(0, 2).map((exhibition: any, index: number) => {
+              // Handle both populated exhibition objects and plain IDs
+              const exhibitionName = typeof exhibition === 'string' 
+                ? `Exhibition ${exhibition.slice(-4)}...`
+                : exhibition?.name 
+                  ? `${exhibition.name}`
+                  : `Exhibition ${(exhibition?._id || exhibition).toString().slice(-4)}...`;
+              
+              return (
+                <Tag key={index} color="blue" style={{ fontSize: '12px' }}>
+                  {exhibitionName}
+                </Tag>
+              );
+            })
+          ) : (
+            <Text type="secondary" style={{ fontSize: '12px' }}>No assignments</Text>
+          )}
+          {!isAdminUser(record) && record.assignedExhibitions && record.assignedExhibitions.length > 2 && (
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              +{record.assignedExhibitions.length - 2} more
+            </Text>
+          )}
+        </Space>
+      ),
+    },
+    {
       title: 'Status',
       key: 'status',
       render: (_: any, record: User) => (
@@ -225,7 +260,13 @@ export default function UsersPage() {
   const getRoleName = (role: any): string => {
     return typeof role === 'string' ? role : 
            (role && typeof role === 'object' && role.name) ? role.name : 'Unknown';
-  }
+  };
+
+  // Helper function to check if user is admin
+  const isAdminUser = (user: User): boolean => {
+    const roleName = getRoleName(user.role);
+    return roleName.toLowerCase().includes('admin');
+  };
 
   const roleStats = {
     admin: users.filter(user => {

@@ -10,6 +10,7 @@ export interface User {
   email: string;
   role: any; // Role or role ID
   isActive: boolean;
+  assignedExhibitions?: (string | { _id: string; name: string; venue?: string })[]; // Exhibition IDs or populated exhibitions
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +25,7 @@ export interface CreateUserData {
   password: string;
   role: string; // Role ID
   isActive?: boolean;
+  assignedExhibitions?: string[]; // Exhibition IDs to assign
 }
 
 /**

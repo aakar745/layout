@@ -55,6 +55,9 @@ export interface Exhibition {
   createdBy?: string;
   createdByName?: string;
   
+  // Assigned users for access control
+  assignedUsers?: string[];
+  
   // Company Details
   companyName?: string;
   companyContactNo?: string;
@@ -196,6 +199,15 @@ const exhibitionService = {
   getActiveExhibitions: async () => {
     try {
       const response = await api.get<Exhibition[]>('/exhibitions/active');
+      return response;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  getAllExhibitionsForAssignment: async () => {
+    try {
+      const response = await api.get<Exhibition[]>('/exhibitions/all-for-assignment');
       return response;
     } catch (error) {
       return handleApiError(error);
@@ -432,6 +444,34 @@ const exhibitionService = {
       return handleApiError(error);
     }
   },
+
+  // User assignment endpoints
+  assignUsersToExhibition: async (exhibitionId: string, userIds: string[]) => {
+    try {
+      const response = await api.post(`/exhibitions/${exhibitionId}/assign-users`, { userIds });
+      return response;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  unassignUserFromExhibition: async (exhibitionId: string, userId: string) => {
+    try {
+      const response = await api.delete(`/exhibitions/${exhibitionId}/unassign-user/${userId}`);
+      return response;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  getAssignedUsers: async (exhibitionId: string) => {
+    try {
+      const response = await api.get(`/exhibitions/${exhibitionId}/assigned-users`);
+      return response;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  }
 };
 
 export default exhibitionService; 

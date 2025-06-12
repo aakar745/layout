@@ -101,6 +101,21 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear token if unauthorized
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Redirect to login if not already there
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    } else if (error.response?.status === 403 && error.response?.data?.code === 'ACCOUNT_INACTIVE') {
+      // Handle inactive account
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Show notification and redirect
+      if (window.location.pathname !== '/login') {
+        // Store the message to show on login page
+        localStorage.setItem('loginMessage', error.response.data.message);
+        window.location.href = '/login';
+      }
     }
     const message = error.response?.data?.message || error.message;
     return Promise.reject(new Error(message));

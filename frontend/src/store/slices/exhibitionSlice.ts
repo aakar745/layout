@@ -39,6 +39,23 @@ export const fetchExhibitions = createAsyncThunk(
   }
 );
 
+export const fetchAllExhibitionsForAssignment = createAsyncThunk(
+  'exhibition/fetchAllExhibitionsForAssignment',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await exhibitionService.getAllExhibitionsForAssignment();
+      // Normalize the data to include both _id and id
+      const normalizedData = response.data.map(exhibition => ({
+        ...exhibition,
+        id: exhibition._id || exhibition.id // Use existing id as fallback
+      })).filter(exhibition => exhibition.id); // Ensure we only return exhibitions with valid IDs
+      return normalizedData;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const fetchExhibition = createAsyncThunk(
   'exhibition/fetchExhibition',
   async (id: string, { rejectWithValue }) => {
@@ -220,6 +237,19 @@ const exhibitionSlice = createSlice({
         state.exhibitions = action.payload;
       })
       .addCase(fetchExhibitions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Fetch all exhibitions for assignment
+      .addCase(fetchAllExhibitionsForAssignment.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllExhibitionsForAssignment.fulfilled, (state, action) => {
+        state.loading = false;
+        state.exhibitions = action.payload;
+      })
+      .addCase(fetchAllExhibitionsForAssignment.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

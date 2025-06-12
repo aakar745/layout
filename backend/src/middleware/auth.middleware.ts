@@ -62,10 +62,18 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
         return res.status(401).json({ message: 'Invalid token format' });
       }
       
-      const user = await User.findById(userIdFromToken).select('-password');
+      const user = await User.findById(userIdFromToken).select('-password').populate('role');
 
       if (!user) {
         return res.status(401).json({ message: 'User not found' });
+      }
+
+      // Check if user is still active
+      if (!user.isActive) {
+        return res.status(403).json({ 
+          message: 'Your account has been deactivated. Please contact the administrator.',
+          code: 'ACCOUNT_INACTIVE'
+        });
       }
 
       req.user = user;
