@@ -9,6 +9,16 @@ interface ExhibitionState {
   fixtures: Fixture[];
   loading: boolean;
   error: string | null;
+  stallsPagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    pageSize: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+    startIndex: number;
+    endIndex: number;
+  };
 }
 
 const initialState: ExhibitionState = {
@@ -19,6 +29,16 @@ const initialState: ExhibitionState = {
   fixtures: [],
   loading: false,
   error: null,
+  stallsPagination: {
+    currentPage: 1,
+    totalPages: 0,
+    totalCount: 0,
+    pageSize: 50,
+    hasNextPage: false,
+    hasPrevPage: false,
+    startIndex: 0,
+    endIndex: 0,
+  },
 };
 
 // Async thunks
@@ -119,12 +139,43 @@ export const fetchHalls = createAsyncThunk(
 
 export const fetchStalls = createAsyncThunk(
   'exhibition/fetchStalls',
-  async ({ exhibitionId, hallId }: { exhibitionId: string; hallId?: string }, { rejectWithValue }) => {
+  async ({ 
+    exhibitionId, 
+    hallId, 
+    page = 1, 
+    limit = 50, 
+    search, 
+    status, 
+    sortBy = 'number', 
+    sortOrder = 'asc',
+    minPrice,
+    maxPrice
+  }: { 
+    exhibitionId: string; 
+    hallId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }, { rejectWithValue }) => {
     try {
       if (!exhibitionId) {
         throw new Error('Exhibition ID is required');
       }
-      const response = await exhibitionService.getStalls(exhibitionId, hallId);
+      const response = await exhibitionService.getStalls(exhibitionId, hallId, {
+        page,
+        limit,
+        search,
+        status,
+        sortBy,
+        sortOrder,
+        minPrice,
+        maxPrice
+      });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.message);
@@ -220,6 +271,16 @@ const exhibitionSlice = createSlice({
     },
     clearStalls: (state) => {
       state.stalls = [];
+      state.stallsPagination = {
+        currentPage: 1,
+        totalPages: 0,
+        totalCount: 0,
+        pageSize: 50,
+        hasNextPage: false,
+        hasPrevPage: false,
+        startIndex: 0,
+        endIndex: 0,
+      };
     },
     clearFixtures: (state) => {
       state.fixtures = [];
@@ -316,8 +377,15 @@ const exhibitionSlice = createSlice({
       })
       .addCase(fetchStalls.fulfilled, (state, action) => {
         state.loading = false;
+        
+        // Handle both old format (array) and new format (object with stalls and pagination)
+        const payload = action.payload as any;
+        const isNewFormat = payload && typeof payload === 'object' && 'stalls' in payload;
+        const stallsData = isNewFormat ? payload.stalls : payload;
+        const paginationData = isNewFormat ? payload.pagination : null;
+        
         // Process stalls with proper type handling
-        const processedStalls = action.payload.map(stall => ({
+        const processedStalls = (Array.isArray(stallsData) ? stallsData : []).map((stall: any) => ({
           ...stall,
           id: stall._id || stall.id,
           _id: stall._id || stall.id,
@@ -330,12 +398,12 @@ const exhibitionSlice = createSlice({
           }
         }));
 
-        // Simply replace stalls for the selected hall
-        if (action.meta.arg.hallId) {
-          state.stalls = processedStalls;
-        } else {
-          // If no hallId specified (fetching all stalls), replace everything
-          state.stalls = processedStalls;
+        // Update stalls
+        state.stalls = processedStalls;
+        
+        // Update pagination if available
+        if (paginationData) {
+          state.stallsPagination = paginationData;
         }
       })
       .addCase(fetchStalls.rejected, (state, action) => {

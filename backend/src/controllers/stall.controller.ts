@@ -43,7 +43,19 @@ export const createStall = async (req: Request, res: Response) => {
 export const getStalls = async (req: Request, res: Response) => {
   try {
     const { exhibitionId } = req.params;
-    const { hallId } = req.query;
+    const { 
+      hallId, 
+      page = '1', 
+      limit = '50', 
+      search, 
+      status, 
+      sortBy = 'number', 
+      sortOrder = 'asc',
+      minPrice,
+      maxPrice
+    } = req.query;
+
+    // Build base query
     const query: any = { 
       exhibitionId: new mongoose.Types.ObjectId(exhibitionId)
     };
@@ -52,14 +64,52 @@ export const getStalls = async (req: Request, res: Response) => {
       query.hallId = new mongoose.Types.ObjectId(hallId.toString());
     }
 
+    // Add search filter
+    if (search) {
+      query.number = { $regex: search, $options: 'i' };
+    }
+
+    // Add status filter
+    if (status) {
+      query.status = status;
+    }
+
+    // Convert pagination parameters
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build sort object
+    const sortObj: any = {};
+    if (sortBy === 'number') {
+      sortObj.number = sortOrder === 'desc' ? -1 : 1;
+    } else if (sortBy === 'ratePerSqm') {
+      sortObj.ratePerSqm = sortOrder === 'desc' ? -1 : 1;
+    } else if (sortBy === 'createdAt') {
+      sortObj.createdAt = sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sortObj.number = 1; // Default sort
+    }
+
     console.log('Fetching stalls with query:', query);
+    console.log('Pagination:', { page: pageNum, limit: limitNum, skip });
+    console.log('Sort:', sortObj);
+
+    // Get total count for pagination
+    const totalCount = await Stall.countDocuments(query);
+
+    // Fetch paginated stalls
     const stalls = await Stall.find(query)
       .populate<PopulatedStall>('stallTypeId', 'name description')
-      .sort({ number: 1 });
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limitNum);
     
     const transformedStalls = stalls.map(stall => {
       const stallData = stall.toObject();
-      console.log('Original stall data:', stallData);
+      
+      // Calculate total price for filtering
+      const totalPrice = stallData.ratePerSqm * stallData.dimensions.width * stallData.dimensions.height;
       
       return {
         ...stallData,
@@ -67,12 +117,43 @@ export const getStalls = async (req: Request, res: Response) => {
           name: stallData.stallTypeId?.name || 'N/A',
           description: stallData.stallTypeId?.description
         },
-        stallTypeId: stallData.stallTypeId?._id || stallData.stallTypeId
+        stallTypeId: stallData.stallTypeId?._id || stallData.stallTypeId,
+        totalPrice // Include calculated price for frontend use
       };
     });
 
-    console.log('Transformed stalls:', transformedStalls);
-    res.json(transformedStalls);
+    // Apply price filtering on transformed data if needed
+    let filteredStalls = transformedStalls;
+    if (minPrice || maxPrice) {
+      filteredStalls = transformedStalls.filter(stall => {
+        const price = stall.totalPrice;
+        const min = minPrice ? parseFloat(minPrice as string) : 0;
+        const max = maxPrice ? parseFloat(maxPrice as string) : Infinity;
+        return price >= min && price <= max;
+      });
+    }
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    console.log('Transformed stalls count:', filteredStalls.length);
+    
+    // Return paginated response
+    res.json({
+      stalls: filteredStalls,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        pageSize: limitNum,
+        hasNextPage,
+        hasPrevPage,
+        startIndex: skip + 1,
+        endIndex: Math.min(skip + limitNum, totalCount)
+      }
+    });
   } catch (error: any) {
     console.error('Error fetching stalls:', error);
     res.status(500).json({ 

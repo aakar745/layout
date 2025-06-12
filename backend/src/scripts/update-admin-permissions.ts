@@ -38,11 +38,16 @@ async function updateAdminPermissions() {
       // Stall type management
       'view_stall_types', 'create_stall_type', 'edit_stall_type', 'delete_stall_type',
       
+      // Amenities management
+      'amenities_view', 'amenities_create', 'amenities_edit', 'amenities_delete',
+      'view_amenities', 'create_amenity', 'edit_amenity', 'delete_amenity',
+      
       // Booking management
       'bookings_view', 'bookings_create', 'bookings_edit', 'bookings_delete',
       'view_bookings', 'create_booking', 'edit_booking', 'delete_booking',
       
       // Invoice management
+      'invoices_view', 'invoices_create', 'invoices_edit', 'invoices_delete',
       'view_invoices', 'create_invoice', 'edit_invoice', 'delete_invoice',
       
       // Exhibitor management

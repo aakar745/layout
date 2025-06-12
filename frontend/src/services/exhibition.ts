@@ -344,14 +344,45 @@ const exhibitionService = {
   },
 
   // Stall endpoints
-  getStalls: async (exhibitionId: string, hallId?: string) => {
+  getStalls: async (exhibitionId: string, hallId?: string, options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }) => {
     try {
       if (!exhibitionId) {
         throw new Error('Exhibition ID is required');
       }
-      const response = await api.get<Stall[]>(`/exhibitions/${exhibitionId}/stalls`, { 
-        params: { hallId } 
-      });
+      
+      const params: any = {};
+      if (hallId) params.hallId = hallId;
+      if (options?.page) params.page = options.page;
+      if (options?.limit) params.limit = options.limit;
+      if (options?.search) params.search = options.search;
+      if (options?.status) params.status = options.status;
+      if (options?.sortBy) params.sortBy = options.sortBy;
+      if (options?.sortOrder) params.sortOrder = options.sortOrder;
+      if (options?.minPrice) params.minPrice = options.minPrice;
+      if (options?.maxPrice) params.maxPrice = options.maxPrice;
+      
+      const response = await api.get<{
+        stalls: Stall[];
+        pagination: {
+          currentPage: number;
+          totalPages: number;
+          totalCount: number;
+          pageSize: number;
+          hasNextPage: boolean;
+          hasPrevPage: boolean;
+          startIndex: number;
+          endIndex: number;
+        };
+      }>(`/exhibitions/${exhibitionId}/stalls`, { params });
       return response;
     } catch (error) {
       return handleApiError(error);

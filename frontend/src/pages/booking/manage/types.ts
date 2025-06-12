@@ -51,6 +51,14 @@ export interface BookingType {
   _id: string;
   exhibitionId: Exhibition;
   stallIds: Stall[];
+  userId?: User;
+  exhibitorId?: {
+    _id: string;
+    companyName: string;
+    contactPerson: string;
+    email: string;
+    phone: string;
+  };
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -74,6 +82,7 @@ export interface BookingType {
   createdAt: string;
   updatedAt: string;
   paymentStatus: 'pending' | 'paid' | 'refunded';
+  bookingSource?: 'admin' | 'exhibitor';
 }
 
 /**
@@ -84,4 +93,15 @@ export interface FilterState {
   status: string[];
   dateRange: [string, string] | null;
   exhibition: string | null;
+}
+
+export interface User {
+  _id: string;
+  username: string;
+  name?: string;
+  email: string;
+  role?: {
+    _id: string;
+    name: string;
+  };
 } 

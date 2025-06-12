@@ -128,8 +128,19 @@ export interface Booking {
   _id: string;
   exhibitionId: Exhibition;
   stallIds: Stall[];
-  userId?: string;
-  exhibitorId?: string;
+  userId?: {
+    _id: string;
+    username: string;
+    name?: string;
+    email: string;
+  };
+  exhibitorId?: {
+    _id: string;
+    companyName: string;
+    contactPerson: string;
+    email: string;
+    phone: string;
+  };
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -163,6 +174,7 @@ export interface Booking {
   // New properties for API response
   invoiceId?: string;
   warning?: string;
+  bookingSource?: 'admin' | 'exhibitor';
 }
 
 /**

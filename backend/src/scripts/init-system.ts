@@ -47,6 +47,8 @@ async function initSystem() {
           'view_stalls', 'create_stall', 'edit_stall', 'delete_stall',
           // Stall type management
           'view_stall_types', 'create_stall_type', 'edit_stall_type', 'delete_stall_type',
+          // Amenities management
+          'view_amenities', 'create_amenity', 'edit_amenity', 'delete_amenity',
           // Booking management
           'view_bookings', 'create_booking', 'edit_booking', 'delete_booking',
           // Invoice management
@@ -75,6 +77,7 @@ async function initSystem() {
         permissions: [
           'view_exhibitions', 'create_exhibition', 'edit_exhibition', 
           'view_stalls', 'create_stall', 'edit_stall',
+          'view_amenities',
           'view_bookings', 'create_booking', 'edit_booking',
           'view_invoices', 
           'view_exhibitors',
@@ -91,6 +94,7 @@ async function initSystem() {
         permissions: [
           'view_exhibitions', 
           'view_stalls',
+          'view_amenities',
           'view_bookings',
           'view_invoices',
           'view_exhibitors',

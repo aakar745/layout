@@ -70,10 +70,11 @@ async function fixAdminPermissions() {
             'view_roles', 'create_role', 'edit_role', 'delete_role', 'manage_roles',
             // Add every other permission you might need
             'manage_all', 'admin_all', 'full_access',
-            'exhibitions', 'stalls', 'bookings', 'invoices', 'exhibitors', 'settings',
-            'exhibitions.*', 'stalls.*', 'bookings.*', 'invoices.*', 'exhibitors.*', 'settings.*',
+            'exhibitions', 'stalls', 'amenities', 'bookings', 'invoices', 'exhibitors', 'settings',
+            'exhibitions.*', 'stalls.*', 'amenities.*', 'bookings.*', 'invoices.*', 'exhibitors.*', 'settings.*',
             'view_exhibitions', 'create_exhibition', 'edit_exhibition', 'delete_exhibition',
             'view_stalls', 'create_stall', 'edit_stall', 'delete_stall',
+            'view_amenities', 'create_amenity', 'edit_amenity', 'delete_amenity',
             'view_bookings', 'create_booking', 'edit_booking', 'delete_booking',
             'view_invoices', 'create_invoice', 'edit_invoice', 'delete_invoice',
             'view_exhibitors', 'create_exhibitor', 'edit_exhibitor', 'delete_exhibitor',

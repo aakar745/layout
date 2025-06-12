@@ -250,6 +250,11 @@ const StallBookingManager: React.FC = () => {
           'Discount': Math.round(booking.calculations.totalDiscountAmount),
           'Total Amount': Math.round(booking.calculations.totalAmount),
           'Status': booking.status.toUpperCase(),
+          'Booked By': booking.bookingSource === 'exhibitor' && booking.exhibitorId ? 
+            `${booking.exhibitorId.contactPerson} (Exhibitor)` : 
+            booking.userId ? 
+              `${booking.userId.name || booking.userId.username} (Admin)` : 
+              'System',
           'Created Date': new Date(booking.createdAt).toLocaleDateString('en-GB', {
             day: '2-digit',
             month: '2-digit',

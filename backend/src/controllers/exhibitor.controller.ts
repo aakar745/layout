@@ -561,16 +561,114 @@ export const updateProfile = async (req: Request, res: Response) => {
 };
 
 /**
- * Get all exhibitors (admin only)
+ * Get all exhibitors with pagination and filtering (admin only)
  * GET /api/admin/exhibitors
  * Private route (requires admin authentication)
+ * 
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 10)
+ * - status: Filter by status (pending, approved, rejected)
+ * - isActive: Filter by active status (true, false)
+ * - search: Search in company name, contact person, or email
+ * - sortBy: Sort field (createdAt, companyName, status)
+ * - sortOrder: Sort direction (asc, desc) - default: desc
  */
 export const getAllExhibitors = async (req: Request, res: Response) => {
   try {
-    const exhibitors = await Exhibitor.find().sort({ createdAt: -1 });
-    res.json(exhibitors);
+    // Extract query parameters with defaults
+    const { 
+      page = '1', 
+      limit = '10',
+      status,
+      isActive,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+    
+    // Parse pagination parameters
+    const pageNum = parseInt(page as string, 10);
+    const limitNum = parseInt(limit as string, 10);
+    
+    // Validate pagination parameters
+    if (isNaN(pageNum) || pageNum < 1) {
+      return res.status(400).json({ message: 'Invalid page number' });
+    }
+    
+    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({ message: 'Invalid limit. Must be between 1 and 100' });
+    }
+    
+    // Build query conditions
+    const conditions: any = {};
+    
+    // Filter by status if provided
+    if (status && ['pending', 'approved', 'rejected'].includes(status as string)) {
+      conditions.status = status;
+    }
+    
+    // Filter by active status if provided
+    if (isActive === 'true' || isActive === 'false') {
+      conditions.isActive = isActive === 'true';
+    }
+    
+    // Search functionality - case insensitive search across multiple fields
+    if (search && typeof search === 'string' && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      conditions.$or = [
+        { companyName: searchRegex },
+        { contactPerson: searchRegex },
+        { email: searchRegex },
+        { phone: searchRegex }
+      ];
+    }
+    
+    // Build sort options
+    const validSortFields = ['createdAt', 'companyName', 'status', 'contactPerson', 'updatedAt'];
+    const sortField = validSortFields.includes(sortBy as string) ? sortBy as string : 'createdAt';
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+    const sortOptions: { [key: string]: 1 | -1 } = { [sortField]: sortDirection };
+    
+    // Get total count for pagination metadata
+    const totalCount = await Exhibitor.countDocuments(conditions);
+    
+    // Fetch exhibitors with pagination and sorting
+    const exhibitors = await Exhibitor.find(conditions)
+      .sort(sortOptions)
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .select('-password') // Exclude password field for security
+      .lean(); // Use lean() for better performance since we don't need mongoose document methods
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+    
+    // Return paginated results with comprehensive metadata
+    res.json({
+      data: exhibitors,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        pages: totalPages,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? pageNum + 1 : null,
+        prevPage: hasPrevPage ? pageNum - 1 : null
+      },
+      filters: {
+        status: status || null,
+        isActive: isActive ? (isActive === 'true') : null,
+        search: search || null,
+        sortBy: sortField,
+        sortOrder: sortOrder as string
+      }
+    });
   } catch (error) {
-    console.error('Error fetching all exhibitors:', error);
+    console.error('Error fetching exhibitors:', error);
     res.status(500).json({ message: 'Server error fetching exhibitors' });
   }
 };

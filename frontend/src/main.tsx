@@ -40,6 +40,9 @@ const theme = {
     Table: {
       borderRadius: 8,
       headerBg: '#F9FAFB',
+    },
+    Modal: {
+      borderRadius: 8,
     }
   }
 };

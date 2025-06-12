@@ -216,4 +216,29 @@
 .confirm-delete-button:hover {
   background: #6420a8;
   border-color: #6420a8;
+}
+
+/* Fix modal footer button alignment - Global fix for all modals */
+.ant-modal .ant-modal-footer {
+  text-align: right !important;
+  padding: 16px 24px !important;
+}
+
+.ant-modal .ant-modal-footer .ant-btn {
+  margin-left: 8px !important;
+}
+
+.ant-modal .ant-modal-footer .ant-btn:first-child {
+  margin-left: 0 !important;
+}
+
+/* Specific fix for user modals */
+.ant-modal[data-testid*="user"] .ant-modal-footer,
+.ant-modal:has([title*="User"]) .ant-modal-footer,
+.ant-modal:has([title*="Edit User"]) .ant-modal-footer,
+.ant-modal:has([title*="Create"]) .ant-modal-footer {
+  text-align: right !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
 } 

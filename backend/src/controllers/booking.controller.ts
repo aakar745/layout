@@ -429,8 +429,15 @@ export const getBookings = async (req: Request, res: Response) => {
             select: 'name'
           }
         })
-        .populate('exhibitorId')
-        .populate('userId');
+        .populate('exhibitorId', 'companyName contactPerson email phone')
+        .populate({
+          path: 'userId',
+          select: 'username name email',
+          populate: {
+            path: 'role',
+            select: 'name'
+          }
+        });
         
       // Transform stalls to include type from stallTypeId
       bookings = bookings.map(booking => {
@@ -459,7 +466,16 @@ export const getBookings = async (req: Request, res: Response) => {
             select: 'name'
           }
         })
-        .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
+        .populate({
+          path: 'userId',
+          select: 'username name email',
+          populate: {
+            path: 'role',
+            select: 'name'
+          }
+        })
+        .populate('exhibitorId', 'companyName contactPerson email phone')
+        .select('_id exhibitionId stallIds userId exhibitorId customerName customerEmail customerPhone companyName amount calculations status createdAt bookingSource');
         
       // Transform stalls to include type from stallTypeId
       bookings = bookings.map(booking => {
@@ -496,7 +512,15 @@ export const getBooking = async (req: Request, res: Response) => {
     const booking = await Booking.findById(req.params.id)
       .populate('exhibitionId', 'name venue invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC')
       .populate('stallIds', 'number dimensions ratePerSqm')
-      .populate('userId', 'username');
+      .populate({
+        path: 'userId',
+        select: 'username name email',
+        populate: {
+          path: 'role',
+          select: 'name'
+        }
+      })
+      .populate('exhibitorId', 'companyName contactPerson email phone');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
@@ -840,94 +864,53 @@ export const getBookingStats = async (req: Request, res: Response) => {
  */
 export const exportBookings = async (req: Request, res: Response) => {
   try {
-    // Check for query parameters
-    const { 
-      exhibitionId, 
-      status,
-      startDate,
-      endDate,
-      search
-    } = req.query;
+    const { exhibitionId, status, bookingSource } = req.query;
     
-    // Get accessible exhibitions for the current user
-    const accessibleExhibitions = await getUserAccessibleExhibitions(req.user);
-    const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
-    
-    // Build query conditions
     const conditions: any = {};
-    
-    // Apply exhibition access control for non-admin users
-    if (!isAdminUser(req.user)) {
-      conditions.exhibitionId = { $in: accessibleExhibitionIds };
-    }
-    
-    // Filter by specific exhibition ID (if provided and accessible)
-    if (exhibitionId) {
-      if (isAdminUser(req.user) || accessibleExhibitionIds.some(id => id.toString() === exhibitionId)) {
-        conditions.exhibitionId = exhibitionId;
-      } else {
-        // User doesn't have access to this exhibition
-        return res.status(403).json({ message: 'Access denied to this exhibition' });
-      }
-    }
-    
-    // Filter by status (can be an array)
-    if (status) {
-      if (Array.isArray(status)) {
-        conditions.status = { $in: status };
-      } else {
-        conditions.status = status;
-      }
-    }
-    
-    // Filter by date range
-    if (startDate && endDate) {
-      conditions.createdAt = {
-        $gte: new Date(startDate as string),
-        $lte: new Date(endDate as string)
-      };
-    } else if (startDate) {
-      conditions.createdAt = { $gte: new Date(startDate as string) };
-    } else if (endDate) {
-      conditions.createdAt = { $lte: new Date(endDate as string) };
-    }
-    
-    // Search by company name
-    if (search) {
-      conditions.companyName = { $regex: search, $options: 'i' };
-    }
-    
-    // Get all matching bookings with no pagination limits
+    if (exhibitionId) conditions.exhibitionId = exhibitionId;
+    if (status) conditions.status = status;
+    if (bookingSource) conditions.bookingSource = bookingSource;
+
     const bookings = await Booking.find(conditions)
-      .sort({ createdAt: -1 })
       .populate('exhibitionId', 'name')
+      .populate('stallIds', 'number')
       .populate({
-        path: 'stallIds',
-        select: 'number dimensions ratePerSqm type stallTypeId',
+        path: 'userId',
+        select: 'username name email',
         populate: {
-          path: 'stallTypeId',
-          select: 'name description'
+          path: 'role',
+          select: 'name'
         }
       })
-      .select('_id exhibitionId stallIds customerName customerEmail customerPhone companyName amount calculations status createdAt');
-    
-    // Transform stalls to include type from stallTypeId
-    const transformedBookings = bookings.map(booking => {
-      const bookingObj = booking.toObject();
-      if (bookingObj.stallIds) {
-        bookingObj.stallIds = bookingObj.stallIds.map((stall: any) => {
-          if (stall.stallTypeId && typeof stall.stallTypeId === 'object') {
-            // Add the type field based on stallTypeId name
-            stall.type = stall.stallTypeId.name;
-          }
-          return stall;
-        });
+      .populate('exhibitorId', 'companyName contactPerson email phone')
+      .sort({ createdAt: -1 });
+
+    // Transform data for export
+    const exportData = bookings.map((booking: any) => {
+      // Determine who booked it
+      let bookedBy = 'System';
+      if (booking.bookingSource === 'exhibitor' && booking.exhibitorId) {
+        bookedBy = `${booking.exhibitorId.contactPerson} (${booking.exhibitorId.email}) - Exhibitor Portal`;
+      } else if (booking.bookingSource === 'admin' && booking.userId) {
+        const roleName = booking.userId.role?.name || 'Admin';
+        bookedBy = `${booking.userId.name || booking.userId.username} (${booking.userId.email}) - ${roleName}`;
       }
-      return bookingObj;
+
+      return {
+        'Exhibition': booking.exhibitionId?.name || 'N/A',
+        'Customer Name': booking.customerName,
+        'Customer Email': booking.customerEmail,
+        'Customer Phone': booking.customerPhone,
+        'Company Name': booking.companyName,
+        'Stalls': booking.stallIds?.map((stall: any) => stall.number).join(', ') || 'N/A',
+        'Amount': booking.amount,
+        'Status': booking.status,
+        'Booked By': bookedBy,
+        'Created At': new Date(booking.createdAt).toLocaleString()
+      };
     });
-    
-    // Return complete result set with transformed stalls
-    res.json(transformedBookings);
+
+    res.json(exportData);
   } catch (error) {
     console.error('Error exporting bookings:', error);
     res.status(500).json({ message: 'Error exporting bookings', error });

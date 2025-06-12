@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Table, Space, Input, Typography, Row, Col, Select, message, Tag, Slider, InputNumber, Statistic, Button } from 'antd';
-import { SearchOutlined, FilterOutlined, LayoutOutlined, ApartmentOutlined } from '@ant-design/icons';
+import { SearchOutlined, FilterOutlined, LayoutOutlined, ApartmentOutlined, DownloadOutlined } from '@ant-design/icons';
+import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
@@ -16,7 +17,7 @@ const StallList: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   
   // Get data from Redux store
-  const { stalls: reduxStalls, loading: reduxLoading } = useSelector((state: RootState) => state.exhibition);
+  const { stalls: reduxStalls, loading: reduxLoading, stallsPagination } = useSelector((state: RootState) => state.exhibition);
   
   // State for data
   const [exhibitions, setExhibitions] = useState<any[]>([]);
@@ -41,12 +42,227 @@ const StallList: React.FC = () => {
     return Math.ceil(maxStallPrice / magnitude) * magnitude;
   }, [maxStallPrice]);
 
-  // State for filters
+  // State for filters and pagination
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, roundedMaxPrice]);
   const [sortField, setSortField] = useState<string>('number');
   const [sortOrder, setSortOrder] = useState<'ascend' | 'descend'>('ascend');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  // Ref to store current filter values for debounced search
+  const filtersRef = React.useRef({
+    statusFilter,
+    priceRange,
+    sortField,
+    sortOrder,
+    pageSize,
+    roundedMaxPrice
+  });
+
+  // Update ref when filters change
+  React.useEffect(() => {
+    filtersRef.current = {
+      statusFilter,
+      priceRange,
+      sortField,
+      sortOrder,
+      pageSize,
+      roundedMaxPrice
+    };
+  }, [statusFilter, priceRange, sortField, sortOrder, pageSize, roundedMaxPrice]);
+
+  // Function to fetch stalls with specific parameters
+  const fetchStallsWithParams = React.useCallback((params: {
+    page?: number;
+    size?: number;
+    search?: string;
+    status?: string | null;
+    sortBy?: string;
+    sortOrder?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }) => {
+    if (selectedExhibition && selectedHall) {
+      dispatch(fetchStalls({ 
+        exhibitionId: selectedExhibition, 
+        hallId: selectedHall,
+        page: params.page || currentPage,
+        limit: params.size || pageSize,
+        search: params.search || undefined,
+        status: params.status || undefined,
+        sortBy: params.sortBy || sortField,
+        sortOrder: params.sortOrder || (sortOrder === 'ascend' ? 'asc' : 'desc'),
+        minPrice: params.minPrice,
+        maxPrice: params.maxPrice
+      }));
+    }
+  }, [dispatch, selectedExhibition, selectedHall, currentPage, pageSize, sortField, sortOrder]);
+
+  // Debounced search effect - only for search text changes
+  React.useEffect(() => {
+    if (!selectedExhibition || !selectedHall) return;
+    
+    const timeoutId = setTimeout(() => {
+      if (selectedExhibition && selectedHall) {
+        const filters = filtersRef.current;
+        dispatch(fetchStalls({
+          exhibitionId: selectedExhibition,
+          hallId: selectedHall,
+          page: 1,
+          limit: filters.pageSize,
+          search: searchText || undefined,
+          status: filters.statusFilter || undefined,
+          sortBy: filters.sortField,
+          sortOrder: filters.sortOrder === 'ascend' ? 'asc' : 'desc',
+          minPrice: filters.priceRange[0] > 0 ? filters.priceRange[0] : undefined,
+          maxPrice: filters.priceRange[1] < filters.roundedMaxPrice ? filters.priceRange[1] : undefined
+        }));
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText, selectedExhibition, selectedHall, dispatch]); // Include necessary stable dependencies
+
+  // Filter change handlers
+  const handleStatusFilterChange = (value: string | null) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+    fetchStallsWithParams({
+      page: 1,
+      search: searchText || undefined,
+      status: value,
+      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+    });
+  };
+
+  const handlePriceRangeChange = (value: [number, number] | number | number[]) => {
+    let rangeValue: [number, number];
+    if (Array.isArray(value) && value.length === 2) {
+      rangeValue = [value[0], value[1]];
+    } else if (typeof value === 'number') {
+      rangeValue = [0, value];
+    } else {
+      rangeValue = [0, roundedMaxPrice];
+    }
+    setPriceRange(rangeValue);
+    setCurrentPage(1);
+    fetchStallsWithParams({
+      page: 1,
+      search: searchText || undefined,
+      status: statusFilter,
+      minPrice: rangeValue[0] > 0 ? rangeValue[0] : undefined,
+      maxPrice: rangeValue[1] < roundedMaxPrice ? rangeValue[1] : undefined
+    });
+  };
+
+  const handleSortChange = (field: string, order: 'ascend' | 'descend') => {
+    setSortField(field);
+    setSortOrder(order);
+    setCurrentPage(1);
+    fetchStallsWithParams({
+      page: 1,
+      search: searchText || undefined,
+      status: statusFilter,
+      sortBy: field,
+      sortOrder: order === 'ascend' ? 'asc' : 'desc',
+      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+    });
+  };
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+    fetchStallsWithParams({
+      page,
+      size: size || pageSize,
+      search: searchText || undefined,
+      status: statusFilter,
+      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+    });
+  };
+
+  // Export functionality
+  const handleExportToExcel = async (exportAll = true) => {
+    try {
+      let dataToExport = displayStalls;
+      
+      // If exporting all, fetch all stalls without pagination
+      if (exportAll && selectedExhibition && selectedHall) {
+        const response = await exhibitionService.getStalls(selectedExhibition, selectedHall, {
+          page: 1,
+          limit: 10000, // Large number to get all stalls
+          search: searchText || undefined,
+          status: statusFilter || undefined,
+          sortBy: sortField,
+          sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc',
+          minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+          maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+        });
+        
+        const payload = response.data as any;
+        const isNewFormat = payload && typeof payload === 'object' && 'stalls' in payload;
+        dataToExport = isNewFormat ? payload.stalls : payload;
+      }
+
+      // Prepare data for Excel export
+      const excelData = dataToExport.map((stall: any) => ({
+        'Stall Number': stall.number,
+        'Hall': halls.find(h => h._id === stall.hallId)?.name || 'N/A',
+        'Stall Type': stall.stallType?.name || 'N/A',
+        'Dimensions (W×H)': `${stall.dimensions.width}×${stall.dimensions.height}`,
+        'Area (sq.m)': stall.dimensions.width * stall.dimensions.height,
+        'Rate per Sq.m': `₹${stall.ratePerSqm.toLocaleString()}`,
+        'Total Price': `₹${(stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height).toLocaleString()}`,
+        'Status': stall.status.charAt(0).toUpperCase() + stall.status.slice(1),
+        'Position (X,Y)': `${stall.dimensions.x},${stall.dimensions.y}`,
+        'Created Date': new Date(stall.createdAt || Date.now()).toLocaleDateString(),
+      }));
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths for better formatting
+      const columnWidths = [
+        { wch: 15 }, // Stall Number
+        { wch: 20 }, // Hall
+        { wch: 15 }, // Stall Type
+        { wch: 15 }, // Dimensions
+        { wch: 12 }, // Area
+        { wch: 15 }, // Rate per Sq.m
+        { wch: 18 }, // Total Price
+        { wch: 12 }, // Status
+        { wch: 15 }, // Position
+        { wch: 15 }, // Created Date
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Stalls');
+
+      // Generate filename
+      const exhibitionName = exhibitions.find(e => e._id === selectedExhibition)?.name || 'Exhibition';
+      const hallName = halls.find(h => h._id === selectedHall)?.name || 'Hall';
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${exhibitionName}-${hallName}-Stalls-${timestamp}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(workbook, filename);
+      
+      message.success(`Exported ${dataToExport.length} stalls to Excel successfully!`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      message.error('Failed to export stalls. Please try again.');
+    }
+  };
 
   // Clear stalls when exhibition changes
   const handleExhibitionChange = (value: string | null) => {
@@ -58,8 +274,21 @@ const StallList: React.FC = () => {
   // Clear and fetch stalls when hall changes
   const handleHallChange = (value: string | null) => {
     setSelectedHall(value);
+    setCurrentPage(1); // Reset to first page
     if (selectedExhibition && value) {
-      dispatch(fetchStalls({ exhibitionId: selectedExhibition, hallId: value }));
+      // Use a direct dispatch call for hall change to avoid dependency issues
+      dispatch(fetchStalls({ 
+        exhibitionId: selectedExhibition, 
+        hallId: value,
+        page: 1,
+        limit: pageSize,
+        search: searchText || undefined,
+        status: statusFilter || undefined,
+        sortBy: sortField,
+        sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc',
+        minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
+        maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+      }));
     } else {
       dispatch({ type: 'exhibition/clearStalls' });
     }
@@ -105,30 +334,8 @@ const StallList: React.FC = () => {
     }
   }, [selectedExhibition]);
 
-  // Filter and sort stalls
-  const filteredStalls = React.useMemo(() => {
-    console.log('Filtering stalls from Redux:', reduxStalls);
-    const filtered = reduxStalls
-      .filter(stall => {
-        const matchesSearch = !searchText || 
-          stall.number.toLowerCase().includes(searchText.toLowerCase());
-        const matchesStatus = !statusFilter || stall.status === statusFilter;
-        const matchesHall = !selectedHall || stall.hallId === selectedHall;
-        const price = stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height;
-        const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
-        return matchesSearch && matchesStatus && matchesHall && matchesPrice;
-      })
-      .sort((a, b) => {
-        if (sortField === 'number') {
-          return sortOrder === 'ascend' 
-            ? a.number.localeCompare(b.number)
-            : b.number.localeCompare(a.number);
-        }
-        return 0;
-      });
-    console.log('Filtered stalls:', filtered);
-    return filtered;
-  }, [reduxStalls, searchText, statusFilter, selectedHall, priceRange, sortField, sortOrder]);
+  // Use stalls directly from Redux (server-side filtering)
+  const displayStalls = reduxStalls;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -159,17 +366,40 @@ const StallList: React.FC = () => {
     };
   };
 
-  const totals = calculateTotals(filteredStalls);
+  const totals = calculateTotals(displayStalls);
 
   return (
     <div className="dashboard-container">
       <div style={{ marginBottom: '24px' }}>
         <Row gutter={[24, 24]}>
           <Col span={24}>
-            <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              <Title level={4} style={{ margin: 0 }}>Stalls</Title>
-              <Text type="secondary">Manage your exhibition stalls</Text>
-            </Space>
+            <Row justify="space-between" align="middle">
+              <Col>
+                <Space direction="vertical" size={4}>
+                  <Title level={4} style={{ margin: 0 }}>Stalls</Title>
+                  <Text type="secondary">Manage your exhibition stalls</Text>
+                </Space>
+              </Col>
+              <Col>
+                <Space>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={() => handleExportToExcel(false)}
+                    disabled={!selectedHall || displayStalls.length === 0}
+                  >
+                    Export Current Page
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<DownloadOutlined />}
+                    onClick={() => handleExportToExcel(true)}
+                    disabled={!selectedHall}
+                  >
+                    Export All Stalls
+                  </Button>
+                </Space>
+              </Col>
+            </Row>
           </Col>
 
           {/* Filters Row */}
@@ -220,7 +450,7 @@ const StallList: React.FC = () => {
                   style={{ width: '100%' }}
                   placeholder="Filter by status"
                   value={statusFilter}
-                  onChange={setStatusFilter}
+                  onChange={handleStatusFilterChange}
                   allowClear
                 >
                   <Option value="available">Available</Option>
@@ -264,31 +494,31 @@ const StallList: React.FC = () => {
                   <Space>
                     <Button 
                       size="small" 
-                      onClick={() => setPriceRange([0, 500000])}
+                      onClick={() => handlePriceRangeChange([0, 500000])}
                     >
                       Under ₹5L
                     </Button>
                     <Button 
                       size="small" 
-                      onClick={() => setPriceRange([500000, 1000000])}
+                      onClick={() => handlePriceRangeChange([500000, 1000000])}
                     >
                       ₹5L - ₹10L
                     </Button>
                     <Button 
                       size="small" 
-                      onClick={() => setPriceRange([1000000, 2000000])}
+                      onClick={() => handlePriceRangeChange([1000000, 2000000])}
                     >
                       ₹10L - ₹20L
                     </Button>
                     <Button 
                       size="small" 
-                      onClick={() => setPriceRange([2000000, roundedMaxPrice])}
+                      onClick={() => handlePriceRangeChange([2000000, roundedMaxPrice])}
                     >
                       Above ₹20L
                     </Button>
                     <Button 
                       size="small" 
-                      onClick={() => setPriceRange([0, roundedMaxPrice])}
+                      onClick={() => handlePriceRangeChange([0, roundedMaxPrice])}
                     >
                       All
                     </Button>
@@ -300,7 +530,7 @@ const StallList: React.FC = () => {
                     min={0}
                     max={roundedMaxPrice}
                     value={priceRange}
-                    onChange={(value) => setPriceRange(value as [number, number])}
+                    onChange={handlePriceRangeChange}
                     step={Math.max(1000, Math.floor(roundedMaxPrice / 1000))}
                     tooltip={{
                       formatter: (value) => `₹${(value || 0).toLocaleString()}`
@@ -431,19 +661,23 @@ const StallList: React.FC = () => {
                   ),
                 },
               ]}
-              dataSource={filteredStalls}
+              dataSource={displayStalls}
               rowKey={(record) => record._id || record.id}
               loading={loading || reduxLoading}
               pagination={{
-                total: filteredStalls.length,
-                pageSize: 10,
+                current: stallsPagination.currentPage,
+                pageSize: stallsPagination.pageSize,
+                total: stallsPagination.totalCount,
                 showSizeChanger: true,
-                showTotal: (total) => `Total ${total} stalls`,
+                showQuickJumper: true,
+                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} stalls`,
+                onChange: handlePageChange,
+                onShowSizeChange: handlePageChange,
+                pageSizeOptions: ['10', '25', '50', '100'],
               }}
               onChange={(pagination, filters, sorter: any) => {
-                if (sorter.field) {
-                  setSortField(sorter.field);
-                  setSortOrder(sorter.order);
+                if (sorter.field && sorter.order) {
+                  handleSortChange(sorter.field, sorter.order);
                 }
               }}
             />

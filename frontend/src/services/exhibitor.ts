@@ -66,6 +66,40 @@ export interface ExhibitorProfile {
   updatedAt: string;
 }
 
+/**
+ * Pagination metadata for exhibitor responses
+ */
+export interface ExhibitorPagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  nextPage: number | null;
+  prevPage: number | null;
+}
+
+/**
+ * Filter metadata for exhibitor responses
+ */
+export interface ExhibitorFilters {
+  status: string | null;
+  isActive: boolean | null;
+  search: string | null;
+  sortBy: string;
+  sortOrder: string;
+}
+
+/**
+ * Paginated response structure for exhibitors
+ */
+export interface PaginatedExhibitorResponse {
+  data: ExhibitorProfile[];
+  pagination: ExhibitorPagination;
+  filters: ExhibitorFilters;
+}
+
 export interface ExhibitorRegistrationData {
   companyName: string;
   contactPerson: string;
@@ -182,11 +216,31 @@ const exhibitorService = {
   },
   
   /**
-   * Get all exhibitors (admin only)
-   * @returns List of all exhibitors
+   * Get all exhibitors with pagination and filtering (admin only)
+   * @param params Query parameters for pagination and filtering
+   * @returns Paginated list of exhibitors with metadata
    */
-  getExhibitors: async () => {
-    return await adminApi.get('/exhibitors/admin/exhibitors');
+  getExhibitors: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'pending' | 'approved' | 'rejected';
+    isActive?: boolean;
+    search?: string;
+    sortBy?: 'createdAt' | 'companyName' | 'status' | 'contactPerson' | 'updatedAt';
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    const queryParams = new URLSearchParams();
+    
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+    
+    const url = `/exhibitors/admin/exhibitors${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return await adminApi.get(url);
   },
   
   /**

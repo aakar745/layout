@@ -32,10 +32,20 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'exhibitions_edit', label: 'Edit Exhibitions', group: 'Exhibitions' },
   { key: 'exhibitions_delete', label: 'Delete Exhibitions', group: 'Exhibitions' },
   
+  { key: 'amenities_view', label: 'View Amenities', group: 'Amenities' },
+  { key: 'amenities_create', label: 'Create Amenities', group: 'Amenities' },
+  { key: 'amenities_edit', label: 'Edit Amenities', group: 'Amenities' },
+  { key: 'amenities_delete', label: 'Delete Amenities', group: 'Amenities' },
+  
   { key: 'bookings_view', label: 'View Bookings', group: 'Bookings' },
   { key: 'bookings_create', label: 'Create Bookings', group: 'Bookings' },
   { key: 'bookings_edit', label: 'Edit Bookings', group: 'Bookings' },
   { key: 'bookings_delete', label: 'Delete Bookings', group: 'Bookings' },
+  
+  { key: 'invoices_view', label: 'View Invoices', group: 'Invoices' },
+  { key: 'invoices_create', label: 'Create Invoices', group: 'Invoices' },
+  { key: 'invoices_edit', label: 'Edit Invoices', group: 'Invoices' },
+  { key: 'invoices_delete', label: 'Delete Invoices', group: 'Invoices' },
   
   { key: 'exhibitors_view', label: 'View Exhibitors', group: 'Exhibitors' },
   { key: 'exhibitors_create', label: 'Create Exhibitors', group: 'Exhibitors' },

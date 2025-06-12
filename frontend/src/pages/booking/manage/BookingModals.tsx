@@ -107,6 +107,26 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
                 </div>
               )}
             </Descriptions.Item>
+            <Descriptions.Item label="Booked By">
+              {selectedBooking.bookingSource === 'exhibitor' && selectedBooking.exhibitorId ? (
+                <div>
+                  <div className="font-medium">{selectedBooking.exhibitorId.contactPerson}</div>
+                  <div className="text-sm text-gray-500">{selectedBooking.exhibitorId.email}</div>
+                  <Tag color="blue">Exhibitor Portal</Tag>
+                </div>
+              ) : selectedBooking.bookingSource === 'admin' && selectedBooking.userId ? (
+                <div>
+                  <div className="font-medium">{selectedBooking.userId.name || selectedBooking.userId.username}</div>
+                  <div className="text-sm text-gray-500">{selectedBooking.userId.email}</div>
+                  <Tag color="green">{selectedBooking.userId.role?.name || 'Admin'}</Tag>
+                </div>
+              ) : (
+                <span className="text-gray-400">System</span>
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Created At">
+              {new Date(selectedBooking.createdAt).toLocaleString()}
+            </Descriptions.Item>
             <Descriptions.Item label="Customer Name">
               {selectedBooking.customerName}
             </Descriptions.Item>
@@ -518,131 +538,4 @@ export const StatusUpdateModal: React.FC<StatusModalProps> = ({
       )}
     </Modal>
   );
-};
-
-/**
- * Displays a delete confirmation modal with styled UI
- */
-export const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => void, formatBookingNumber: (id: string, createdAt: string) => string) => {
-  Modal.confirm({
-    title: (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '12px',
-        color: '#101828',
-        padding: '20px 24px',
-        borderBottom: '1px solid #EAECF0'
-      }}>
-        <DeleteOutlined style={{ 
-          color: '#F04438',
-          fontSize: '22px'
-        }} />
-        <span style={{ 
-          fontSize: '18px',
-          fontWeight: 600,
-          lineHeight: '28px'
-        }}>
-          Delete Booking
-        </span>
-      </div>
-    ),
-    content: (
-      <div style={{ 
-        padding: '20px 24px',
-        color: '#475467'
-      }}>
-        <p style={{ 
-          fontSize: '14px',
-          lineHeight: '20px',
-          marginBottom: '8px' 
-        }}>
-          Are you sure you want to delete booking <strong>{formatBookingNumber(record._id, record.createdAt)}</strong>?
-        </p>
-        <p style={{ 
-          color: '#667085',
-          fontSize: '14px',
-          lineHeight: '20px',
-          marginBottom: 0 
-        }}>
-          This action cannot be undone and will permanently delete all associated data including invoices.
-        </p>
-      </div>
-    ),
-    footer: (
-      <div style={{ 
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '12px',
-        padding: '20px 24px',
-        borderTop: '1px solid #EAECF0',
-        marginTop: 0
-      }}>
-        <Button
-          onClick={() => Modal.destroyAll()}
-          style={{ 
-            height: '40px',
-            padding: '10px 18px',
-            borderRadius: '8px',
-            border: '1px solid #D0D5DD',
-            color: '#344054',
-            fontWeight: 500,
-            fontSize: '14px',
-            lineHeight: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)'
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
-          danger
-          type="primary"
-          onClick={() => {
-            handleDelete(record._id);
-            Modal.destroyAll();
-          }}
-          style={{ 
-            height: '40px',
-            padding: '10px 18px',
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: '#D92D20',
-            color: 'white',
-            fontWeight: 500,
-            fontSize: '14px',
-            lineHeight: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)'
-          }}
-        >
-          Delete
-        </Button>
-      </div>
-    ),
-    centered: true,
-    icon: null,
-    width: 400,
-    closable: true,
-    maskClosable: true,
-    className: 'delete-confirmation-modal',
-    styles: {
-      mask: { 
-        backgroundColor: 'rgba(52, 64, 84, 0.7)' 
-      },
-      content: {
-        padding: 0,
-        borderRadius: '12px',
-        boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.05), 0px 12px 16px -4px rgba(16, 24, 40, 0.1)'
-      },
-      body: {
-        padding: 0
-      },
-      footer: {
-        display: 'none'
-      }
-    }
-  });
 }; 

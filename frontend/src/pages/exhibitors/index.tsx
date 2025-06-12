@@ -1,31 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Table, Card, Button, Tag, Space, Modal, Select, Input, message, 
-  Popconfirm, Form, Switch, DatePicker, Tooltip, Row, Col, Divider,
-  Badge, Statistic, Dropdown, Menu, Typography, Radio, Alert
+  Card, Button, Space, Modal, Select, Input, message, 
+  Form, Switch, Typography, Radio, Alert, Row, Col,
+  Statistic, Tag, Badge, Divider
 } from 'antd';
 import { 
-  Typography as AntTypography, 
-  TableColumnsType
-} from 'antd';
-import { 
-  EditOutlined, DeleteOutlined, ReloadOutlined, 
-  SearchOutlined, FilterOutlined, UserOutlined, EyeOutlined,
-  CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  ExclamationCircleOutlined, MoreOutlined, ExportOutlined,
-  DownloadOutlined, ClockCircleOutlined, UserAddOutlined
+  UserOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  ExclamationCircleOutlined, ClockCircleOutlined, UserAddOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
+import * as XLSX from 'xlsx';
 import { useSelector, useDispatch } from 'react-redux';
 import { AppDispatch, RootState } from '../../store/store';
 import { fetchExhibitors, Exhibitor } from '../../store/slices/exhibitorSlice';
 import exhibitorService from '../../services/exhibitor';
-import dayjs from 'dayjs';
+import ExhibitorTable from './ExhibitorTable';
 import '../dashboard/Dashboard.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { TextArea, Search } = Input;
-const { RangePicker } = DatePicker;
 
 // Extended interface with all fields we need
 interface ExhibitorData extends Exhibitor {
@@ -38,7 +32,7 @@ interface ExhibitorData extends Exhibitor {
 
 const ExhibitorManagement: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { exhibitors, loading } = useSelector((state: RootState) => state.exhibitor);
+  const { exhibitors, loading, pagination, filters } = useSelector((state: RootState) => state.exhibitor);
   const [selectedExhibitor, setSelectedExhibitor] = useState<ExhibitorData | null>(null);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -48,13 +42,20 @@ const ExhibitorManagement: React.FC = () => {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Server-side filtering and pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | undefined>();
   const [searchText, setSearchText] = useState('');
-  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [sortBy, setSortBy] = useState<'createdAt' | 'companyName' | 'status' | 'contactPerson' | 'updatedAt'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
   const [form] = Form.useForm();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const hasSelected = selectedRowKeys.length > 0;
 
-  // Stats
+  // Stats - these will be calculated from total counts
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -62,26 +63,50 @@ const ExhibitorManagement: React.FC = () => {
     rejected: 0
   });
 
+  // Load exhibitors with current filters and pagination
+  const loadExhibitors = React.useCallback(() => {
+    dispatch(fetchExhibitors({
+      page: currentPage,
+      limit: pageSize,
+      status: statusFilter,
+      search: searchText.trim() || undefined,
+      sortBy,
+      sortOrder
+    }));
+  }, [dispatch, currentPage, pageSize, statusFilter, searchText, sortBy, sortOrder]);
+
   useEffect(() => {
-    dispatch(fetchExhibitors());
-  }, [dispatch]);
-  
+    loadExhibitors();
+  }, [loadExhibitors]);
+
+  // Calculate stats whenever pagination total changes
   useEffect(() => {
-    if (exhibitors?.length) {
-      // Cast exhibitors to ExhibitorData type (backend always includes these fields)
-      setFilteredData(exhibitors as any[]);
-      
-      // Calculate stats
-      const newStats = {
-        total: exhibitors.length,
-        pending: exhibitors.filter(ex => ex.status === 'pending').length,
-        approved: exhibitors.filter(ex => ex.status === 'approved').length,
-        rejected: exhibitors.filter(ex => ex.status === 'rejected').length
-      };
-      setStats(newStats);
+    if (pagination.total > 0) {
+      // For stats, we'll need to fetch count data separately or calculate from available data
+      // For now, use pagination total as total count
+      setStats({
+        total: pagination.total,
+        pending: 0, // We'd need separate API calls for these or include in response
+        approved: 0,
+        rejected: 0
+      });
     }
-  }, [exhibitors]);
+      }, [pagination]);
   
+  // Utility function for status tags (still used in modals)
+  const getStatusTag = (status: string) => {
+    switch(status) {
+      case 'approved':
+        return <Tag color="success">Approved</Tag>;
+      case 'pending':
+        return <Tag color="warning">Pending</Tag>;
+      case 'rejected':
+        return <Tag color="error">Rejected</Tag>;
+      default:
+        return <Tag>Unknown</Tag>;
+    }
+  };
+
   useEffect(() => {
     if (selectedExhibitor && isEditModalVisible) {
       form.setFieldsValue({
@@ -97,18 +122,7 @@ const ExhibitorManagement: React.FC = () => {
     }
   }, [selectedExhibitor, isEditModalVisible, form]);
 
-  const getStatusTag = (status: string) => {
-    switch(status) {
-      case 'approved':
-        return <Tag color="success">Approved</Tag>;
-      case 'pending':
-        return <Tag color="warning">Pending</Tag>;
-      case 'rejected':
-        return <Tag color="error">Rejected</Tag>;
-      default:
-        return <Tag>Unknown</Tag>;
-    }
-  };
+
 
   const handleUpdateStatus = async () => {
     if (!selectedExhibitor) return;
@@ -123,7 +137,7 @@ const ExhibitorManagement: React.FC = () => {
       message.success(`Exhibitor status updated to ${status}`);
       setIsUpdateModalVisible(false);
       // Refresh exhibitor list
-      dispatch(fetchExhibitors());
+      loadExhibitors();
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to update exhibitor status');
     } finally {
@@ -131,7 +145,7 @@ const ExhibitorManagement: React.FC = () => {
     }
   };
   
-  const handleEditExhibitor = async (values: any) => {
+  const handleEditExhibitorSubmit = async (values: any) => {
     if (!selectedExhibitor) return;
     
     try {
@@ -140,7 +154,7 @@ const ExhibitorManagement: React.FC = () => {
       message.success('Exhibitor details updated successfully');
       setIsEditModalVisible(false);
       // Refresh exhibitor list
-      dispatch(fetchExhibitors());
+      loadExhibitors();
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to update exhibitor details');
     } finally {
@@ -154,7 +168,7 @@ const ExhibitorManagement: React.FC = () => {
       await exhibitorService.deleteExhibitor(id);
       message.success('Exhibitor deleted successfully');
       // Refresh exhibitor list
-      dispatch(fetchExhibitors());
+      loadExhibitors();
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Failed to delete exhibitor');
     } finally {
@@ -162,90 +176,106 @@ const ExhibitorManagement: React.FC = () => {
     }
   };
 
+  // Server-side search handler
   const handleSearch = (value: string) => {
     setSearchText(value);
-    
-    if (!value) {
-      setFilteredData(exhibitors as any[]);
-      return;
-    }
-    
-    const searchLower = value.toLowerCase();
-    const filtered = exhibitors.filter(
-      (item) => 
-        item.companyName.toLowerCase().includes(searchLower) || 
-        item.contactPerson.toLowerCase().includes(searchLower) || 
-        item.email.toLowerCase().includes(searchLower) || 
-        item.phone.toLowerCase().includes(searchLower)
-    );
-    
-    setFilteredData(filtered as any[]);
+    setCurrentPage(1); // Reset to first page when searching
   };
   
+  // Server-side status filter handler
   const handleFilterByStatus = (value: any) => {
-    if (value === 'all') {
-      setFilteredData(exhibitors as any[]);
-      return;
-    }
-    
-    const filtered = exhibitors.filter(item => item.status === value);
-    setFilteredData(filtered as any[]);
+    setStatusFilter(value === 'all' ? undefined : value);
+    setCurrentPage(1); // Reset to first page when filtering
   };
   
-  const handleFilterByDate = (dates: any) => {
-    if (!dates || dates.length !== 2) {
-      setFilteredData(exhibitors as any[]);
-      return;
-    }
-    
-    const startDate = dates[0].startOf('day').toISOString();
-    const endDate = dates[1].endOf('day').toISOString();
-    
-    const filtered = exhibitors.filter(item => {
-      const createdAt = new Date((item as any).createdAt).toISOString();
-      return createdAt >= startDate && createdAt <= endDate;
-    });
-    
-    setFilteredData(filtered as any[]);
+  // Pagination change handler
+  const handleTableChange = (page: number, size: number) => {
+    setCurrentPage(page);
+    setPageSize(size);
   };
 
+  // Sort change handler
+  const handleSortChange = (field: string, order: 'ascend' | 'descend' | undefined) => {
+    if (order) {
+      setSortBy(field as any);
+      setSortOrder(order === 'ascend' ? 'asc' : 'desc');
+    } else {
+      setSortBy('createdAt');
+      setSortOrder('desc');
+    }
+    setCurrentPage(1); // Reset to first page when sorting
+  };
+
+  const handleExportToExcel = async (selectedOnly = false) => {
+    try {
+      let dataToExport = exhibitors;
+      
+      // If exporting selected only, filter the data
+      if (selectedOnly && selectedRowKeys.length > 0) {
+        dataToExport = exhibitors.filter(item => selectedRowKeys.includes(item._id));
+      }
+      
+      // If no data to export
+      if (dataToExport.length === 0) {
+        message.warning(selectedOnly ? 'No exhibitors selected for export' : 'No exhibitor data to export');
+        return;
+      }
+
+      // Prepare data for Excel export
+      const excelData = dataToExport.map((item: any) => ({
+        'Company Name': item.companyName,
+        'Contact Person': item.contactPerson,
+        'Email': item.email,
+        'Phone': item.phone,
+        'Status': item.status.charAt(0).toUpperCase() + item.status.slice(1),
+        'Active': item.isActive ? 'Yes' : 'No',
+        'Registration Date': new Date(item.createdAt).toLocaleDateString(),
+        'Address': item.address || '',
+        'Website': item.website || '',
+        'Description': item.description || ''
+      }));
+
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths for better formatting
+      const columnWidths = [
+        { wch: 25 }, // Company Name
+        { wch: 20 }, // Contact Person
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 12 }, // Status
+        { wch: 8 },  // Active
+        { wch: 15 }, // Registration Date
+        { wch: 40 }, // Address
+        { wch: 30 }, // Website
+        { wch: 50 }  // Description
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Exhibitors');
+
+      // Generate filename
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = selectedOnly 
+        ? `exhibitors-selected-${timestamp}.xlsx`
+        : `exhibitors-all-${timestamp}.xlsx`;
+
+      // Save the file
+      XLSX.writeFile(workbook, filename);
+
+      message.success(`${selectedOnly ? 'Selected exhibitors' : 'All exhibitors'} exported to Excel successfully`);
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error('Failed to export exhibitor data');
+    }
+  };
+
+  // Legacy CSV export function (keeping for backward compatibility)
   const handleExport = () => {
-    // Convert data to CSV format
-    const headers = ['Company Name', 'Contact Person', 'Email', 'Phone', 'Status', 'Active', 'Registration Date', 'Address', 'Website'];
-    const csvData = filteredData.map(item => [
-      item.companyName,
-      item.contactPerson,
-      item.email,
-      item.phone,
-      item.status,
-      item.isActive ? 'Yes' : 'No',
-      new Date(item.createdAt).toLocaleDateString(),
-      item.address || '',
-      item.website || ''
-    ]);
-    
-    // Add headers to the beginning
-    csvData.unshift(headers);
-    
-    // Convert to CSV string
-    const csvString = csvData.map(row => row.map(cell => 
-      typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))
-        ? `"${cell.replace(/"/g, '""')}"`
-        : cell
-    ).join(',')).join('\n');
-    
-    // Create a blob and download link
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `exhibitors-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    message.success('Exhibitor data exported successfully');
+    handleExportToExcel(true); // Export selected items to Excel
   };
   
   const handleDeleteMultiple = () => {
@@ -269,7 +299,7 @@ const ExhibitorManagement: React.FC = () => {
           
           // Clear selection and refresh list
           setSelectedRowKeys([]);
-          dispatch(fetchExhibitors());
+          loadExhibitors();
         } catch (error: any) {
           message.error('Failed to delete some exhibitors');
         } finally {
@@ -279,215 +309,27 @@ const ExhibitorManagement: React.FC = () => {
     });
   };
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (newSelectedRowKeys: React.Key[]) => {
-      setSelectedRowKeys(newSelectedRowKeys);
-    }
+  // Table action handlers
+  const handleViewExhibitor = (exhibitor: ExhibitorData) => {
+    setSelectedExhibitor(exhibitor);
+    setIsViewModalVisible(true);
   };
 
-  const columns: TableColumnsType<any> = [
-    {
-      title: 'Company',
-      dataIndex: 'companyName',
-      key: 'companyName',
-      width: 220,
-      fixed: 'left',
-      sorter: (a, b) => a.companyName.localeCompare(b.companyName),
-      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
-        <div style={{ padding: 8 }}>
-          <Input
-            placeholder="Search company or contact"
-            value={selectedKeys[0]}
-            onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-            onPressEnter={() => confirm()}
-            style={{ width: 188, marginBottom: 8, display: 'block' }}
-          />
-          <Space>
-            <Button
-              type="primary"
-              onClick={() => confirm()}
-              icon={<SearchOutlined />}
-              size="small"
-              style={{ width: 90 }}
-            >
-              Filter
-            </Button>
-            <Button
-              onClick={() => { 
-                if (clearFilters) {
-                  clearFilters();
-                }
-                confirm();
-              }}
-              size="small"
-              style={{ width: 90 }}
-            >
-              Reset
-            </Button>
-          </Space>
-        </div>
-      ),
-      filterIcon: (filtered) => (
-        <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />
-      ),
-      onFilter: (value, record) => {
-        const searchTerm = String(value).toLowerCase();
-        return (
-          record.companyName.toLowerCase().includes(searchTerm) ||
-          record.contactPerson.toLowerCase().includes(searchTerm)
-        );
-      },
-      render: (text: string, record: any) => (
-        <div>
-          <div style={{ fontWeight: 'bold' }}>{text}</div>
-          <div style={{ fontSize: '12px', color: '#888' }}>
-            Contact: {record.contactPerson}
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Contact',
-      dataIndex: 'email',
-      key: 'email',
-      width: 220,
-      render: (text: string, record: any) => (
-        <div>
-          <div>{text}</div>
-          <div style={{ fontSize: '12px' }}>{record.phone}</div>
-        </div>
-      ),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      filters: [
-        { text: 'Pending', value: 'pending' },
-        { text: 'Approved', value: 'approved' },
-        { text: 'Rejected', value: 'rejected' },
-      ],
-      onFilter: (value, record) => record.status === value,
-      render: (status: string) => getStatusTag(status),
-    },
-    {
-      title: 'Active',
-      dataIndex: 'isActive',
-      key: 'isActive',
-      width: 100,
-      filters: [
-        { text: 'Active', value: true },
-        { text: 'Inactive', value: false },
-      ],
-      onFilter: (value, record) => record.isActive === value,
-      render: (isActive: boolean) => (
-        <Tag color={isActive ? 'green' : 'red'}>
-          {isActive ? 'Active' : 'Inactive'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Registration Date',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 160,
-      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      render: (date: string) => (
-        <Tooltip title={new Date(date).toLocaleString()}>
-          {new Date(date).toLocaleDateString()}
-        </Tooltip>
-      ),
-    },
-    {
-      title: 'Address',
-      dataIndex: 'address',
-      key: 'address',
-      width: 200,
-      ellipsis: true,
-    },
-    {
-      title: 'Website',
-      dataIndex: 'website',
-      key: 'website',
-      width: 180,
-      render: (website: string) => (
-        website ? (
-          <a href={website} target="_blank" rel="noopener noreferrer">
-            {website.replace(/^https?:\/\/(www\.)?/i, '')}
-          </a>
-        ) : '-'
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      fixed: 'right',
-      width: 220,
-      render: (_: any, record: ExhibitorData) => (
-        <Space>
-          <Tooltip title="View Details">
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => {
-                setSelectedExhibitor(record);
-                setIsViewModalVisible(true);
-              }}
-            />
-          </Tooltip>
-          <Button
-            type="primary"
-            onClick={() => {
-              setSelectedExhibitor(record);
-              setStatus(record.status as 'pending' | 'approved' | 'rejected');
-              setRejectionReason(record.rejectionReason || '');
-              setIsUpdateModalVisible(true);
-            }}
-          >
-            Update Status
-          </Button>
-          <Dropdown
-            overlay={
-              <Menu>
-                <Menu.Item 
-                  key="edit" 
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    setSelectedExhibitor(record);
-                    setIsEditModalVisible(true);
-                  }}
-                >
-                  Edit
-                </Menu.Item>
-                <Menu.Item 
-                  key="delete" 
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={(e) => {
-                    e.domEvent.stopPropagation();
-                    Modal.confirm({
-                      title: 'Delete Exhibitor',
-                      content: 'Are you sure you want to delete this exhibitor? This action cannot be undone.',
-                      okText: 'Yes',
-                      okType: 'danger',
-                      cancelText: 'No',
-                      onOk: () => handleDeleteExhibitor(record._id)
-                    });
-                  }}
-                >
-                  Delete
-                </Menu.Item>
-              </Menu>
-            }
-            trigger={['click']}
-          >
-            <Button icon={<MoreOutlined />} />
-          </Dropdown>
-        </Space>
-      ),
-    },
-  ];
+  const handleEditExhibitor = (exhibitor: ExhibitorData) => {
+    setSelectedExhibitor(exhibitor);
+    setIsEditModalVisible(true);
+  };
+
+  const handleUpdateStatusAction = (exhibitor: ExhibitorData) => {
+    setSelectedExhibitor(exhibitor);
+    setStatus(exhibitor.status as 'pending' | 'approved' | 'rejected');
+    setRejectionReason(exhibitor.rejectionReason || '');
+    setIsUpdateModalVisible(true);
+  };
+
+  const handleSelectionChange = (newSelectedRowKeys: React.Key[]) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+  };
 
   return (
     <div className="dashboard-container">
@@ -501,14 +343,23 @@ const ExhibitorManagement: React.FC = () => {
             </Space>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              icon={<UserAddOutlined />}
-              onClick={() => setIsEditModalVisible(true)}
-              size="large"
-            >
-              Add Exhibitor
-            </Button>
+            <Space>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={() => handleExportToExcel(false)}
+                size="large"
+              >
+                Export to Excel
+              </Button>
+              <Button
+                type="primary"
+                icon={<UserAddOutlined />}
+                onClick={() => setIsEditModalVisible(true)}
+                size="large"
+              >
+                Add Exhibitor
+              </Button>
+            </Space>
           </Col>
         </Row>
       </div>
@@ -579,10 +430,9 @@ const ExhibitorManagement: React.FC = () => {
               </Select>
             </Col>
             <Col xs={24} sm={8} md={6} lg={6}>
-              <RangePicker 
-                style={{ width: '100%' }}
-                onChange={handleFilterByDate}
-              />
+              <Text type="secondary">
+                Page {currentPage} of {pagination.pages} ({pagination.total} total)
+              </Text>
             </Col>
           </Row>
 
@@ -593,8 +443,12 @@ const ExhibitorManagement: React.FC = () => {
                 <Button danger onClick={handleDeleteMultiple}>
                   Delete Selected
                 </Button>
-                <Button type="primary" onClick={handleExport}>
-                  Export Selected
+                <Button 
+                  type="primary" 
+                  icon={<DownloadOutlined />}
+                  onClick={handleExport}
+                >
+                  Export Selected to Excel
                 </Button>
               </Space>
             </Row>
@@ -604,18 +458,21 @@ const ExhibitorManagement: React.FC = () => {
 
       {/* Table Section */}
       <Card className="info-card">
-        <Table
-          rowSelection={rowSelection}
-          dataSource={filteredData}
-          columns={columns}
-          rowKey="_id"
+        <ExhibitorTable
+          exhibitors={exhibitors as any[]}
           loading={loading}
-          pagination={{ 
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-          }}
-          scroll={{ x: 1500 }}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          total={pagination.total}
+          totalPages={pagination.pages}
+          selectedRowKeys={selectedRowKeys}
+          onSelectionChange={handleSelectionChange}
+          onView={handleViewExhibitor}
+          onEdit={handleEditExhibitor}
+          onUpdateStatus={handleUpdateStatusAction}
+          onDelete={handleDeleteExhibitor}
+          onTableChange={handleTableChange}
+          onSortChange={handleSortChange}
         />
       </Card>
 
@@ -915,7 +772,7 @@ const ExhibitorManagement: React.FC = () => {
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleEditExhibitor}
+          onFinish={handleEditExhibitorSubmit}
         >
           <Form.Item
             name="companyName"
