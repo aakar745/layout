@@ -40,6 +40,7 @@ const InvoiceDetails = lazy(() => import('./pages/invoice/[id]'));
 const InvoiceList = lazy(() => import('./pages/invoice/list'));
 const ExhibitorManagement = lazy(() => import('./pages/exhibitors'));
 const AmenitiesPage = lazy(() => import('./pages/amenities/index'));
+const LettersPage = lazy(() => import('./pages/letters/index'));
 
 // Preload critical routes to avoid loading delays
 const preloadCriticalRoutes = () => {
@@ -323,6 +324,16 @@ function App() {
                   <PrivateRoute>
                     <MainLayout>
                       <AmenitiesPage />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/letters"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <LettersPage />
                     </MainLayout>
                   </PrivateRoute>
                 }

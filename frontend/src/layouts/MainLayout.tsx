@@ -17,6 +17,7 @@ import {
   BarChartOutlined,
   FileTextOutlined,
   GiftOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -252,6 +253,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/amenities'),
     },
     {
+      key: 'letters',
+      icon: <MailOutlined />,
+      label: 'Letters',
+      requiredPermission: 'view_letters',
+      onClick: () => navigate('/letters'),
+    },
+    {
       key: 'invoices',
       icon: <FileTextOutlined />,
       label: 'Invoices',
@@ -342,6 +350,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'stall-types': 'view_stall_types',
       'bookings': 'view_bookings',
       'amenities': 'view_amenities',
+      'letters': 'view_letters',
       'invoices': 'view_invoices',
       'exhibitors': 'view_exhibitors',
       'index': 'users_view',

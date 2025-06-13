@@ -128,6 +128,31 @@ export interface Exhibition {
   }>;
   
   specialRequirements?: string;
+
+  // Letter Settings
+  letterSettings?: {
+    // Stand Possession Letter
+    standPossessionLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number; // e.g., 20 or 30 days
+      };
+    };
+    
+    // Transport Letter
+    transportLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number; // e.g., 20 or 30 days
+      };
+    };
+  };
 }
 
 export interface Hall {

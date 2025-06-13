@@ -93,6 +93,31 @@ interface ExhibitionFormData {
   }>;
   
   specialRequirements?: string;
+
+  // Letter Settings
+  letterSettings?: {
+    // Stand Possession Letter
+    standPossessionLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number;
+      };
+    };
+    
+    // Transport Letter
+    transportLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number;
+      };
+    };
+  };
 }
 
 const ExhibitionEdit: React.FC = () => {
@@ -203,7 +228,9 @@ const ExhibitionEdit: React.FC = () => {
           perSqm: amenity.perSqm,
           quantity: amenity.quantity
         })) || [],
-        specialRequirements: values.specialRequirements
+        specialRequirements: values.specialRequirements,
+        // Letter Settings
+        letterSettings: values.letterSettings
       };
 
       await dispatch(updateExhibition({ id: exhibitionId, data: exhibitionData })).unwrap();
@@ -281,7 +308,9 @@ const ExhibitionEdit: React.FC = () => {
     // Amenities settings
     amenities: currentExhibition.amenities || [],
     basicAmenities: currentExhibition.basicAmenities || [],
-    specialRequirements: currentExhibition.specialRequirements
+    specialRequirements: currentExhibition.specialRequirements,
+    // Letter Settings
+    letterSettings: currentExhibition.letterSettings
   };
 
   return (

@@ -92,6 +92,31 @@ interface ExhibitionFormData {
   }>;
   
   specialRequirements?: string;
+
+  // Letter Settings
+  letterSettings?: {
+    // Stand Possession Letter
+    standPossessionLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number;
+      };
+    };
+    
+    // Transport Letter
+    transportLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number;
+      };
+    };
+  };
 }
 
 const ExhibitionCreate: React.FC = () => {
@@ -163,7 +188,9 @@ const ExhibitionCreate: React.FC = () => {
           perSqm: amenity.perSqm,
           quantity: amenity.quantity
         })) || [],
-        specialRequirements: values.specialRequirements
+        specialRequirements: values.specialRequirements,
+        // Letter Settings
+        letterSettings: values.letterSettings
       };
 
       const result = await dispatch(createExhibition(exhibitionData)).unwrap();

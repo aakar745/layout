@@ -47,6 +47,7 @@ import GeneralSettings from '../../exhibition/settings/GeneralSettings';
 import HeaderSettings from '../../exhibition/settings/HeaderSettings';
 import FooterSettings from '../../exhibition/settings/FooterSettings';
 import AmenitiesSettings from '../../exhibition/settings/AmenitiesSettings';
+import LetterSettings from '../../exhibition/settings/LetterSettings';
 
 interface ExhibitionFormProps {
   initialValues?: Partial<Exhibition>;
@@ -85,6 +86,11 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
       key: 'amenities',
       label: 'Amenities',
       children: <AmenitiesSettings form={form} />
+    },
+    {
+      key: 'letters',
+      label: 'Letters',
+      children: <LetterSettings form={form} />
     }
   ];
 

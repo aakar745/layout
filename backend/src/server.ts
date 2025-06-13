@@ -14,6 +14,7 @@ import { authenticateExhibitor } from './middleware/exhibitorAuth';
 import { urlRewriteMiddleware } from './middleware/url-rewrite.middleware';
 import { initializeSocket } from './services/socket.service';
 import { initializeCleanupService } from './services/cleanup.service';
+import { initializeLetterScheduler } from './services/letterScheduler.service';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -30,6 +31,7 @@ import exhibitorBookingRoutes from './routes/exhibitorBooking.routes';
 import fixtureRoutes from './routes/fixture.routes';
 import settingsRoutes from './routes/settings.routes';
 import notificationRoutes from './routes/notification.routes';
+import exhibitionLetterRoutes from './routes/exhibitionLetter.routes';
 
 // Load environment variables
 dotenv.config();
@@ -296,6 +298,7 @@ app.use('/api/exhibitor-bookings', exhibitorBookingRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/exhibition-letters', exhibitionLetterRoutes);
 
 // Direct endpoint for exhibitor booking that doesn't rely on the global middleware order
 app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
@@ -411,6 +414,9 @@ connectDB().then(() => {
   
   // Initialize cleanup service for temporary files
   initializeCleanupService();
+  
+  // Initialize letter scheduler service
+  initializeLetterScheduler();
 }).catch(err => {
   console.error('Error connecting to MongoDB:', err);
 });

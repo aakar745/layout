@@ -132,6 +132,31 @@ export interface IExhibition extends Document {
   }>;
 
   specialRequirements?: string;
+
+  // Letter Settings
+  letterSettings?: {
+    // Stand Possession Letter
+    standPossessionLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number; // e.g., 20 or 30 days
+      };
+    };
+    
+    // Transport Letter
+    transportLetter?: {
+      isEnabled: boolean;
+      template: string;
+      subject: string;
+      automaticSending?: {
+        isEnabled: boolean;
+        daysBeforeExhibition: number; // e.g., 20 or 30 days
+      };
+    };
+  };
 }
 
 const exhibitionSchema = new Schema({
@@ -474,6 +499,63 @@ const exhibitionSchema = new Schema({
     type: String,
     trim: true,
     maxlength: 1000
+  },
+
+  // Letter Settings
+  letterSettings: {
+    // Stand Possession Letter
+    standPossessionLetter: {
+      isEnabled: {
+        type: Boolean,
+        default: false
+      },
+      template: {
+        type: String,
+        trim: true
+      },
+      subject: {
+        type: String,
+        trim: true
+      },
+      automaticSending: {
+        isEnabled: {
+          type: Boolean,
+          default: false
+        },
+        daysBeforeExhibition: {
+          type: Number,
+          min: 0,
+          max: 30
+        }
+      }
+    },
+    
+    // Transport Letter
+    transportLetter: {
+      isEnabled: {
+        type: Boolean,
+        default: false
+      },
+      template: {
+        type: String,
+        trim: true
+      },
+      subject: {
+        type: String,
+        trim: true
+      },
+      automaticSending: {
+        isEnabled: {
+          type: Boolean,
+          default: false
+        },
+        daysBeforeExhibition: {
+          type: Number,
+          min: 0,
+          max: 30
+        }
+      }
+    }
   }
 }, {
   timestamps: true,
