@@ -309,16 +309,29 @@ const initialState: BookingState = {
  */
 export const fetchBookings = createAsyncThunk(
   'booking/fetchBookings',
-  async (pagination: { page?: number; limit?: number } = {}, { rejectWithValue }) => {
+  async (params: { 
+    page?: number; 
+    limit?: number;
+    search?: string;
+    status?: string | string[];
+    exhibitionId?: string;
+    startDate?: string;
+    endDate?: string;
+  } = {}, { rejectWithValue }) => {
     try {
-      const params: any = {};
+      const queryParams: any = {};
       
-      // Add pagination parameters if provided
-      if (pagination.page) params.page = pagination.page;
-      if (pagination.limit) params.limit = pagination.limit;
+      // Add all parameters if provided
+      if (params.page) queryParams.page = params.page;
+      if (params.limit) queryParams.limit = params.limit;
+      if (params.search) queryParams.search = params.search;
+      if (params.status) queryParams.status = params.status;
+      if (params.exhibitionId) queryParams.exhibitionId = params.exhibitionId;
+      if (params.startDate) queryParams.startDate = params.startDate;
+      if (params.endDate) queryParams.endDate = params.endDate;
       
       const response = await api.get('/bookings', { 
-        params 
+        params: queryParams 
       });
       
       // Return both data and pagination metadata

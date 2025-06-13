@@ -8,6 +8,7 @@ import {
   updateExhibitorStatus,
   deleteExhibitor,
   updateExhibitorDetails,
+  createExhibitor,
   testRoute,
   sendOTP,
   verifyOTP,
@@ -36,6 +37,7 @@ router.put('/profile', authenticateExhibitor, updateProfile);
 
 // Admin routes (require admin auth)
 router.get('/admin/exhibitors', authenticate, getAllExhibitors);
+router.post('/admin/exhibitors', authenticate, createExhibitor);
 router.put('/admin/exhibitors/:id/status', authenticate, updateExhibitorStatus);
 router.put('/admin/exhibitors/:id', authenticate, updateExhibitorDetails);
 router.delete('/admin/exhibitors/:id', authenticate, deleteExhibitor);

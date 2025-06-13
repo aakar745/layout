@@ -10,7 +10,8 @@ import {
   assignUsersToExhibition,
   unassignUserFromExhibition,
   getAssignedUsers,
-  getAllExhibitionsForAssignment
+  getAllExhibitionsForAssignment,
+  getExhibitionProgress
 } from '../controllers/exhibition.controller';
 import { protect, authorize } from '../middleware/auth.middleware';
 import hallRoutes from './hall.routes';
@@ -136,5 +137,9 @@ router.delete('/file/:type/:filename', authorize('admin'), (req, res) => {
     res.status(500).json({ success: false, message: 'Error deleting file', error });
   }
 });
+
+router
+  .route('/:id/progress')
+  .get(getExhibitionProgress);
 
 export default router; 

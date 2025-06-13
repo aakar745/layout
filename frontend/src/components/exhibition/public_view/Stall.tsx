@@ -192,7 +192,7 @@ const Stall: React.FC<StallProps> = ({
   };
 
   const dimensions = stall.dimensions || defaultDimensions;
-  const stallType = stall.typeName || 'Standard';
+  const stallType = stall.typeName || stall.stallType?.name || (typeof stall.stallTypeId === 'object' ? stall.stallTypeId?.name : null) || 'Standard';
   
   // Format price for display
   const formatPrice = (price: number) => {

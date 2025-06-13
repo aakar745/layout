@@ -885,4 +885,168 @@ export const updateExhibitorDetails = async (req: Request, res: Response) => {
     console.error('Error updating exhibitor details:', error);
     res.status(500).json({ message: 'Server error updating exhibitor details' });
   }
+};
+
+/**
+ * Create a new exhibitor (admin only)
+ * POST /api/admin/exhibitors
+ * Private route (requires admin authentication)
+ */
+export const createExhibitor = async (req: Request, res: Response) => {
+  try {
+    const { 
+      companyName, 
+      contactPerson, 
+      email, 
+      phone, 
+      address, 
+      website, 
+      description,
+      panNumber,
+      gstNumber,
+      city,
+      state,
+      pinCode,
+      isActive = true 
+    } = req.body;
+
+    // Check if exhibitor with this email already exists
+    const existingExhibitor = await Exhibitor.findOne({ email });
+    if (existingExhibitor) {
+      return res.status(400).json({ message: 'Exhibitor with this email already exists' });
+    }
+
+    // Generate a secure temporary password
+    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+
+    // Create new exhibitor with approved status (since admin is creating)
+    const exhibitor = await Exhibitor.create({
+      companyName,
+      contactPerson,
+      email,
+      phone,
+      address: address || '',
+      website,
+      description,
+      panNumber,
+      gstNumber,
+      city,
+      state,
+      pinCode,
+      password: tempPassword,
+      status: 'approved', // Admin-created exhibitors are pre-approved
+      isActive
+    });
+
+    // Send email with login credentials
+    try {
+      // Get email transport configuration
+      const { transporter, isTestMode, getTestMessageUrl } = await getEmailTransporter();
+      
+      // Send mail with login credentials
+      const info = await transporter.sendMail({
+        from: emailConfig.from,
+        to: exhibitor.email,
+        subject: 'Your Exhibition Account Has Been Created',
+        text: `Your exhibitor account has been created. Email: ${email}, Temporary Password: ${tempPassword}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <h1 style="color: #333; text-align: center;">Account Created</h1>
+            <p style="font-size: 16px; line-height: 1.5;">Your exhibitor account has been created by the administrator.</p>
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="margin-top: 0;">Login Credentials:</h3>
+              <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+              <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <code style="background-color: #e0e0e0; padding: 2px 4px; border-radius: 3px;">${tempPassword}</code></p>
+            </div>
+            <p style="font-size: 16px; line-height: 1.5; color: #d9534f;"><strong>Important:</strong> Please change your password after your first login for security.</p>
+            <p style="font-size: 16px; line-height: 1.5;">You can now access all exhibitor features including:</p>
+            <ul style="font-size: 16px; line-height: 1.5;">
+              <li>Booking exhibition stalls</li>
+              <li>Managing your bookings</li>
+              <li>Updating your company profile</li>
+              <li>Viewing exhibition details</li>
+            </ul>
+            <p style="font-size: 14px; color: #777; margin-top: 30px;">If you have any questions, please contact our support team.</p>
+          </div>
+        `
+      });
+      
+      // Log test message URL if in test mode
+      if (isTestMode && getTestMessageUrl) {
+        console.log('Preview URL: %s', getTestMessageUrl(info));
+      }
+      
+      console.log('Login credentials email sent to:', email);
+    } catch (emailError) {
+      console.error('Error sending credentials email:', emailError);
+      // Continue even if email fails - admin can manually share credentials
+    }
+
+    // Send notification to all admin users about the new exhibitor
+    try {
+      // Find all admin users
+      const adminUsers = await User.find({ isActive: true });
+      
+      if (adminUsers && adminUsers.length > 0) {
+        // Notify each admin (except the one who created it)
+        for (const admin of adminUsers) {
+          if (admin._id.toString() !== req.user?._id?.toString()) {
+            await createNotification(
+              admin._id,
+              'admin',
+              'New Exhibitor Created',
+              `A new exhibitor "${companyName}" has been created by admin.`,
+              NotificationType.EXHIBITOR_REGISTERED,
+              {
+                priority: NotificationPriority.MEDIUM,
+                entityId: exhibitor._id,
+                entityType: 'Exhibitor',
+                data: {
+                  exhibitorId: exhibitor._id.toString(),
+                  companyName: exhibitor.companyName,
+                  contactPerson: exhibitor.contactPerson,
+                  email: exhibitor.email,
+                  phone: exhibitor.phone,
+                  createdBy: 'admin',
+                  createdAt: exhibitor.createdAt
+                }
+              }
+            );
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error sending admin notification:', notificationError);
+      // Continue even if notification fails
+    }
+
+    // Don't send password in response for security
+    const exhibitorResponse = {
+      _id: exhibitor._id,
+      companyName: exhibitor.companyName,
+      contactPerson: exhibitor.contactPerson,
+      email: exhibitor.email,
+      phone: exhibitor.phone,
+      address: exhibitor.address,
+      website: exhibitor.website,
+      description: exhibitor.description,
+      panNumber: exhibitor.panNumber,
+      gstNumber: exhibitor.gstNumber,
+      city: exhibitor.city,
+      state: exhibitor.state,
+      pinCode: exhibitor.pinCode,
+      status: exhibitor.status,
+      isActive: exhibitor.isActive,
+      createdAt: exhibitor.createdAt
+    };
+
+    res.status(201).json({
+      exhibitor: exhibitorResponse,
+      message: 'Exhibitor created successfully. Login credentials have been sent via email.',
+      tempPasswordSent: true
+    });
+  } catch (error) {
+    console.error('Error creating exhibitor:', error);
+    res.status(500).json({ message: 'Server error creating exhibitor' });
+  }
 }; 

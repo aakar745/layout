@@ -308,7 +308,7 @@ const ExhibitorTable: React.FC<ExhibitorTableProps> = ({
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 220,
+      width: 230,
       render: (_: any, record: ExhibitorData) => (
         <Space>
           <Tooltip title="View Details">

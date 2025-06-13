@@ -13,7 +13,8 @@ import {
   Divider, 
   Avatar, 
   Skeleton,
-  Progress
+  Progress,
+  Spin
 } from 'antd';
 import { 
   ArrowLeftOutlined,
@@ -29,13 +30,15 @@ import {
   ShopOutlined,
   CheckCircleOutlined,
   UnorderedListOutlined,
-  EyeOutlined
+  EyeOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
 import { fetchExhibition, fetchHalls, fetchStalls } from '../../../store/slices/exhibitionSlice';
 import { getExhibitionUrl, getPublicExhibitionUrl } from '@/utils/url';
 import dayjs from 'dayjs';
+import exhibitionService, { Exhibition, Hall, Stall, Fixture } from '../../../services/exhibition';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -90,12 +93,21 @@ const ExhibitionDetails: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { currentExhibition, halls, stalls, loading } = useSelector((state: RootState) => state.exhibition);
   const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [exhibitionStats, setExhibitionStats] = useState<{
+    hallCount: number;
+    stallCount: number;
+    bookedStallCount: number;
+    progress?: any;
+  } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
       dispatch(fetchExhibition(id));
       dispatch(fetchHalls(id));
       dispatch(fetchStalls({ exhibitionId: id }));
+      // Fetch real stats data
+      fetchExhibitionStats(id);
     }
   }, [id, dispatch]);
 
@@ -103,53 +115,82 @@ const ExhibitionDetails: React.FC = () => {
     if (currentExhibition) {
       calculateProgress();
     }
-  }, [currentExhibition]);
+  }, [currentExhibition, exhibitionStats]);
+
+  // Fetch real exhibition statistics
+  const fetchExhibitionStats = async (exhibitionId: string) => {
+    try {
+      setStatsLoading(true);
+      const data = await exhibitionService.getExhibitionProgress(exhibitionId);
+      setExhibitionStats({
+        hallCount: halls?.length || 0,
+        stallCount: data.stats.totalStalls,
+        bookedStallCount: data.stats.bookedStalls,
+        progress: data.progress
+      });
+    } catch (error) {
+      console.error('Failed to fetch exhibition stats:', error);
+      // Fallback to calculating from available data
+      setExhibitionStats({
+        hallCount: halls?.length || 0,
+        stallCount: stalls?.length || 0,
+        bookedStallCount: stalls?.filter((s: any) => s.status === 'booked').length || 0
+      });
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   // Calculate stats from available data
   const getExhibitionStats = () => {
+    if (exhibitionStats) {
+      return exhibitionStats;
+    }
+
     if (!currentExhibition) {
+      return { hallCount: 0, stallCount: 0, bookedStallCount: 0 };
+    }
+
+    // Use real stats from backend if available
+    if (currentExhibition.stats) {
       return {
-        hallCount: 0,
-        stallCount: 0,
-        bookedStallCount: 0,
-        availableStallCount: 0
+        hallCount: halls?.length || currentExhibition.hallCount || 0,
+        stallCount: currentExhibition.stats.totalStalls,
+        bookedStallCount: currentExhibition.stats.bookedStalls
       };
     }
 
-    // Use halls from Redux store
-    const hallCount = halls.length || 0;
-    
-    // Count stalls from Redux store
-    let stallCount = stalls.length || 0;
-    let bookedStallCount = stalls.filter(
-      stall => stall.status === 'booked' || stall.status === 'reserved'
-    ).length;
-    
-    // If no stalls in Redux store, fall back to exhibition data
-    if (stallCount === 0) {
-      if (currentExhibition.stalls && currentExhibition.stalls.length > 0) {
-        stallCount = currentExhibition.stalls.length;
-        bookedStallCount = currentExhibition.stalls.filter(
-          stall => stall.status === 'booked' || stall.status === 'reserved'
-        ).length;
-      } else {
-        // Last resort - use count stats if available
-        stallCount = currentExhibition.stallCount || 0;
-        bookedStallCount = currentExhibition.bookedStallCount || 0;
-      }
-    }
-    
+    // Fallback to calculating from Redux state
     return {
-      hallCount,
-      stallCount,
-      bookedStallCount,
-      availableStallCount: stallCount - bookedStallCount
+      hallCount: halls?.length || 0,
+      stallCount: stalls?.length || 0,
+      bookedStallCount: stalls?.filter((s: any) => s.status === 'booked').length || 0
     };
   };
 
   const calculateProgress = () => {
     if (!currentExhibition) return 0;
 
+    // Use real progress data from fetched stats if available
+    if (exhibitionStats?.progress?.combinedProgress !== undefined) {
+      return setProgressPercent(exhibitionStats.progress.combinedProgress);
+    }
+    
+    // Use real progress data from backend if available
+    if (currentExhibition.progress?.combinedProgress !== undefined) {
+      return setProgressPercent(currentExhibition.progress.combinedProgress);
+    }
+    
+    // Fallback to stall booking progress if available
+    if (exhibitionStats?.progress?.stallBookingProgress !== undefined) {
+      return setProgressPercent(exhibitionStats.progress.stallBookingProgress);
+    }
+    
+    if (currentExhibition.progress?.stallBookingProgress !== undefined) {
+      return setProgressPercent(currentExhibition.progress.stallBookingProgress);
+    }
+
+    // Final fallback to time-based progress (old behavior)
     const now = new Date();
     const start = new Date(currentExhibition.startDate);
     const end = new Date(currentExhibition.endDate);
@@ -342,6 +383,21 @@ const ExhibitionDetails: React.FC = () => {
                     '100%': '#87d068',
                   }}
                 />
+                
+                {/* Show detailed progress breakdown if available */}
+                {currentExhibition.progress && (
+                  <div style={{ marginTop: '12px', fontSize: '12px', color: '#8c8c8c' }}>
+                    <div>Stall Booking: {currentExhibition.progress.stallBookingProgress}%</div>
+                    <div>Timeline: {currentExhibition.progress.timeProgress}%</div>
+                  </div>
+                )}
+                
+                {/* Show stall statistics if available */}
+                {currentExhibition.stats && (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#595959' }}>
+                    {currentExhibition.stats.bookedStalls}/{currentExhibition.stats.totalStalls} stalls booked
+                  </div>
+                )}
               </Card>
             </Col>
           </Row>
@@ -488,42 +544,89 @@ const ExhibitionDetails: React.FC = () => {
         
         <Col xs={24} lg={8}>
           <Card 
-            title="Exhibition Stats" 
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Exhibition Stats</span>
+                <Button 
+                  type="text" 
+                  size="small"
+                  loading={statsLoading}
+                  onClick={() => id && fetchExhibitionStats(id)}
+                  icon={<ReloadOutlined />}
+                  title="Refresh Stats"
+                />
+              </div>
+            }
             style={{ 
               borderRadius: '12px',
               marginBottom: '24px'
             }}
           >
-            <Row gutter={[16, 24]}>
-              <Col span={12}>
-                <Statistic 
-                  title="Halls"
-                  value={getExhibitionStats().hallCount}
-                  prefix={<AppstoreOutlined />}
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="Stalls"
-                  value={getExhibitionStats().stallCount}
-                  prefix={<ShopOutlined />}
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="Booked Stalls"
-                  value={getExhibitionStats().bookedStallCount}
-                  prefix={<CheckCircleOutlined />}
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="Available Stalls"
-                  value={getExhibitionStats().availableStallCount}
-                  prefix={<UnorderedListOutlined />}
-                />
-              </Col>
-            </Row>
+            {statsLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <Spin size="large" />
+                <div style={{ marginTop: '12px' }}>
+                  <Text type="secondary">Loading real-time statistics...</Text>
+                </div>
+              </div>
+            ) : (
+              <Row gutter={[16, 24]}>
+                <Col span={12}>
+                  <Statistic 
+                    title="Halls"
+                    value={getExhibitionStats().hallCount}
+                    prefix={<AppstoreOutlined />}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic 
+                    title="Stalls"
+                    value={getExhibitionStats().stallCount}
+                    prefix={<ShopOutlined />}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic 
+                    title="Booked Stalls"
+                    value={getExhibitionStats().bookedStallCount}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ color: '#52c41a' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Statistic 
+                    title="Available Stalls"
+                    value={getExhibitionStats().stallCount - getExhibitionStats().bookedStallCount}
+                    prefix={<UnorderedListOutlined />}
+                    valueStyle={{ color: '#1890ff' }}
+                  />
+                </Col>
+              </Row>
+            )}
+            
+            {/* Progress Section */}
+            <Divider style={{ margin: '16px 0' }} />
+            
+            <div style={{ marginBottom: '8px' }}>
+              <Text type="secondary">Exhibition Progress</Text>
+            </div>
+            <Progress 
+              percent={progressPercent} 
+              status={progressPercent === 100 ? 'success' : 'active'}
+              strokeColor={{
+                '0%': '#108ee9',
+                '100%': '#87d068',
+              }}
+            />
+            
+            {/* Show detailed progress breakdown if available */}
+            {exhibitionStats?.progress && (
+              <div style={{ marginTop: '12px', fontSize: '12px', color: '#8c8c8c' }}>
+                <div>Stall Booking: {exhibitionStats.progress.stallBookingProgress}%</div>
+                <div>Time Progress: {exhibitionStats.progress.timeProgress}%</div>
+                <div>Combined: {exhibitionStats.progress.combinedProgress}%</div>
+              </div>
+            )}
           </Card>
           
           <Card 

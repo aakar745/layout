@@ -50,102 +50,149 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
         setIsDetailsModalVisible(false);
         setSelectedBooking(null);
       }}
-      footer={[
-        <Button 
-          key="updateStatus"
-          type="primary"
-          disabled={!selectedBooking}
-          onClick={() => {
-            if (selectedBooking) {
-              setSelectedStatus(selectedBooking.status);
-              setRejectionReasonText(selectedBooking.rejectionReason || '');
-              setIsStatusModalVisible(true);
-            }
-          }}
-        >
-          Update Status
-        </Button>,
-        <Button
-          key="close"
-          onClick={() => {
-            setIsDetailsModalVisible(false);
-            setSelectedBooking(null);
-          }}
-        >
-          Close
-        </Button>
-      ]}
+      footer={null}
       width={800}
+      styles={{
+        body: { padding: '16px' }
+      }}
     >
       {selectedBooking && (
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Descriptions bordered={true} column={2}>
-            <Descriptions.Item label="Booking Number" span={2}>
-              {formatBookingNumber(selectedBooking._id, selectedBooking.createdAt)}
-              <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
-                (ID: {selectedBooking._id})
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Exhibition" span={2}>
-              {selectedBooking.exhibitionId.name}
-            </Descriptions.Item>
-            <Descriptions.Item label="Status" span={2}>
-              <Tag color={
-                selectedBooking.status === 'confirmed' ? 'success' :
-                selectedBooking.status === 'approved' ? 'blue' :
-                selectedBooking.status === 'pending' ? 'warning' :
-                selectedBooking.status === 'rejected' ? 'error' :
-                'default'
-              }>
-                {selectedBooking.status.toUpperCase()}
-              </Tag>
-              {selectedBooking.rejectionReason && (
-                <div style={{ marginTop: 8 }}>
-                  <Text type="secondary">Rejection Reason:</Text>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Card title="Booking Information" size="small" styles={{ body: { padding: '16px' } }}>
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              {/* Booking Header */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '12px 16px',
+                backgroundColor: '#fafafa',
+                borderRadius: '6px',
+                border: '1px solid #f0f0f0'
+              }}>
+                <div>
+                  <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                    {formatBookingNumber(selectedBooking._id, selectedBooking.createdAt)}
+                  </Text>
                   <br />
-                  <Text>{selectedBooking.rejectionReason}</Text>
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    {selectedBooking.exhibitionId.name}
+                  </Text>
                 </div>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Booked By">
-              {selectedBooking.bookingSource === 'exhibitor' && selectedBooking.exhibitorId ? (
-                <div>
-                  <div className="font-medium">{selectedBooking.exhibitorId.contactPerson}</div>
-                  <div className="text-sm text-gray-500">{selectedBooking.exhibitorId.email}</div>
-                  <Tag color="blue">Exhibitor Portal</Tag>
+                <div style={{ textAlign: 'right' }}>
+                  <Tag color={
+                    selectedBooking.status === 'confirmed' ? 'success' :
+                    selectedBooking.status === 'approved' ? 'blue' :
+                    selectedBooking.status === 'pending' ? 'warning' :
+                    selectedBooking.status === 'rejected' ? 'error' :
+                    'default'
+                  } style={{ fontSize: '12px', fontWeight: 500 }}>
+                    {selectedBooking.status.toUpperCase()}
+                  </Tag>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {new Date(selectedBooking.createdAt).toLocaleDateString()}
+                  </Text>
                 </div>
-              ) : selectedBooking.bookingSource === 'admin' && selectedBooking.userId ? (
-                <div>
-                  <div className="font-medium">{selectedBooking.userId.name || selectedBooking.userId.username}</div>
-                  <div className="text-sm text-gray-500">{selectedBooking.userId.email}</div>
-                  <Tag color="green">{selectedBooking.userId.role?.name || 'Admin'}</Tag>
-                </div>
-              ) : (
-                <span className="text-gray-400">System</span>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Created At">
-              {new Date(selectedBooking.createdAt).toLocaleString()}
-            </Descriptions.Item>
-            <Descriptions.Item label="Customer Name">
-              {selectedBooking.customerName}
-            </Descriptions.Item>
-            <Descriptions.Item label="Customer Email">
-              {selectedBooking.customerEmail}
-            </Descriptions.Item>
-            <Descriptions.Item label="Customer Phone">
-              {selectedBooking.customerPhone}
-            </Descriptions.Item>
-            <Descriptions.Item label="Company Name">
-              {selectedBooking.companyName}
-            </Descriptions.Item>
-          </Descriptions>
+              </div>
 
-          <Card title="Stall Details" size="small">
+              {/* Rejection Reason (if applicable) */}
+              {selectedBooking.rejectionReason && (
+                <div style={{ 
+                  padding: '8px 12px',
+                  backgroundColor: '#fff2f0',
+                  border: '1px solid #ffccc7',
+                  borderRadius: '4px'
+                }}>
+                  <Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
+                    Rejection Reason:
+                  </Text>
+                  <br />
+                  <Text style={{ fontSize: '13px' }}>{selectedBooking.rejectionReason}</Text>
+                </div>
+              )}
+
+              {/* Customer Information */}
+              <div>
+                <Text strong style={{ fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                  Customer Details
+                </Text>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px' }}>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Name</Text>
+                    <Text style={{ fontSize: '13px' }}>{selectedBooking.customerName}</Text>
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Company</Text>
+                    <Text style={{ fontSize: '13px' }}>{selectedBooking.companyName}</Text>
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Email</Text>
+                    <Text style={{ fontSize: '13px' }}>{selectedBooking.customerEmail}</Text>
+                  </div>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Phone</Text>
+                    <Text style={{ fontSize: '13px' }}>{selectedBooking.customerPhone}</Text>
+                  </div>
+                </div>
+              </div>
+
+              {/* Booking Source */}
+              <div>
+                <Text strong style={{ fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                  Booking Source
+                </Text>
+                <div style={{ 
+                  padding: '8px 12px',
+                  backgroundColor: '#f6ffed',
+                  border: '1px solid #b7eb8f',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  {selectedBooking.bookingSource === 'exhibitor' && selectedBooking.exhibitorId ? (
+                    <>
+                      <div style={{ flex: 1 }}>
+                        <Text strong style={{ fontSize: '13px' }}>
+                          {selectedBooking.exhibitorId.contactPerson}
+                        </Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {selectedBooking.exhibitorId.email}
+                        </Text>
+                      </div>
+                      <Tag color="blue" style={{ fontSize: '11px' }}>Exhibitor Portal</Tag>
+                    </>
+                  ) : selectedBooking.bookingSource === 'admin' && selectedBooking.userId ? (
+                    <>
+                      <div style={{ flex: 1 }}>
+                        <Text strong style={{ fontSize: '13px' }}>
+                          {selectedBooking.userId.name || selectedBooking.userId.username}
+                        </Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {selectedBooking.userId.email}
+                        </Text>
+                      </div>
+                      <Tag color="green" style={{ fontSize: '11px' }}>
+                        {selectedBooking.userId.role?.name || 'Admin'}
+                      </Tag>
+                    </>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: '13px' }}>System Generated</Text>
+                  )}
+                </div>
+              </div>
+            </Space>
+          </Card>
+
+          <Card title="Stall Details" size="small" styles={{ body: { padding: '12px' } }}>
             <Table
               dataSource={selectedBooking.stallIds}
               pagination={false}
               rowKey="_id"
+              size="small"
               columns={[
                 {
                   title: 'Stall Number',
@@ -212,8 +259,8 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
             />
           </Card>
 
-          <Card title="Financial Summary" size="small">
-            <Space direction="vertical" style={{ width: '100%' }} size="small">
+          <Card title="Financial Summary" size="small" styles={{ body: { padding: '12px' } }}>
+            <Space direction="vertical" style={{ width: '100%' }} size={8}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text>Total Base Amount:</Text>
                 <Text>₹{selectedBooking.calculations.totalBaseAmount.toLocaleString()}</Text>
@@ -297,7 +344,8 @@ export const StatusUpdateModal: React.FC<StatusModalProps> = ({
       setIsStatusModalVisible(false);
       setSelectedBooking(null);
 
-      if (newStatus === 'approved') {
+      // Refetch invoices when booking is approved or confirmed (both create invoices)
+      if (newStatus === 'approved' || newStatus === 'confirmed') {
         setTimeout(async () => {
           await refetch();
         }, 1000);

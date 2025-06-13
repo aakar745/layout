@@ -74,7 +74,7 @@ const AmenitiesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('basic');
   
   // State for amenity view type in calculated tab
-  const [amenityViewType, setAmenityViewType] = useState<'basic' | 'extra' | 'all'>('basic');
+  const [amenityViewType, setAmenityViewType] = useState<'basic' | 'extra'>('basic');
 
   // Initial data fetch
   useEffect(() => {
@@ -522,9 +522,7 @@ const AmenitiesPage: React.FC = () => {
     
     // Filter amenities based on the current view type
     const viewFilteredAmenities = filteredCalculatedAmenities.filter(amenity => {
-      if (amenityViewType === 'all') {
-        return true;
-      } else if (amenityViewType === 'basic') {
+      if (amenityViewType === 'basic') {
         // Only include basic amenities (with calculatedQuantity or perSqm)
         return amenity.hasOwnProperty('calculatedQuantity') || 
                amenity.hasOwnProperty('perSqm');
@@ -591,16 +589,16 @@ const AmenitiesPage: React.FC = () => {
     // Combine stall-level and booking-level data
     let dataToExport: any[] = [];
     
-    if (amenityViewType === 'basic' || amenityViewType === 'all') {
+    if (amenityViewType === 'basic') {
       dataToExport = [...dataToExport, ...Array.from(stallMap.values())];
     }
     
-    if (amenityViewType === 'extra' || amenityViewType === 'all') {
+    if (amenityViewType === 'extra') {
       dataToExport = [...dataToExport, ...Array.from(extraAmenitiesMap.values())];
     }
 
     const exhibition = exhibitions.find(e => e._id === selectedExhibition);
-    const viewTypeName = amenityViewType === 'basic' ? 'Basic' : amenityViewType === 'extra' ? 'Extra' : 'All';
+    const viewTypeName = amenityViewType === 'basic' ? 'Basic' : 'Extra';
     const fileName = `${exhibition?.name || 'Exhibition'}_${viewTypeName}_Calculated_Amenities`;
     
     exportToExcel(dataToExport, fileName);
@@ -756,7 +754,6 @@ const AmenitiesPage: React.FC = () => {
                           >
                             <Radio.Button value="basic">Basic Amenities</Radio.Button>
                             <Radio.Button value="extra">Extra Amenities</Radio.Button>
-                            <Radio.Button value="all">All Amenities</Radio.Button>
                           </Radio.Group>
                         </Space>
                       </Card>

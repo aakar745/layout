@@ -61,7 +61,7 @@ const CreateBooking: React.FC = () => {
       return;
     }
     dispatch(fetchExhibitions());
-    dispatch(fetchExhibitors());
+    dispatch(fetchExhibitors({}));
   }, [dispatch, isAuthenticated, navigate]);
 
   /**
@@ -88,7 +88,7 @@ const CreateBooking: React.FC = () => {
       // Fetch available stalls
       const stallsResponse = await exhibitionService.getStalls(exhibitionId);
       // Filter only available stalls
-      const availableStalls = stallsResponse.data.filter(stall => stall.status === 'available');
+      const availableStalls = stallsResponse.data.stalls.filter((stall: any) => stall.status === 'available');
       setStalls(availableStalls);
     } catch (error) {
       console.error('Failed to fetch exhibition data:', error);
@@ -321,18 +321,40 @@ const CreateBooking: React.FC = () => {
 
   const handleExhibitorAdded = async (values: Partial<ExhibitorProfile>) => {
     try {
-      const response = await exhibitorService.createExhibitor(values);
-      message.success('Exhibitor added successfully');
-      dispatch(fetchExhibitors()); // Refresh exhibitors list
-      form.setFieldsValue({ exhibitorId: response.data._id }); // Select the newly added exhibitor
+      // Transform form values to match backend expectations
+      const exhibitorData = {
+        companyName: values.companyName,
+        contactPerson: values.contactPerson,
+        email: values.email, // Changed from contactEmail
+        phone: values.phone, // Changed from contactPhone
+        address: values.address,
+        city: values.city,
+        state: values.state,
+        pinCode: values.pinCode,
+        website: values.website,
+        description: values.description,
+        panNumber: values.panNumber,
+        gstNumber: values.gstNumber,
+        isActive: values.isActive !== false // Convert to boolean, default true
+      };
+
+      const response = await exhibitorService.createExhibitor(exhibitorData);
+      message.success({
+        content: 'Exhibitor created successfully! Login credentials have been sent via email.',
+        duration: 5
+      });
+      dispatch(fetchExhibitors({})); // Refresh exhibitors list
+      form.setFieldsValue({ exhibitorId: response.data.exhibitor._id }); // Select the newly added exhibitor
       setIsModalVisible(false);
       exhibitorForm.resetFields();
     } catch (error: any) {
-      const errorMessage = error?.message || 'Failed to add exhibitor';
+      const errorMessage = error.response?.data?.message || error?.message || 'Failed to add exhibitor';
       message.error(errorMessage);
-      if (errorMessage === 'User with this email already exists') {
+      
+      // Handle specific error cases
+      if (errorMessage.includes('email already exists')) {
         exhibitorForm.setFields([{
-          name: 'contactEmail',
+          name: 'email',
           errors: ['This email is already registered']
         }]);
       }
@@ -921,21 +943,29 @@ const CreateBooking: React.FC = () => {
         }}
         width={800}
         footer={
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-start', padding: '20px 24px' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            justifyContent: 'flex-end', 
+            padding: '20px 24px',
+            borderTop: '1px solid #E5E7EB'
+          }}>
             <Button 
               onClick={() => {
                 setIsModalVisible(false);
                 exhibitorForm.resetFields();
               }}
+              size="large"
               style={{ 
-                height: '40px',
-                padding: '10px 16px',
+                height: '44px',
+                padding: '12px 20px',
                 borderRadius: '8px',
                 border: '1px solid #D0D5DD',
                 color: '#344054',
                 fontWeight: 500,
                 fontSize: '14px',
-                backgroundColor: 'white'
+                backgroundColor: 'white',
+                minWidth: '100px'
               }}
             >
               Cancel
@@ -943,19 +973,21 @@ const CreateBooking: React.FC = () => {
             <Button 
               type="primary" 
               onClick={exhibitorForm.submit}
+              size="large"
               style={{ 
-                height: '40px',
-                padding: '10px 16px',
+                height: '44px',
+                padding: '12px 20px',
                 borderRadius: '8px',
                 border: 'none',
                 backgroundColor: '#6941C6',
                 color: 'white',
                 fontWeight: 500,
                 fontSize: '14px',
-                boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)'
+                boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)',
+                minWidth: '140px'
               }}
             >
-              Add Exhibitor
+              Create Exhibitor
             </Button>
           </div>
         }
@@ -983,6 +1015,7 @@ const CreateBooking: React.FC = () => {
           layout="vertical"
           onFinish={handleExhibitorAdded}
           requiredMark={false}
+          scrollToFirstError
         >
           <div style={{ 
             display: 'grid', 
@@ -991,21 +1024,48 @@ const CreateBooking: React.FC = () => {
           }}>
             {/* Company Information Section */}
             <div>
-              <h3 style={{ 
-                fontSize: '16px',
-                fontWeight: 600,
-                color: '#101828',
-                marginBottom: '24px'
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '24px',
+                paddingBottom: '12px',
+                borderBottom: '2px solid #F3F4F6'
               }}>
-                Company Information
-              </h3>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#EEF2FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: '12px'
+                }}>
+                  <span style={{ fontSize: '16px' }}>🏢</span>
+                </div>
+                <h3 style={{ 
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: '#101828',
+                  margin: 0
+                }}>
+                  Company Information
+                </h3>
+              </div>
               
               <Form.Item
                 name="companyName"
                 label="Company Name"
-                rules={[{ required: true, message: 'Please enter company name' }]}
+                rules={[
+                  { required: true, message: 'Please enter company name' },
+                  { min: 2, message: 'Company name must be at least 2 characters' },
+                  { max: 100, message: 'Company name cannot exceed 100 characters' }
+                ]}
               >
-                <Input />
+                <Input 
+                  placeholder="Enter company name"
+                  size="large"
+                />
               </Form.Item>
 
               <Form.Item
@@ -1013,24 +1073,34 @@ const CreateBooking: React.FC = () => {
                 label="Address"
                 rules={[{ required: true, message: 'Please enter address' }]}
               >
-                <Input.TextArea rows={3} />
+                <Input.TextArea 
+                  rows={3} 
+                  placeholder="Enter complete address"
+                  showCount
+                  maxLength={200}
+                />
               </Form.Item>
 
-              <Form.Item
-                name="city"
-                label="City"
-                rules={[{ required: true, message: 'Please enter city' }]}
-              >
-                <Input />
-              </Form.Item>
-
-              <Form.Item
-                name="state"
-                label="State"
-                rules={[{ required: true, message: 'Please enter state' }]}
-              >
-                <Input />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="city"
+                    label="City"
+                    rules={[{ required: true, message: 'Please enter city' }]}
+                  >
+                    <Input placeholder="Enter city" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="state"
+                    label="State"
+                    rules={[{ required: true, message: 'Please enter state' }]}
+                  >
+                    <Input placeholder="Enter state" />
+                  </Form.Item>
+                </Col>
+              </Row>
 
               <Form.Item
                 name="pinCode"
@@ -1040,100 +1110,118 @@ const CreateBooking: React.FC = () => {
                   { pattern: /^\d{6}$/, message: 'Please enter a valid 6-digit PIN code' }
                 ]}
               >
-                <Input />
+                <Input placeholder="123456" maxLength={6} />
               </Form.Item>
 
               <Form.Item
-                name="status"
-                label="Status"
-                initialValue="active"
+                name="website"
+                label="Website"
+                rules={[
+                  { type: 'url', message: 'Please enter a valid website URL' }
+                ]}
               >
-                <Select>
-                  <Select.Option value="active">
-                    <div style={{
-                      display: 'inline-flex',
-                      padding: '2px 8px',
-                      borderRadius: '16px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      backgroundColor: '#F6FEF9',
-                      color: '#039855',
-                      border: '1px solid #ABEFC6',
-                      alignItems: 'center',
-                      height: '22px'
-                    }}>
-                      ACTIVE
-                    </div>
-                  </Select.Option>
-                  <Select.Option value="inactive">
-                    <div style={{
-                      display: 'inline-flex',
-                      padding: '2px 8px',
-                      borderRadius: '16px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      backgroundColor: '#FEF3F2',
-                      color: '#D92D20',
-                      border: '1px solid #FDA29B',
-                      alignItems: 'center',
-                      height: '22px'
-                    }}>
-                      INACTIVE
-                    </div>
-                  </Select.Option>
-                </Select>
+                <Input placeholder="https://www.company.com" />
+              </Form.Item>
+
+              <Form.Item
+                name="description"
+                label="Company Description"
+              >
+                <Input.TextArea 
+                  rows={3} 
+                  placeholder="Brief description about the company"
+                  showCount
+                  maxLength={500}
+                />
               </Form.Item>
             </div>
 
             {/* Contact & Legal Information Section */}
             <div>
-              <h3 style={{ 
-                fontSize: '16px',
-                fontWeight: 600,
-                color: '#101828',
-                marginBottom: '24px'
+              <div style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: '24px',
+                paddingBottom: '12px',
+                borderBottom: '2px solid #F3F4F6'
               }}>
-                Contact & Legal Information
-              </h3>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: '#FEF3F2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: '12px'
+                }}>
+                  <span style={{ fontSize: '16px' }}>👤</span>
+                </div>
+                <h3 style={{ 
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: '#101828',
+                  margin: 0
+                }}>
+                  Contact & Legal Information
+                </h3>
+              </div>
               
               <Form.Item
                 name="contactPerson"
                 label="Contact Person"
-                rules={[{ required: true, message: 'Please enter contact person' }]}
+                rules={[
+                  { required: true, message: 'Please enter contact person' },
+                  { min: 2, message: 'Name must be at least 2 characters' },
+                  { max: 100, message: 'Name cannot exceed 100 characters' }
+                ]}
               >
-                <Input />
+                <Input placeholder="Enter contact person name" size="large" />
               </Form.Item>
 
               <Form.Item
-                name="contactEmail"
-                label="Email"
+                name="email"
+                label="Email Address"
                 rules={[
                   { required: true, message: 'Please enter email' },
                   { type: 'email', message: 'Please enter a valid email' }
                 ]}
+                extra="Login credentials will be sent to this email"
               >
-                <Input />
+                <Input 
+                  placeholder="contact@company.com" 
+                  size="large"
+                  prefix={<span style={{ color: '#9CA3AF' }}>📧</span>}
+                />
               </Form.Item>
 
               <Form.Item
-                name="contactPhone"
-                label="Phone"
+                name="phone"
+                label="Phone Number"
                 rules={[
                   { required: true, message: 'Please enter phone number' },
-                  { pattern: /^\d{10}$/, message: 'Please enter a valid 10-digit phone number' }
+                  { pattern: /^[0-9-+()]*$/, message: 'Please enter a valid phone number' }
                 ]}
               >
-                <Input />
+                <Input 
+                  placeholder="9876543210" 
+                  size="large"
+                  prefix={<span style={{ color: '#9CA3AF' }}>📱</span>}
+                />
               </Form.Item>
 
               <Form.Item
                 name="panNumber"
                 label="PAN Number"
                 rules={[
-                  { pattern: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, message: 'Please enter a valid PAN number' }
+                  { pattern: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, message: 'Please enter a valid PAN number (e.g., ABCDE1234F)' }
                 ]}
               >
-                <Input placeholder="ABCDE1234F" />
+                <Input 
+                  placeholder="ABCDE1234F" 
+                  style={{ textTransform: 'uppercase' }}
+                  maxLength={10}
+                />
               </Form.Item>
 
               <Form.Item
@@ -1143,8 +1231,49 @@ const CreateBooking: React.FC = () => {
                   { pattern: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, message: 'Please enter a valid GST number' }
                 ]}
               >
-                <Input placeholder="27AAPFU0939F1ZV" />
+                <Input 
+                  placeholder="27AAPFU0939F1ZV" 
+                  style={{ textTransform: 'uppercase' }}
+                  maxLength={15}
+                />
               </Form.Item>
+
+              <Form.Item
+                name="isActive"
+                label="Account Status"
+                initialValue={true}
+                valuePropName="checked"
+              >
+                <Switch 
+                  checkedChildren="Active" 
+                  unCheckedChildren="Inactive"
+                  size="default"
+                />
+              </Form.Item>
+            </div>
+          </div>
+
+          {/* Information Alert */}
+          <div style={{ 
+            marginTop: '24px',
+            padding: '16px',
+            backgroundColor: '#F0F9FF',
+            border: '1px solid #BAE6FD',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px'
+          }}>
+            <span style={{ fontSize: '16px', marginTop: '2px' }}>ℹ️</span>
+            <div>
+              <div style={{ fontWeight: 600, color: '#0369A1', marginBottom: '4px' }}>
+                Account Creation Notice
+              </div>
+              <div style={{ color: '#0369A1', fontSize: '14px', lineHeight: '1.5' }}>
+                • A temporary password will be automatically generated and sent to the provided email<br/>
+                • The exhibitor will be pre-approved and can log in immediately<br/>
+                • They should change their password after first login for security
+              </div>
             </div>
           </div>
         </Form>

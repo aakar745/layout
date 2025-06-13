@@ -165,7 +165,14 @@ export const getTableColumns = (
   props: BookingTableProps
 ): ColumnsType<BookingType> => {
   const navigate = useNavigate();
-  const { data: invoices, isLoading: isLoadingInvoices, error: invoiceError, refetch: refetchInvoices } = useGetInvoicesQuery({ page: 1, limit: 100 });
+  const { data: invoices, isLoading: isLoadingInvoices, error: invoiceError, refetch: refetchInvoices } = useGetInvoicesQuery({ 
+    page: 1, 
+    limit: 200 // Increased to ensure we get all invoices for better matching
+  }, {
+    // Reduce cache time to get fresher data
+    refetchOnMountOrArgChange: 30, // Refetch if data is older than 30 seconds
+    refetchOnFocus: true, // Refetch when window regains focus
+  });
   
   // Gets the invoice ID for a booking
   const getInvoiceId = (bookingId: string) => {
@@ -185,8 +192,14 @@ export const getTableColumns = (
     return invoice?._id;
   };
   
-  // Handles the invoice viewing functionality with retries
+  // Handles the invoice viewing functionality with improved retry logic
   const handleInvoiceClick = async (record: BookingType) => {
+    // Check if booking is approved before allowing invoice access
+    if (record.status !== 'approved' && record.status !== 'confirmed') {
+      message.warning('First approve the stall, then view the invoice.');
+      return;
+    }
+
     if (isLoadingInvoices) {
       message.loading('Loading invoice data...');
       return;
@@ -212,19 +225,19 @@ export const getTableColumns = (
 
       // Check if the booking is recent or if it's an approved booking
       const bookingDate = new Date(record.createdAt);
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const isRecentOrApproved = bookingDate > thirtyMinutesAgo || record.status === 'approved';
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // Reduced from 30 minutes to 5 minutes
+      const isRecentOrApproved = bookingDate > fiveMinutesAgo || record.status === 'approved';
       
       if (isRecentOrApproved) {
         message.info({ 
-          content: 'Invoice is still being generated. Checking again in a moment...', 
+          content: 'Invoice is being generated. Please wait...', 
           key: messageKey 
         });
         
-        // Implement multiple retries with increasing intervals
+        // Reduced retry attempts and shorter intervals for better UX
         let retryCount = 0;
-        const maxRetries = 5;
-        const retryIntervals = [2000, 3000, 5000, 8000, 10000]; // Increasing intervals
+        const maxRetries = 3; // Reduced from 5 to 3
+        const retryIntervals = [1500, 2500, 4000]; // Shorter intervals
         
         const attemptFetch = async () => {
           retryCount++;
@@ -241,19 +254,19 @@ export const getTableColumns = (
             });
             navigate(`/invoice/${retryInvoiceId}`);
           } else if (retryCount < maxRetries) {
-            // Continue retrying with countdown and increasing intervals
-            const nextInterval = retryIntervals[retryCount] || 5000;
-            const secondsToWait = nextInterval / 1000;
+            // Continue retrying with less verbose messaging
+            const nextInterval = retryIntervals[retryCount] || 3000;
             
-            message.info({ 
-              content: `Attempt ${retryCount}/${maxRetries}: Invoice not ready yet. Trying again in ${secondsToWait} seconds...`, 
+            message.loading({ 
+              content: `Checking invoice availability... (${retryCount}/${maxRetries})`, 
               key: messageKey 
             });
             setTimeout(attemptFetch, nextInterval);
           } else {
             message.warning({ 
-              content: 'Invoice generation is taking longer than expected. Please try refreshing the page in a few moments.', 
-              key: messageKey 
+              content: 'Invoice is still being processed. Please refresh the page in a moment or try again later.', 
+              key: messageKey,
+              duration: 4
             });
           }
         };
@@ -414,23 +427,6 @@ export const getTableColumns = (
       render: (amount: number) => `₹${amount.toLocaleString()}`
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status: string) => (
-        <Tag color={
-          status === 'confirmed' ? 'success' :
-          status === 'approved' ? 'blue' :
-          status === 'pending' ? 'warning' :
-          status === 'rejected' ? 'error' :
-          'default'
-        }>
-          {status.toUpperCase()}
-        </Tag>
-      )
-    },
-    {
       title: 'Booked By',
       dataIndex: 'bookedBy',
       key: 'bookedBy',
@@ -469,6 +465,24 @@ export const getTableColumns = (
       render: (date: string) => dayjs(date).format('MMM D, YYYY HH:mm')
     },
     {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      fixed: 'right' as const,
+      render: (status: string) => (
+        <Tag color={
+          status === 'confirmed' ? 'success' :
+          status === 'approved' ? 'blue' :
+          status === 'pending' ? 'warning' :
+          status === 'rejected' ? 'error' :
+          'default'
+        }>
+          {status.toUpperCase()}
+        </Tag>
+      )
+    },
+    {
       title: 'Actions',
       key: 'actions',
       fixed: 'right' as const,
@@ -491,10 +505,13 @@ export const getTableColumns = (
                   <Menu.Item 
                     key="invoice" 
                     icon={<FileTextOutlined />}
-                    disabled={isLoadingInvoices}
+                    disabled={isLoadingInvoices || (record.status !== 'approved' && record.status !== 'confirmed')}
                     onClick={() => handleInvoiceClick(record)}
                   >
-                    View Invoice
+                    {record.status !== 'approved' && record.status !== 'confirmed' 
+                      ? 'Approve First to View Invoice' 
+                      : 'View Invoice'
+                    }
                   </Menu.Item>
                 )}
                 <Menu.Item 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Space, Input, Typography, Row, Col, Select, message, Tag, Slider, InputNumber, Statistic, Button } from 'antd';
+import { Card, Table, Space, Input, Typography, Row, Col, Select, message, Tag, Statistic, Button } from 'antd';
 import { SearchOutlined, FilterOutlined, LayoutOutlined, ApartmentOutlined, DownloadOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
@@ -25,53 +25,81 @@ const StallList: React.FC = () => {
   const [selectedExhibition, setSelectedExhibition] = useState<string | null>(null);
   const [selectedHall, setSelectedHall] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Calculate max price from stalls
-  const maxStallPrice = React.useMemo(() => {
-    return Math.max(
-      ...reduxStalls.map(stall => 
-        stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height
-      ),
-      1000000 // Minimum default max price
-    );
-  }, [reduxStalls]);
-
-  // Round up maxPrice to next significant figure for better UX
-  const roundedMaxPrice = React.useMemo(() => {
-    const magnitude = Math.pow(10, Math.floor(Math.log10(maxStallPrice)));
-    return Math.ceil(maxStallPrice / magnitude) * magnitude;
-  }, [maxStallPrice]);
+  
+  // State for total statistics (across all pages)
+  const [totalStats, setTotalStats] = useState({
+    totalStalls: 0,
+    totalArea: 0
+  });
 
   // State for filters and pagination
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, roundedMaxPrice]);
   const [sortField, setSortField] = useState<string>('number');
   const [sortOrder, setSortOrder] = useState<'ascend' | 'descend'>('ascend');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(10);
 
   // Ref to store current filter values for debounced search
   const filtersRef = React.useRef({
     statusFilter,
-    priceRange,
     sortField,
     sortOrder,
-    pageSize,
-    roundedMaxPrice
+    pageSize
   });
 
   // Update ref when filters change
   React.useEffect(() => {
     filtersRef.current = {
       statusFilter,
-      priceRange,
       sortField,
       sortOrder,
-      pageSize,
-      roundedMaxPrice
+      pageSize
     };
-  }, [statusFilter, priceRange, sortField, sortOrder, pageSize, roundedMaxPrice]);
+  }, [statusFilter, sortField, sortOrder, pageSize]);
+
+  // Function to fetch total statistics (all stalls for accurate totals)
+  const fetchTotalStats = React.useCallback(async () => {
+    if (!selectedExhibition || !selectedHall) {
+      setTotalStats({ totalStalls: 0, totalArea: 0 });
+      return;
+    }
+
+    try {
+      const fetchParams = {
+        page: 1,
+        limit: 10000, // Large number to get all stalls
+        search: searchText || undefined,
+        status: statusFilter || undefined,
+        sortBy: sortField,
+        sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc'
+      };
+
+      const response = selectedHall === 'all' 
+        ? await exhibitionService.getStalls(selectedExhibition, undefined, fetchParams)
+        : await exhibitionService.getStalls(selectedExhibition, selectedHall, fetchParams);
+      
+      const payload = response.data as any;
+      const isNewFormat = payload && typeof payload === 'object' && 'stalls' in payload;
+      const allStalls = isNewFormat ? payload.stalls : payload;
+
+      // Calculate total area from all stalls
+      const totalArea = allStalls.reduce((sum: number, stall: any) => {
+        if (stall?.dimensions?.width && stall?.dimensions?.height) {
+          return sum + (stall.dimensions.width * stall.dimensions.height);
+        }
+        return sum;
+      }, 0);
+
+      setTotalStats({
+        totalStalls: allStalls.length,
+        totalArea: totalArea
+      });
+    } catch (error) {
+      console.error('Failed to fetch total stats:', error);
+      setTotalStats({ totalStalls: 0, totalArea: 0 });
+    }
+  }, [selectedExhibition, selectedHall, searchText, statusFilter, sortField, sortOrder]);
 
   // Function to fetch stalls with specific parameters
   const fetchStallsWithParams = React.useCallback((params: {
@@ -81,24 +109,23 @@ const StallList: React.FC = () => {
     status?: string | null;
     sortBy?: string;
     sortOrder?: string;
-    minPrice?: number;
-    maxPrice?: number;
   }) => {
     if (selectedExhibition && selectedHall) {
       dispatch(fetchStalls({ 
         exhibitionId: selectedExhibition, 
-        hallId: selectedHall,
+        hallId: selectedHall === 'all' ? undefined : selectedHall,
         page: params.page || currentPage,
         limit: params.size || pageSize,
         search: params.search || undefined,
         status: params.status || undefined,
         sortBy: params.sortBy || sortField,
-        sortOrder: params.sortOrder || (sortOrder === 'ascend' ? 'asc' : 'desc'),
-        minPrice: params.minPrice,
-        maxPrice: params.maxPrice
+        sortOrder: params.sortOrder || (sortOrder === 'ascend' ? 'asc' : 'desc')
       }));
+      
+      // Also fetch total stats when filters change
+      fetchTotalStats();
     }
-  }, [dispatch, selectedExhibition, selectedHall, currentPage, pageSize, sortField, sortOrder]);
+  }, [dispatch, selectedExhibition, selectedHall, currentPage, pageSize, sortField, sortOrder, fetchTotalStats]);
 
   // Debounced search effect - only for search text changes
   React.useEffect(() => {
@@ -109,22 +136,23 @@ const StallList: React.FC = () => {
         const filters = filtersRef.current;
         dispatch(fetchStalls({
           exhibitionId: selectedExhibition,
-          hallId: selectedHall,
+          hallId: selectedHall === 'all' ? undefined : selectedHall,
           page: 1,
           limit: filters.pageSize,
           search: searchText || undefined,
           status: filters.statusFilter || undefined,
           sortBy: filters.sortField,
-          sortOrder: filters.sortOrder === 'ascend' ? 'asc' : 'desc',
-          minPrice: filters.priceRange[0] > 0 ? filters.priceRange[0] : undefined,
-          maxPrice: filters.priceRange[1] < filters.roundedMaxPrice ? filters.priceRange[1] : undefined
+          sortOrder: filters.sortOrder === 'ascend' ? 'asc' : 'desc'
         }));
         setCurrentPage(1);
+        
+        // Also fetch total stats when search changes
+        fetchTotalStats();
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchText, selectedExhibition, selectedHall, dispatch]); // Include necessary stable dependencies
+  }, [searchText, selectedExhibition, selectedHall, dispatch, fetchTotalStats]); // Include necessary stable dependencies
 
   // Filter change handlers
   const handleStatusFilterChange = (value: string | null) => {
@@ -133,29 +161,7 @@ const StallList: React.FC = () => {
     fetchStallsWithParams({
       page: 1,
       search: searchText || undefined,
-      status: value,
-      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
-    });
-  };
-
-  const handlePriceRangeChange = (value: [number, number] | number | number[]) => {
-    let rangeValue: [number, number];
-    if (Array.isArray(value) && value.length === 2) {
-      rangeValue = [value[0], value[1]];
-    } else if (typeof value === 'number') {
-      rangeValue = [0, value];
-    } else {
-      rangeValue = [0, roundedMaxPrice];
-    }
-    setPriceRange(rangeValue);
-    setCurrentPage(1);
-    fetchStallsWithParams({
-      page: 1,
-      search: searchText || undefined,
-      status: statusFilter,
-      minPrice: rangeValue[0] > 0 ? rangeValue[0] : undefined,
-      maxPrice: rangeValue[1] < roundedMaxPrice ? rangeValue[1] : undefined
+      status: value
     });
   };
 
@@ -168,9 +174,7 @@ const StallList: React.FC = () => {
       search: searchText || undefined,
       status: statusFilter,
       sortBy: field,
-      sortOrder: order === 'ascend' ? 'asc' : 'desc',
-      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+      sortOrder: order === 'ascend' ? 'asc' : 'desc'
     });
   };
 
@@ -183,9 +187,7 @@ const StallList: React.FC = () => {
       page,
       size: size || pageSize,
       search: searchText || undefined,
-      status: statusFilter,
-      minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-      maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+      status: statusFilter
     });
   };
 
@@ -196,16 +198,18 @@ const StallList: React.FC = () => {
       
       // If exporting all, fetch all stalls without pagination
       if (exportAll && selectedExhibition && selectedHall) {
-        const response = await exhibitionService.getStalls(selectedExhibition, selectedHall, {
+        const fetchParams = {
           page: 1,
           limit: 10000, // Large number to get all stalls
           search: searchText || undefined,
           status: statusFilter || undefined,
           sortBy: sortField,
-          sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc',
-          minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-          maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
-        });
+          sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc'
+        };
+
+        const response = selectedHall === 'all' 
+          ? await exhibitionService.getStalls(selectedExhibition, undefined, fetchParams)
+          : await exhibitionService.getStalls(selectedExhibition, selectedHall, fetchParams);
         
         const payload = response.data as any;
         const isNewFormat = payload && typeof payload === 'object' && 'stalls' in payload;
@@ -250,7 +254,7 @@ const StallList: React.FC = () => {
 
       // Generate filename
       const exhibitionName = exhibitions.find(e => e._id === selectedExhibition)?.name || 'Exhibition';
-      const hallName = halls.find(h => h._id === selectedHall)?.name || 'Hall';
+      const hallName = selectedHall === 'all' ? 'All-Halls' : (halls.find(h => h._id === selectedHall)?.name || 'Hall');
       const timestamp = new Date().toISOString().split('T')[0];
       const filename = `${exhibitionName}-${hallName}-Stalls-${timestamp}.xlsx`;
 
@@ -269,6 +273,7 @@ const StallList: React.FC = () => {
     setSelectedExhibition(value);
     setSelectedHall(null);
     dispatch({ type: 'exhibition/clearStalls' });
+    setTotalStats({ totalStalls: 0, totalArea: 0 });
   };
 
   // Clear and fetch stalls when hall changes
@@ -276,21 +281,23 @@ const StallList: React.FC = () => {
     setSelectedHall(value);
     setCurrentPage(1); // Reset to first page
     if (selectedExhibition && value) {
-      // Use a direct dispatch call for hall change to avoid dependency issues
+      // Use unified approach for both 'all' and specific hall
       dispatch(fetchStalls({ 
         exhibitionId: selectedExhibition, 
-        hallId: value,
+        hallId: value === 'all' ? undefined : value,
         page: 1,
         limit: pageSize,
         search: searchText || undefined,
         status: statusFilter || undefined,
         sortBy: sortField,
-        sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc',
-        minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-        maxPrice: priceRange[1] < roundedMaxPrice ? priceRange[1] : undefined
+        sortOrder: sortOrder === 'ascend' ? 'asc' : 'desc'
       }));
+      
+      // Fetch total stats for the new hall selection
+      fetchTotalStats();
     } else {
       dispatch({ type: 'exhibition/clearStalls' });
+      setTotalStats({ totalStalls: 0, totalArea: 0 });
     }
   };
 
@@ -352,21 +359,11 @@ const StallList: React.FC = () => {
     }
   };
 
-  // Calculate totals
-  const calculateTotals = (stalls: any[]) => {
-    const totalSize = stalls.reduce((sum, stall) => {
-      if (stall?.dimensions?.width && stall?.dimensions?.height) {
-        return sum + (stall.dimensions.width * stall.dimensions.height);
-      }
-      return sum;
-    }, 0);
-    return {
-      totalStalls: stalls.length,
-      totalSize
-    };
+  // Use total stats from state (calculated from all pages)
+  const totals = {
+    totalStalls: totalStats.totalStalls,
+    totalSize: totalStats.totalArea
   };
-
-  const totals = calculateTotals(displayStalls);
 
   return (
     <div className="dashboard-container">
@@ -429,6 +426,9 @@ const StallList: React.FC = () => {
                   disabled={!selectedExhibition || halls.length === 0}
                   allowClear
                 >
+                  <Option key="all-halls" value="all">
+                    All Halls ({halls.length} halls)
+                  </Option>
                   {halls.map((hall) => (
                     <Option key={hall._id || hall.id} value={hall._id || hall.id}>
                       {hall.name}
@@ -482,88 +482,29 @@ const StallList: React.FC = () => {
                     precision={2}
                   />
                 </Col>
+                {selectedHall === 'all' && (
+                  <Col xs={12} sm={12} md={6}>
+                    <Statistic
+                      title="Halls"
+                      value={halls.length}
+                      prefix={<ApartmentOutlined />}
+                    />
+                  </Col>
+                )}
+                {selectedHall !== 'all' && selectedHall && (
+                  <Col xs={12} sm={12} md={6}>
+                    <Statistic
+                      title="Current Hall"
+                      value={halls.find(h => (h._id || h.id) === selectedHall)?.name || 'N/A'}
+                      prefix={<ApartmentOutlined />}
+                    />
+                  </Col>
+                )}
               </Row>
             </Card>
           </Col>
 
-          {/* Price Range Filter */}
-          <Col span={24}>
-            <Card size="small" title="Price Range Filter">
-              <Row gutter={16}>
-                <Col span={24} style={{ marginBottom: 16 }}>
-                  <Space>
-                    <Button 
-                      size="small" 
-                      onClick={() => handlePriceRangeChange([0, 500000])}
-                    >
-                      Under ₹5L
-                    </Button>
-                    <Button 
-                      size="small" 
-                      onClick={() => handlePriceRangeChange([500000, 1000000])}
-                    >
-                      ₹5L - ₹10L
-                    </Button>
-                    <Button 
-                      size="small" 
-                      onClick={() => handlePriceRangeChange([1000000, 2000000])}
-                    >
-                      ₹10L - ₹20L
-                    </Button>
-                    <Button 
-                      size="small" 
-                      onClick={() => handlePriceRangeChange([2000000, roundedMaxPrice])}
-                    >
-                      Above ₹20L
-                    </Button>
-                    <Button 
-                      size="small" 
-                      onClick={() => handlePriceRangeChange([0, roundedMaxPrice])}
-                    >
-                      All
-                    </Button>
-                  </Space>
-                </Col>
-                <Col span={16}>
-                  <Slider
-                    range
-                    min={0}
-                    max={roundedMaxPrice}
-                    value={priceRange}
-                    onChange={handlePriceRangeChange}
-                    step={Math.max(1000, Math.floor(roundedMaxPrice / 1000))}
-                    tooltip={{
-                      formatter: (value) => `₹${(value || 0).toLocaleString()}`
-                    }}
-                  />
-                </Col>
-                <Col span={4}>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    max={priceRange[1]}
-                    value={priceRange[0]}
-                    onChange={value => setPriceRange([value || 0, priceRange[1]])}
-                    formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={value => value ? Number(value.replace(/[^\d.-]/g, '')) : 0}
-                    step={1000}
-                  />
-                </Col>
-                <Col span={4}>
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={priceRange[0]}
-                    max={roundedMaxPrice}
-                    value={priceRange[1]}
-                    onChange={value => setPriceRange([priceRange[0], value || roundedMaxPrice])}
-                    formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={value => value ? Number(value.replace(/[^\d.-]/g, '')) : 0}
-                    step={1000}
-                  />
-                </Col>
-              </Row>
-            </Card>
-          </Col>
+
 
           {/* Table */}
           <Col span={24}>
@@ -576,6 +517,14 @@ const StallList: React.FC = () => {
                   sorter: (a: any, b: any) => a.number.localeCompare(b.number),
                   defaultSortOrder: 'ascend' as 'ascend',
                 },
+                ...(selectedHall === 'all' ? [{
+                  title: 'Hall',
+                  key: 'hall',
+                  render: (_: any, record: any) => {
+                    const hall = halls.find(h => (h._id || h.id) === record.hallId);
+                    return hall?.name || 'N/A';
+                  },
+                }] : []),
                 {
                   title: 'Type',
                   dataIndex: ['stallType', 'name'],

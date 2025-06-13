@@ -404,9 +404,14 @@ export const getBookings = async (req: Request, res: Response) => {
       conditions.createdAt = { $lte: new Date(endDate as string) };
     }
     
-    // Search by company name
+    // Search by company name, customer name, or customer email
     if (search) {
-      conditions.companyName = { $regex: search, $options: 'i' };
+      conditions.$or = [
+        { companyName: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
+        { customerEmail: { $regex: search, $options: 'i' } },
+        { customerPhone: { $regex: search, $options: 'i' } }
+      ];
     }
     
     // Get total count for pagination info
@@ -572,8 +577,8 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         { status: status === 'confirmed' ? 'booked' : 'reserved' }
       );
       
-      // When a booking is approved, check if an invoice exists - if not, create one
-      if (status === 'approved') {
+      // When a booking is approved OR confirmed, check if an invoice exists - if not, create one
+      if (status === 'approved' || status === 'confirmed') {
         const existingInvoice = await Invoice.findOne({ bookingId: booking._id });
         
         if (!existingInvoice) {
@@ -625,7 +630,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
             dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           });
 
-          // Notify exhibitor about booking approval and invoice
+          // Notify exhibitor about booking approval/confirmation and invoice
           if (booking.exhibitorId) {
             try {
               // Get exhibition name safely
@@ -637,8 +642,8 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
               await createNotification(
                 booking.exhibitorId,
                 'exhibitor',
-                'Booking Approved',
-                `Your booking request for "${exhibitionName}" has been approved.`,
+                status === 'approved' ? 'Booking Approved' : 'Booking Confirmed',
+                `Your booking request for "${exhibitionName}" has been ${status}.`,
                 NotificationType.BOOKING_CONFIRMED,
                 {
                   priority: NotificationPriority.HIGH,

@@ -58,6 +58,21 @@ export interface Exhibition {
   // Assigned users for access control
   assignedUsers?: string[];
   
+  // Progress data (new)
+  progress?: {
+    stallBookingProgress: number;
+    timeProgress: number;
+    combinedProgress: number;
+  };
+  
+  // Statistics (new)
+  stats?: {
+    totalStalls: number;
+    bookedStalls: number;
+    availableStalls: number;
+    bookingRate: number;
+  };
+  
   // Company Details
   companyName?: string;
   companyContactNo?: string;
@@ -245,6 +260,15 @@ const exhibitionService = {
     try {
       const response = await api.delete(`/exhibitions/${id}`);
       return response;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  getExhibitionProgress: async (id: string) => {
+    try {
+      const response = await api.get(`/exhibitions/${id}/progress`);
+      return response.data;
     } catch (error) {
       return handleApiError(error);
     }

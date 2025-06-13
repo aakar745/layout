@@ -11,7 +11,7 @@
 
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, Space, Tag, Table, Typography, Modal, Divider } from 'antd';
+import { Card, Descriptions, Button, Space, Tag, Table, Typography, Modal, Divider, message } from 'antd';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
 import { fetchBooking, updateBookingStatus } from '../../../store/slices/bookingSlice';
@@ -199,8 +199,20 @@ const BookingDetails: React.FC = () => {
           }
           extra={
             <Space>
-              <Button onClick={() => navigate(`/invoice/${id}`)}>
-                View Invoice
+              <Button 
+                onClick={() => {
+                  if (currentBooking.status !== 'approved' && currentBooking.status !== 'confirmed') {
+                    message.warning('First approve the stall, then view the invoice.');
+                    return;
+                  }
+                  navigate(`/invoice/${id}`);
+                }}
+                disabled={currentBooking.status !== 'approved' && currentBooking.status !== 'confirmed'}
+              >
+                {currentBooking.status !== 'approved' && currentBooking.status !== 'confirmed' 
+                  ? 'Approve First to View Invoice' 
+                  : 'View Invoice'
+                }
               </Button>
               {currentBooking.status === 'pending' && (
                 <>

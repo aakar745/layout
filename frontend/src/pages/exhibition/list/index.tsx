@@ -7,7 +7,7 @@ import type { MenuProps, TableProps } from 'antd';
 import { 
   EditOutlined, DeleteOutlined, EyeOutlined, LayoutOutlined, PlusOutlined, 
   SearchOutlined, MoreOutlined, CalendarOutlined, FilterOutlined, 
-  CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined, PoweroffOutlined
+  CheckCircleOutlined, ClockCircleOutlined, FileTextOutlined, PoweroffOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -38,6 +38,11 @@ const ExhibitionList: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Exhibition[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0
+  });
   const [filters, setFilters] = useState<FilterState>({
     status: [],
     dateRange: null,
@@ -45,11 +50,64 @@ const ExhibitionList: React.FC = () => {
     activeStatus: null
   });
   const [viewMode, setViewMode] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
+  const [progressData, setProgressData] = useState<Record<string, any>>({});
+  const [progressLoading, setProgressLoading] = useState(false);
   const { hasPermission } = usePermission();
 
   useEffect(() => {
     dispatch(fetchExhibitions());
   }, [dispatch]);
+
+  // Load progress data after exhibitions are loaded
+  useEffect(() => {
+    if (exhibitions.length > 0) {
+      loadAllProgressData();
+    }
+  }, [exhibitions]);
+
+  // Load progress data for all exhibitions
+  const loadAllProgressData = async () => {
+    if (exhibitions.length === 0) return;
+    
+    try {
+      setProgressLoading(true);
+      const progressPromises = exhibitions.map(async (exhibition) => {
+        try {
+          const id = exhibition._id || exhibition.id;
+          const progressData = await exhibitionService.getExhibitionProgress(id);
+          return { id, data: progressData };
+        } catch (error) {
+          console.warn(`Failed to load progress for exhibition ${exhibition.name}:`, error);
+          return { id: exhibition._id || exhibition.id, data: null };
+        }
+      });
+      
+      const results = await Promise.all(progressPromises);
+      const progressMap = results.reduce((acc, { id, data }) => {
+        acc[id] = data;
+        return acc;
+      }, {} as Record<string, any>);
+      
+      setProgressData(progressMap);
+    } catch (error) {
+      console.error('Failed to load progress data:', error);
+    } finally {
+      setProgressLoading(false);
+    }
+  };
+
+  // Refresh progress data
+  const refreshProgressData = () => {
+    loadAllProgressData();
+  };
+
+  // Update pagination total when exhibitions change
+  useEffect(() => {
+    setPagination(prev => ({
+      ...prev,
+      total: filteredExhibitions.length
+    }));
+  }, [exhibitions, filters, viewMode]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -323,6 +381,30 @@ const ExhibitionList: React.FC = () => {
   };
 
   const getExhibitionProgress = (exhibition: Exhibition) => {
+    const id = exhibition._id || exhibition.id;
+    const realProgressData = progressData[id];
+    
+    // Use real progress data if available
+    if (realProgressData?.progress?.combinedProgress !== undefined) {
+      return realProgressData.progress.combinedProgress;
+    }
+    
+    // Fallback to stall booking progress if available
+    if (realProgressData?.progress?.stallBookingProgress !== undefined) {
+      return realProgressData.progress.stallBookingProgress;
+    }
+    
+    // Use exhibition's own progress data if available
+    if (exhibition.progress?.combinedProgress !== undefined) {
+      return exhibition.progress.combinedProgress;
+    }
+    
+    // Fallback to stall booking progress if available
+    if (exhibition.progress?.stallBookingProgress !== undefined) {
+      return exhibition.progress.stallBookingProgress;
+    }
+    
+    // Final fallback to time-based progress (old behavior)
     const now = new Date();
     const start = new Date(exhibition.startDate);
     const end = new Date(exhibition.endDate);
@@ -658,16 +740,92 @@ const ExhibitionList: React.FC = () => {
       ),
     },
     {
-      title: 'Progress',
-      key: 'progress',
-      width: 200,
-      render: (_, record) => (
-        <Progress 
-          percent={getExhibitionProgress(record)} 
-          size="small"
-          status={record.status === 'completed' ? 'success' : 'active'}
-        />
+      title: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>Progress</span>
+          <Tooltip title="Refresh all progress data">
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<ReloadOutlined />}
+              loading={progressLoading}
+              onClick={refreshProgressData}
+              style={{ padding: '2px' }}
+            />
+          </Tooltip>
+        </div>
       ),
+      key: 'progress',
+      width: 250,
+      render: (_, record) => {
+        const progress = getExhibitionProgress(record);
+        const id = record._id || record.id;
+        const realStats = progressData[id]?.stats;
+        const realProgress = progressData[id]?.progress;
+        
+        // Determine progress type and color
+        let progressType: 'success' | 'active' | 'exception' = 'active';
+        let strokeColor = '#1890ff';
+        
+        if (record.status === 'completed') {
+          progressType = 'success';
+          strokeColor = '#52c41a';
+        } else if (progress === 100) {
+          strokeColor = '#faad14'; // Orange for fully booked but not completed
+        }
+
+        // Create tooltip content with real data
+        const tooltipContent = realStats ? (
+          <div>
+            <div><strong>Real-time Stall Booking:</strong></div>
+            <div>• Total Stalls: {realStats.totalStalls}</div>
+            <div>• Booked Stalls: {realStats.bookedStalls}</div>
+            <div>• Available Stalls: {realStats.availableStalls}</div>
+            <div>• Booking Rate: {realStats.bookingRate}%</div>
+            {realProgress && (
+              <>
+                <div style={{ marginTop: '8px' }}><strong>Progress Breakdown:</strong></div>
+                <div>• Stall Booking: {realProgress.stallBookingProgress}%</div>
+                <div>• Timeline: {realProgress.timeProgress}%</div>
+                <div>• Combined: {realProgress.combinedProgress}%</div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div>Progress: {progress}%</div>
+            <div>Based on timeline calculation</div>
+            <div style={{ color: '#faad14', marginTop: '4px' }}>
+              ⚠️ Real-time data not available
+            </div>
+          </div>
+        );
+
+        return (
+          <div>
+            <Tooltip title={tooltipContent} placement="topLeft">
+              <Progress 
+                percent={progress} 
+                size="small"
+                status={progressType}
+                strokeColor={strokeColor}
+                format={(percent) => `${percent}%`}
+              />
+            </Tooltip>
+            {realStats ? (
+              <div style={{ fontSize: '12px', color: '#52c41a', marginTop: '4px' }}>
+                <CheckCircleOutlined style={{ marginRight: '4px' }} />
+                {realStats.bookedStalls}/{realStats.totalStalls} stalls booked
+              </div>
+            ) : (
+              <div style={{ fontSize: '12px', color: '#faad14', marginTop: '4px' }}>
+                <ClockCircleOutlined style={{ marginRight: '4px' }} />
+                Timeline-based progress
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Actions',
@@ -869,7 +1027,7 @@ const ExhibitionList: React.FC = () => {
             key: exhibition._id || exhibition.id
           }))}
           rowKey={record => record._id || record.id}
-          loading={exhibitionsLoading || deleteLoading || statusLoading}
+          loading={exhibitionsLoading || deleteLoading || statusLoading || progressLoading}
           rowSelection={{
             selectedRowKeys: selectedRows.map(row => row._id || row.id),
             onChange: (_, selectedRows) => setSelectedRows(selectedRows),
@@ -900,10 +1058,19 @@ const ExhibitionList: React.FC = () => {
           )}
           scroll={{ x: 1500 }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} items`,
-            style: { marginTop: '16px' }
+            style: { marginTop: '16px' },
+            onChange: (page, pageSize) => {
+              setPagination(prev => ({
+                ...prev,
+                current: page,
+                pageSize: pageSize
+              }));
+            }
           }}
         />
       </Card>

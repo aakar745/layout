@@ -95,7 +95,10 @@ export const getExhibitions = async (req: Request, res: Response) => {
         .populate('createdBy', 'username');
     }
 
-    res.json(exhibitions);
+    // Calculate progress for all exhibitions
+    const exhibitionsWithProgress = await calculateExhibitionsProgress(exhibitions);
+
+    res.json(exhibitionsWithProgress);
   } catch (error) {
     console.error('Error fetching exhibitions:', error);
     res.status(500).json({ message: 'Error fetching exhibitions', error });
@@ -480,4 +483,142 @@ export const getAllExhibitionsForAssignment = async (req: Request, res: Response
     console.error('Error fetching exhibitions for assignment:', error);
     res.status(500).json({ message: 'Error fetching exhibitions for assignment', error });
   }
+};
+
+/**
+ * Get exhibition progress based on stall bookings
+ */
+export const getExhibitionProgress = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid exhibition ID' });
+    }
+
+    // Get exhibition
+    const exhibition = await Exhibition.findById(id);
+    if (!exhibition) {
+      return res.status(404).json({ message: 'Exhibition not found' });
+    }
+
+    // Get stall statistics
+    const Stall = require('../models/stall.model').default;
+    const Booking = require('../models/booking.model').default;
+
+    const [totalStalls, bookedStalls, confirmedBookings] = await Promise.all([
+      Stall.countDocuments({ exhibitionId: id }),
+      Stall.countDocuments({ exhibitionId: id, status: { $in: ['booked', 'reserved'] } }),
+      Booking.countDocuments({ exhibitionId: id, status: { $in: ['confirmed', 'approved'] } })
+    ]);
+
+    // Calculate progress metrics
+    const stallBookingProgress = totalStalls > 0 ? Math.round((bookedStalls / totalStalls) * 100) : 0;
+    
+    // Time-based progress (for reference)
+    const now = new Date();
+    const start = new Date(exhibition.startDate);
+    const end = new Date(exhibition.endDate);
+    let timeProgress = 0;
+    
+    if (now >= start && now <= end) {
+      const total = end.getTime() - start.getTime();
+      const current = now.getTime() - start.getTime();
+      timeProgress = Math.round((current / total) * 100);
+    } else if (now > end) {
+      timeProgress = 100;
+    }
+
+    // Combined progress (weighted: 70% stall booking, 30% timeline)
+    const combinedProgress = Math.round((stallBookingProgress * 0.7) + (timeProgress * 0.3));
+
+    const progressData = {
+      stallBookingProgress,
+      timeProgress,
+      combinedProgress,
+      stats: {
+        totalStalls,
+        bookedStalls,
+        availableStalls: totalStalls - bookedStalls,
+        confirmedBookings,
+        bookingRate: totalStalls > 0 ? Math.round((bookedStalls / totalStalls) * 100) : 0
+      }
+    };
+
+    res.json(progressData);
+  } catch (error) {
+    console.error('Error calculating exhibition progress:', error);
+    res.status(500).json({ message: 'Error calculating exhibition progress', error });
+  }
+};
+
+/**
+ * Calculate progress for multiple exhibitions
+ */
+const calculateExhibitionsProgress = async (exhibitions: any[]) => {
+  const Stall = require('../models/stall.model').default;
+  
+  const exhibitionsWithProgress = await Promise.all(
+    exhibitions.map(async (exhibition) => {
+      try {
+        const [totalStalls, bookedStalls] = await Promise.all([
+          Stall.countDocuments({ exhibitionId: exhibition._id }),
+          Stall.countDocuments({ exhibitionId: exhibition._id, status: { $in: ['booked', 'reserved'] } })
+        ]);
+
+        // Calculate stall booking progress
+        const stallBookingProgress = totalStalls > 0 ? Math.round((bookedStalls / totalStalls) * 100) : 0;
+        
+        // Time-based progress
+        const now = new Date();
+        const start = new Date(exhibition.startDate);
+        const end = new Date(exhibition.endDate);
+        let timeProgress = 0;
+        
+        if (now >= start && now <= end) {
+          const total = end.getTime() - start.getTime();
+          const current = now.getTime() - start.getTime();
+          timeProgress = Math.round((current / total) * 100);
+        } else if (now > end) {
+          timeProgress = 100;
+        }
+
+        // Combined progress (weighted: 70% stall booking, 30% timeline)
+        const combinedProgress = Math.round((stallBookingProgress * 0.7) + (timeProgress * 0.3));
+
+        return {
+          ...exhibition.toObject(),
+          progress: {
+            stallBookingProgress,
+            timeProgress,
+            combinedProgress
+          },
+          stats: {
+            totalStalls,
+            bookedStalls,
+            availableStalls: totalStalls - bookedStalls,
+            bookingRate: stallBookingProgress
+          }
+        };
+      } catch (error) {
+        console.error(`Error calculating progress for exhibition ${exhibition._id}:`, error);
+        return {
+          ...exhibition.toObject(),
+          progress: {
+            stallBookingProgress: 0,
+            timeProgress: 0,
+            combinedProgress: 0
+          },
+          stats: {
+            totalStalls: 0,
+            bookedStalls: 0,
+            availableStalls: 0,
+            bookingRate: 0
+          }
+        };
+      }
+    })
+  );
+
+  return exhibitionsWithProgress;
 }; 

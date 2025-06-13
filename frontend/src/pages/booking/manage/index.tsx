@@ -59,29 +59,37 @@ const StallBookingManager: React.FC = () => {
     exhibition: null
   });
   const navigate = useNavigate();
-  const { data: invoices, isLoading: isLoadingInvoices, error: invoiceError, refetch: refetchInvoices } = useGetInvoicesQuery({ page: 1, limit: 100 });
+  const { data: invoices, isLoading: isLoadingInvoices, error: invoiceError, refetch: refetchInvoices } = useGetInvoicesQuery({ 
+    page: 1, 
+    limit: 200 
+  }, {
+    // Reduce cache time to get fresher data
+    refetchOnMountOrArgChange: 30, // Refetch if data is older than 30 seconds
+    refetchOnFocus: true, // Refetch when window regains focus
+  });
   const { hasPermission } = usePermission();
 
   // Function to fetch bookings with pagination and filters
-  const fetchBookingsWithPagination = useCallback((page = 1, pageSize = 10) => {
+  const fetchBookingsWithPagination = useCallback((page = 1, pageSize = 10, customFilters?: FilterState) => {
+    const activeFilters = customFilters || filters;
     const params: any = { page, limit: pageSize };
     
     // Add filter parameters
-    if (filters.search) {
-      params.search = filters.search;
+    if (activeFilters.search) {
+      params.search = activeFilters.search;
     }
     
-    if (filters.exhibition) {
-      params.exhibitionId = filters.exhibition;
+    if (activeFilters.exhibition) {
+      params.exhibitionId = activeFilters.exhibition;
     }
     
-    if (filters.status && filters.status.length > 0) {
-      params.status = filters.status;
+    if (activeFilters.status && activeFilters.status.length > 0) {
+      params.status = activeFilters.status;
     }
     
-    if (filters.dateRange && filters.dateRange.length === 2) {
-      params.startDate = filters.dateRange[0];
-      params.endDate = filters.dateRange[1];
+    if (activeFilters.dateRange && activeFilters.dateRange.length === 2) {
+      params.startDate = activeFilters.dateRange[0];
+      params.endDate = activeFilters.dateRange[1];
     }
     
     dispatch(fetchBookings(params));
@@ -122,6 +130,15 @@ const StallBookingManager: React.FC = () => {
     }
   }, [bookings, dispatch]);
 
+  // Handle search filter with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchBookingsWithPagination(1, pagination.limit);
+    }, filters.search ? 500 : 0); // No delay when clearing search
+
+    return () => clearTimeout(timeoutId);
+  }, [filters.search, fetchBookingsWithPagination, pagination.limit]);
+
   /**
    * Deletes a booking
    * - Requires confirmation
@@ -141,8 +158,8 @@ const StallBookingManager: React.FC = () => {
   // Handle filter changes
   const handleFilter = (newFilters: FilterState) => {
     setFilters(newFilters);
-    // Reset to first page when filters change
-    fetchBookingsWithPagination(1, pagination.limit);
+    // Reset to first page when filters change and pass the new filters directly
+    fetchBookingsWithPagination(1, pagination.limit, newFilters);
   };
 
   // Ensure bookings is an array before passing it down

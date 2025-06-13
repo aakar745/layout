@@ -14,7 +14,7 @@ interface AmenitiesTableProps {
   isDynamicColumns?: boolean;
   isCalculated?: boolean;
   exhibitionId?: string;
-  amenityViewType?: 'basic' | 'extra' | 'all';
+  amenityViewType?: 'basic' | 'extra';
 }
 
 // Function to get color based on amenity type
@@ -39,7 +39,7 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
   isDynamicColumns = false,
   isCalculated = false,
   exhibitionId,
-  amenityViewType = 'all'
+  amenityViewType = 'basic'
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -47,7 +47,7 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
   
   // Filter amenities based on the view type for calculated view
   const filteredAmenities = useMemo(() => {
-    if (!isCalculated || amenityViewType === 'all') {
+    if (!isCalculated) {
       return amenities;
     }
     
@@ -157,11 +157,11 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
     // Combine stall-level and booking-level data based on view type
     let result: any[] = [];
     
-    if (amenityViewType === 'basic' || amenityViewType === 'all') {
+    if (amenityViewType === 'basic') {
       result = [...result, ...Array.from(stallMap.values()).filter(stall => Object.keys(stall.amenities).length > 0)];
     }
     
-    if (amenityViewType === 'extra' || amenityViewType === 'all') {
+    if (amenityViewType === 'extra') {
       result = [...result, ...Array.from(bookingMap.values()).filter(booking => Object.keys(booking.amenities).length > 0)];
     }
     
@@ -358,7 +358,7 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
               <Tag color="green">Calculated</Tag>
               {amenityViewType === 'basic' && <Tag color="blue">Basic Amenities</Tag>}
               {amenityViewType === 'extra' && <Tag color="purple">Extra Amenities</Tag>}
-              {amenityViewType === 'all' && <Tag color="orange">All Amenities</Tag>}
+
             </>
           )}
         </Space>

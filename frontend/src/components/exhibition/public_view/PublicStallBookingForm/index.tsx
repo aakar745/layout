@@ -37,6 +37,7 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
   const [formValues, setFormValues] = useState<any>({});
   const [formChanged, setFormChanged] = useState(false);
   const [stepLoading, setStepLoading] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
   
   // Get exhibitor profile from Redux store
   const exhibitor = useSelector((state: RootState) => state.exhibitorAuth.exhibitor);
@@ -92,17 +93,19 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
 
   const handleCancel = () => {
     if (formChanged) {
-      confirm({
-        title: 'Discard changes?',
-        icon: <ExclamationCircleOutlined />,
-        content: 'You have unsaved changes. Are you sure you want to close this form?',
-        onOk() {
-          onCancel();
-        },
-      });
+      setShowDiscardModal(true);
     } else {
       onCancel();
     }
+  };
+
+  const handleDiscardConfirm = () => {
+    setShowDiscardModal(false);
+    onCancel();
+  };
+
+  const handleDiscardCancel = () => {
+    setShowDiscardModal(false);
   };
 
   const nextStep = () => {
@@ -353,63 +356,114 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
   };
 
   return (
-    <StyledModal
-      title={`Book Exhibition Stall - ${stepTitles[currentStep]}`}
-      open={visible}
-      onCancel={handleCancel}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px' }}>
-          {currentStep > 0 && (
-            <StyledButton onClick={prevStep} disabled={stepLoading || loading} size="large">
-              Back
-            </StyledButton>
-          )}
-          <div>
-            {currentStep < totalSteps - 1 ? (
-              <StyledButton type="primary" onClick={nextStep} loading={stepLoading} disabled={loading} size="large">
-                Next
-              </StyledButton>
-            ) : (
-              <StyledButton type="primary" onClick={handleFinish} loading={loading} disabled={stepLoading} size="large">
-                Submit Booking
+    <>
+      <StyledModal
+        title={`Book Exhibition Stall - ${stepTitles[currentStep]}`}
+        open={visible}
+        onCancel={handleCancel}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 24px' }}>
+            {currentStep > 0 && (
+              <StyledButton onClick={prevStep} disabled={stepLoading || loading} size="large">
+                Back
               </StyledButton>
             )}
-          </div>
-        </div>
-      }
-      width={900}
-      destroyOnClose
-      maskClosable={false}
-      className="booking-modal"
-    >
-      <Spin spinning={loading || stepLoading} tip={loading ? "Processing your booking..." : "Validating..."}>
-        <StepsNav>
-          {steps.map((step, index) => (
-            <div 
-              key={index} 
-              className={`step-item ${currentStep === index ? 'active' : ''} ${currentStep > index ? 'completed' : ''}`}
-              onClick={() => currentStep > index ? setCurrentStep(index) : null}
-              style={{ cursor: currentStep > index ? 'pointer' : 'default' }}
-            >
-              <span className="step-icon">
-                {currentStep > index ? <CheckOutlined /> : index + 1}
-              </span>
-              {step.title}
+            <div>
+              {currentStep < totalSteps - 1 ? (
+                <StyledButton type="primary" onClick={nextStep} loading={stepLoading} disabled={loading} size="large">
+                  Next
+                </StyledButton>
+              ) : (
+                <StyledButton type="primary" onClick={handleFinish} loading={loading} disabled={stepLoading} size="large">
+                  Submit Booking
+                </StyledButton>
+              )}
             </div>
-          ))}
-        </StepsNav>
-        
-        <Form 
-          form={form} 
-          layout="vertical" 
-          preserve={true}
-          onFieldsChange={onFieldsChange}
-          key={`form-step-${currentStep}`}
-        >
-          {getStepContent(currentStep)}
-        </Form>
-      </Spin>
-    </StyledModal>
+          </div>
+        }
+        width={900}
+        destroyOnClose
+        maskClosable={false}
+        className="booking-modal"
+      >
+        <Spin spinning={loading || stepLoading} tip={loading ? "Processing your booking..." : "Validating..."}>
+          <StepsNav>
+            {steps.map((step, index) => (
+              <div 
+                key={index} 
+                className={`step-item ${currentStep === index ? 'active' : ''} ${currentStep > index ? 'completed' : ''}`}
+                onClick={() => currentStep > index ? setCurrentStep(index) : null}
+                style={{ cursor: currentStep > index ? 'pointer' : 'default' }}
+              >
+                <span className="step-icon">
+                  {currentStep > index ? <CheckOutlined /> : index + 1}
+                </span>
+                {step.title}
+              </div>
+            ))}
+          </StepsNav>
+          
+          <Form 
+            form={form} 
+            layout="vertical" 
+            preserve={true}
+            onFieldsChange={onFieldsChange}
+            key={`form-step-${currentStep}`}
+          >
+            {getStepContent(currentStep)}
+          </Form>
+        </Spin>
+      </StyledModal>
+
+      {/* Custom Discard Changes Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ExclamationCircleOutlined style={{ color: '#faad14', fontSize: '18px' }} />
+            <span>Discard Changes?</span>
+          </div>
+        }
+        open={showDiscardModal}
+        onCancel={handleDiscardCancel}
+        footer={
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            gap: '8px',
+            padding: '8px 0'
+          }}>
+            <Button 
+              onClick={handleDiscardCancel}
+              size="large"
+              style={{ minWidth: '100px' }}
+            >
+              Keep Editing
+            </Button>
+            <Button 
+              type="primary" 
+              danger 
+              onClick={handleDiscardConfirm}
+              size="large"
+              style={{ minWidth: '100px' }}
+            >
+              Discard Changes
+            </Button>
+          </div>
+        }
+        width={480}
+        centered
+        maskClosable={false}
+      >
+        <div style={{ padding: '16px 0' }}>
+          <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', color: '#666' }}>
+            You have unsaved changes in your booking form. If you close now, all your progress will be lost.
+          </p>
+          <p style={{ margin: '12px 0 0 0', fontSize: '14px', lineHeight: '1.6', color: '#666' }}>
+            Are you sure you want to discard your changes and close the form?
+          </p>
+        </div>
+      </Modal>
+    </>
   );
 };
 
