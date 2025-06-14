@@ -48,9 +48,13 @@ COPY --from=build /app/backend/package.json ./backend/
 COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/frontend/dist ./frontend/dist
 
-# Copy invoice template files
+# Copy template files
 COPY --from=build /app/backend/invoice-template.html /app/backend/
 COPY --from=build /app/backend/invoice-styles.css /app/backend/
+COPY --from=build /app/backend/letter-template.html /app/backend/
+COPY --from=build /app/backend/letter-styles.css /app/backend/
+COPY --from=build /app/backend/transport-template.html /app/backend/
+COPY --from=build /app/backend/stand-possession-template.html /app/backend/
 
 # Install only production dependencies
 RUN cd backend && npm install --only=production

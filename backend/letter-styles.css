@@ -1,243 +1,94 @@
-/* Letter Styles for PDF Generation */
+/* Letter Template Styles */
 body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 20px;
-    color: #333;
-    background-color: #ffffff !important;
-    line-height: 1.4;
-}
-
-/* Container for the letter */
-.letter-container {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
-    background-color: #ffffff;
-}
-
-.exhibition-letter {
-    width: 800px;
-    max-width: 100%;
     background-color: white;
     color: #333;
-    padding: 40px;
-    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 1.6;
 }
 
-/* Header Section */
-.header-section {
-    border-bottom: 2px solid #333;
-    padding-bottom: 20px;
-    margin-bottom: 30px;
+.letter-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: white;
+    padding: 30px;
 }
 
-.logo-section {
+/* Header Styles */
+.header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #333;
 }
 
-.logo-section img {
+.logo {
     max-width: 200px;
     max-height: 80px;
     object-fit: contain;
+    margin-bottom: 15px;
 }
 
-.logo-section h2 {
-    margin: 0;
+.company-info h1 {
+    margin: 10px 0;
     color: #333;
     font-size: 24px;
     font-weight: bold;
 }
 
-.company-info {
-    text-align: center;
-}
-
 .company-info p {
     margin: 5px 0;
-    color: #333;
+    color: #666;
     font-size: 14px;
-}
-
-/* Date Section */
-.date-section {
-    text-align: right;
-    margin-bottom: 30px;
-}
-
-.date-section p {
-    margin: 0;
-    color: #333;
-    font-size: 14px;
-    font-weight: bold;
-}
-
-/* Title Section */
-.title-section {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.title-section h3 {
-    margin: 0;
-    color: #333;
-    text-decoration: underline;
-    font-size: 18px;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-/* Information Boxes */
-.exhibition-info,
-.recipient-info {
-    margin-bottom: 30px;
-    padding: 15px;
-    border: 1px solid #ddd;
-    background-color: #f9f9f9;
-    border-radius: 5px;
-}
-
-.exhibition-info h4,
-.recipient-info h4 {
-    margin: 0 0 10px 0;
-    color: #333;
-    font-size: 16px;
-    font-weight: bold;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 5px;
-}
-
-.exhibition-info table,
-.recipient-info table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.exhibition-info td,
-.recipient-info td {
-    padding: 8px 5px;
-    color: #333;
-    vertical-align: top;
-}
-
-.exhibition-info td:first-child,
-.recipient-info td:first-child {
-    font-weight: bold;
-    width: 30%;
 }
 
 /* Letter Content */
 .letter-content {
-    margin-bottom: 40px;
-    line-height: 1.6;
-    color: #333;
-    min-height: 200px;
+    margin: 30px 0;
+    min-height: 400px;
 }
 
-.letter-content div {
+.letter-body {
     white-space: pre-line;
     font-size: 14px;
-}
-
-/* Signature Section */
-.signature-section {
-    margin-top: 50px;
-    page-break-inside: avoid;
-}
-
-.signature-section > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-}
-
-.signature-section > div > div {
-    width: 45%;
-}
-
-.signature-section p {
-    margin: 0 0 5px 0;
+    line-height: 1.8;
     color: #333;
-    font-size: 14px;
 }
 
-.signature-section div[style*="border-bottom"] {
-    border-bottom: 1px solid #333 !important;
-    height: 40px;
-    margin-bottom: 5px;
-}
-
-.signature-section p:last-child {
-    font-size: 12px;
-    color: #666;
-}
-
-/* Footer Section */
-.footer-section {
+/* Footer */
+.footer {
     margin-top: 40px;
     padding-top: 20px;
     border-top: 1px solid #ddd;
     text-align: center;
-}
-
-.footer-section p {
-    margin: 5px 0;
     color: #666;
     font-size: 12px;
-    font-style: italic;
+}
+
+.footer p {
+    margin: 5px 0;
 }
 
 /* Print Styles */
 @media print {
     body {
-        margin: 0;
         padding: 0;
-        background-color: white !important;
-        color: black !important;
     }
     
     .letter-container {
-        padding: 0;
-        margin: 0;
-    }
-    
-    .exhibition-letter {
-        width: 100%;
         padding: 20px;
-        box-shadow: none;
-        border: none;
-    }
-    
-    .signature-section {
-        page-break-inside: avoid;
-    }
-    
-    /* Ensure proper spacing for signatures */
-    .signature-section > div > div {
-        min-height: 80px;
     }
 }
 
-/* PDF-specific adjustments */
-@page {
-    margin: 20mm;
-    size: A4;
-}
-
-/* Responsive adjustments for smaller screens */
+/* Responsive */
 @media (max-width: 600px) {
-    .exhibition-letter {
-        padding: 20px;
+    .letter-container {
+        padding: 15px;
     }
     
-    .signature-section > div {
-        flex-direction: column;
-        gap: 30px;
-    }
-    
-    .signature-section > div > div {
-        width: 100%;
+    .company-info h1 {
+        font-size: 20px;
     }
 } 

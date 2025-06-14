@@ -15,6 +15,7 @@ import Exhibition from '../models/exhibition.model';
 import Booking from '../models/booking.model';
 import Exhibitor from '../models/exhibitor.model';
 import Stall from '../models/stall.model';
+import { embedLogo } from './pdf-generator.service';
 
 // Register Handlebars helpers for letter templates
 const registerLetterHandlebarsHelpers = () => {
@@ -164,7 +165,10 @@ export const generateLetterPDF = async (
     const template = handlebars.compile(templateHtml);
     
     // Generate HTML from template
-    const html = template(data);
+    let html = template(data);
+    
+    // Embed logos as base64 data URLs for PDF generation
+    html = await embedLogo(html, data.exhibition.headerLogo, data.globalLogo, data.currentDir);
     
     // Configure puppeteer options
     const puppeteerOptions: any = {
