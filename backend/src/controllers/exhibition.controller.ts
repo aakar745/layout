@@ -215,6 +215,42 @@ export const updateExhibition = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Exhibition not found' });
     }
 
+    // Validate amenities data
+    if (updateData.amenities !== undefined) {
+      if (!Array.isArray(updateData.amenities)) {
+        updateData.amenities = [];
+      } else {
+        // Validate each amenity
+        updateData.amenities = updateData.amenities.filter((amenity: any) => {
+          return amenity && 
+            amenity.type && 
+            amenity.name && 
+            amenity.description &&
+            typeof amenity.rate === 'number' && 
+            amenity.rate >= 0;
+        });
+      }
+    }
+
+    // Validate basic amenities data
+    if (updateData.basicAmenities !== undefined) {
+      if (!Array.isArray(updateData.basicAmenities)) {
+        updateData.basicAmenities = [];
+      } else {
+        // Validate each basic amenity
+        updateData.basicAmenities = updateData.basicAmenities.filter((amenity: any) => {
+          return amenity && 
+            amenity.type && 
+            amenity.name && 
+            amenity.description &&
+            typeof amenity.perSqm === 'number' && 
+            amenity.perSqm > 0 &&
+            typeof amenity.quantity === 'number' && 
+            amenity.quantity > 0;
+        });
+      }
+    }
+
     // Extract status and isActive
     const { status, isActive, ...restUpdateData } = updateData;
 
@@ -303,7 +339,6 @@ export const updateExhibition = async (req: Request, res: Response) => {
     res.json(exhibition);
   } catch (error) {
     console.error('Error updating exhibition:', error);
-    console.error('Update data:', JSON.stringify(req.body, null, 2));
     res.status(500).json({ message: 'Error updating exhibition', error });
   }
 };

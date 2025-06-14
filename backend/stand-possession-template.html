@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stand Possession Letter</title>
+    <style>
+        /* Ensure everything is visible in PDF */
+        body { background-color: white !important; color: #333 !important; }
+        * { visibility: visible !important; opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div class="letter-container" style="background-color: white;">
+        <div class="exhibition-letter" style="background-color: white; color: #333;">
+            <!-- Header Section -->
+            <div class="header-section" style="background-color: white; margin-bottom: 30px;">
+                <div class="logo-section" style="text-align: center; margin-bottom: 20px;">
+                    {{#if useGlobalLogo}}
+                    <!-- Global Logo (for admin views) -->
+                    {{#if globalLogo}}
+                    <img src="{{baseUrl}}/public/uploads/{{globalLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else}}
+                    <!-- Fallback to text -->
+                    <h2 style="margin: 0; color: #333;">{{exhibition.companyName}}</h2>
+                    {{/if}}
+                    {{else}}
+                    <!-- Exhibition Logo (for exhibitor views) -->
+                    {{#if exhibition.headerLogo}}
+                    <img src="{{baseUrl}}/public/uploads/{{exhibition.headerLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else if globalLogo}}
+                    <!-- Fall back to Global Logo if no exhibition logo -->
+                    <img src="{{baseUrl}}/public/uploads/{{globalLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else}}
+                    <!-- Fallback to text -->
+                    <h2 style="margin: 0; color: #333;">{{exhibition.companyName}}</h2>
+                    {{/if}}
+                    {{/if}}
+                </div>
+                
+                <div class="company-info" style="text-align: center; margin-bottom: 20px;">
+                    {{#if exhibition.companyAddress}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">{{exhibition.companyAddress}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyEmail}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Email: {{exhibition.companyEmail}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyContactNo}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Phone: {{exhibition.companyContactNo}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyWebsite}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Website: {{exhibition.companyWebsite}}</p>
+                    {{/if}}
+                </div>
+            </div>
+
+            <!-- Letter Date -->
+            <div class="date-section" style="text-align: right; margin-bottom: 30px;">
+                <p style="margin: 0; color: #333; font-size: 14px;">Date: {{formatDate currentDate}}</p>
+            </div>
+
+            <!-- Letter Title -->
+            <div class="title-section" style="text-align: center; margin-bottom: 30px;">
+                <h3 style="margin: 0; color: #333; text-decoration: underline; font-size: 20px; font-weight: bold;">
+                    STAND POSSESSION AUTHORIZATION
+                </h3>
+                <p style="margin: 10px 0 0 0; color: #333; font-size: 16px; font-weight: bold;">
+                    {{exhibition.name}}
+                </p>
+            </div>
+
+            <!-- Authorization Notice -->
+            <div class="authorization-notice" style="margin-bottom: 30px; padding: 15px; border: 2px solid #333; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 10px 0; color: #333; font-size: 16px; text-align: center;">OFFICIAL AUTHORIZATION</h4>
+                <p style="margin: 0; color: #333; font-size: 14px; text-align: center; font-weight: bold;">
+                    This letter authorizes the handover of stall possession to the designated representative
+                </p>
+            </div>
+
+            <!-- Exhibition Information -->
+            <div class="exhibition-info" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Exhibition Details</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; width: 25%; border-bottom: 1px solid #eee;">Exhibition:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{exhibition.name}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Venue:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{exhibition.venue}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Duration:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{formatDate exhibition.startDate}} to {{formatDate exhibition.endDate}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Exhibitor Information -->
+            <div class="exhibitor-info" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">Exhibitor Information</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; width: 25%; border-bottom: 1px solid #eee;">Company Name:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{companyName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Authorized Representative:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{representativeName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Stall Number(s):</td>
+                        <td style="padding: 8px 5px; color: #333; font-weight: bold; font-size: 16px; border-bottom: 1px solid #eee;">{{stallNumbers}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Contact Number:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{mobile}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333;">Email:</td>
+                        <td style="padding: 8px 5px; color: #333;">{{email}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Authorization Content -->
+            <div class="authorization-content" style="margin-bottom: 30px; padding: 20px; border: 1px solid #333;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 16px; text-align: center;">AUTHORIZATION STATEMENT</h4>
+                <div style="white-space: pre-line; font-size: 14px; line-height: 1.8; color: #333;">
+                    {{{content}}}
+                </div>
+            </div>
+
+            <!-- Terms and Conditions -->
+            <div class="terms-section" style="margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">Terms & Conditions:</h4>
+                <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 12px; line-height: 1.6;">
+                    <li>This authorization is valid only for the specified stall numbers and exhibition dates</li>
+                    <li>The representative must present valid identification when collecting stall keys</li>
+                    <li>All dues must be cleared before stall possession</li>
+                    <li>The exhibitor is responsible for the stall setup and breakdown as per exhibition guidelines</li>
+                    <li>Any damages to the stall or exhibition property will be charged to the exhibitor</li>
+                </ul>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="signature-section" style="margin-top: 40px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="width: 45%;">
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 14px; font-weight: bold;">Exhibitor Acknowledgment:</p>
+                        <div style="border-bottom: 2px solid #333; height: 50px; margin-bottom: 10px;"></div>
+                        <p style="margin: 0; color: #333; font-size: 12px; font-weight: bold;">{{representativeName}}</p>
+                        <p style="margin: 0; color: #333; font-size: 12px;">{{companyName}}</p>
+                        <p style="margin: 5px 0 0 0; color: #333; font-size: 11px;">Date: _______________</p>
+                    </div>
+                    
+                    <div style="width: 45%; text-align: right;">
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 14px; font-weight: bold;">Authorized By:</p>
+                        <div style="border-bottom: 2px solid #333; height: 50px; margin-bottom: 10px;"></div>
+                        <p style="margin: 0; color: #333; font-size: 12px; font-weight: bold;">{{exhibition.companyName}}</p>
+                        <p style="margin: 5px 0 0 0; color: #333; font-size: 11px;">Date: {{formatDate currentDate}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer-section" style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #333; text-align: center;">
+                <p style="margin: 0; color: #333; font-size: 12px; font-weight: bold;">
+                    OFFICIAL STAND POSSESSION AUTHORIZATION
+                </p>
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 11px;">
+                    This document is generated electronically and serves as official authorization for stall possession.
+                </p>
+                {{#if exhibition.companyGST}}
+                <p style="margin: 10px 0 0 0; color: #666; font-size: 11px;">
+                    GST No: {{exhibition.companyGST}}
+                </p>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

@@ -10,6 +10,7 @@ interface AmenitiesSettingsProps {
 }
 
 const AmenitiesSettings: React.FC<AmenitiesSettingsProps> = ({ form }) => {
+
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <Tabs defaultActiveKey="basic" type="card">
@@ -82,7 +83,18 @@ const AmenitiesSettings: React.FC<AmenitiesSettingsProps> = ({ form }) => {
                           }
                           rules={[
                             { required: true, message: 'Required' },
-                            { type: 'number', min: 1, message: 'Must be ≥ 1' }
+                            { 
+                              validator: (_, value) => {
+                                if (value === undefined || value === null || value === '') {
+                                  return Promise.reject(new Error('This field is required'));
+                                }
+                                const numValue = Number(value);
+                                if (isNaN(numValue) || numValue < 1) {
+                                  return Promise.reject(new Error('Must be a valid number ≥ 1'));
+                                }
+                                return Promise.resolve();
+                              }
+                            }
                           ]}
                         >
                           <InputNumber
@@ -106,7 +118,18 @@ const AmenitiesSettings: React.FC<AmenitiesSettingsProps> = ({ form }) => {
                           }
                           rules={[
                             { required: true, message: 'Required' },
-                            { type: 'number', min: 1, message: 'Must be ≥ 1' }
+                            { 
+                              validator: (_, value) => {
+                                if (value === undefined || value === null || value === '') {
+                                  return Promise.reject(new Error('This field is required'));
+                                }
+                                const numValue = Number(value);
+                                if (isNaN(numValue) || numValue < 1) {
+                                  return Promise.reject(new Error('Must be a valid number ≥ 1'));
+                                }
+                                return Promise.resolve();
+                              }
+                            }
                           ]}
                         >
                           <InputNumber
@@ -202,7 +225,18 @@ const AmenitiesSettings: React.FC<AmenitiesSettingsProps> = ({ form }) => {
                           name={[name, 'rate']}
                           rules={[
                             { required: true, message: 'Please enter rate' },
-                            { type: 'number', min: 0, message: 'Rate must be greater than or equal to 0' }
+                            { 
+                              validator: (_, value) => {
+                                if (value === undefined || value === null || value === '') {
+                                  return Promise.reject(new Error('Rate is required'));
+                                }
+                                const numValue = Number(value);
+                                if (isNaN(numValue) || numValue < 0) {
+                                  return Promise.reject(new Error('Rate must be a valid number ≥ 0'));
+                                }
+                                return Promise.resolve();
+                              }
+                            }
                           ]}
                         >
                           <InputNumber

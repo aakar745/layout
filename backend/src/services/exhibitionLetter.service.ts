@@ -52,6 +52,14 @@ export const generateLetterContent = async (
     const stalls = await Stall.find({ _id: { $in: booking.stallIds } });
     const stallNumbers = stalls.map(stall => stall.number).join(', ');
 
+    // Calculate total stall area (width * height for each stall)
+    const totalArea = stalls.reduce((sum, stall) => sum + (stall.dimensions.width * stall.dimensions.height), 0);
+    
+    // Format payment status
+    const paymentStatus = booking.paymentStatus === 'paid' ? 'PAID IN FULL' : 
+                         booking.paymentStatus === 'refunded' ? 'REFUNDED' : 
+                         'PENDING PAYMENT';
+
     // Prepare template variables
     const variables = {
       COMPANY_NAME: booking.companyName || '',
@@ -65,6 +73,12 @@ export const generateLetterContent = async (
       EXHIBITION_START_DATE: exhibition.startDate ? new Date(exhibition.startDate).toLocaleDateString() : '',
       EXHIBITION_END_DATE: exhibition.endDate ? new Date(exhibition.endDate).toLocaleDateString() : '',
       CURRENT_DATE: new Date().toLocaleDateString(),
+      BOOKING_REFERENCE: booking._id.toString().slice(-8).toUpperCase(),
+      TOTAL_AMOUNT: booking.calculations?.totalAmount ? `₹${booking.calculations.totalAmount.toLocaleString()}` : 'N/A',
+      PAYMENT_STATUS: paymentStatus,
+      STALL_AREA: totalArea ? `${totalArea}` : 'N/A',
+      CONTACT_PERSON: 'Exhibition Manager',
+      CONTACT_PHONE: exhibition.contactPhone || 'Contact Main Office',
     };
 
     // Get letter template based on type

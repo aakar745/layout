@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transport Letter</title>
+    <style>
+        /* Ensure everything is visible in PDF */
+        body { background-color: white !important; color: #333 !important; }
+        * { visibility: visible !important; opacity: 1 !important; }
+    </style>
+</head>
+<body>
+    <div class="letter-container" style="background-color: white;">
+        <div class="exhibition-letter" style="background-color: white; color: #333;">
+            <!-- Header Section -->
+            <div class="header-section" style="background-color: white; margin-bottom: 30px;">
+                <div class="logo-section" style="text-align: center; margin-bottom: 20px;">
+                    {{#if useGlobalLogo}}
+                    <!-- Global Logo (for admin views) -->
+                    {{#if globalLogo}}
+                    <img src="{{baseUrl}}/public/uploads/{{globalLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else}}
+                    <!-- Fallback to text -->
+                    <h2 style="margin: 0; color: #333;">{{exhibition.companyName}}</h2>
+                    {{/if}}
+                    {{else}}
+                    <!-- Exhibition Logo (for exhibitor views) -->
+                    {{#if exhibition.headerLogo}}
+                    <img src="{{baseUrl}}/public/uploads/{{exhibition.headerLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else if globalLogo}}
+                    <!-- Fall back to Global Logo if no exhibition logo -->
+                    <img src="{{baseUrl}}/public/uploads/{{globalLogo}}" alt="{{exhibition.companyName}}" style="max-width: 200px; max-height: 80px; object-fit: contain;" />
+                    {{else}}
+                    <!-- Fallback to text -->
+                    <h2 style="margin: 0; color: #333;">{{exhibition.companyName}}</h2>
+                    {{/if}}
+                    {{/if}}
+                </div>
+                
+                <div class="company-info" style="text-align: center; margin-bottom: 20px;">
+                    {{#if exhibition.companyAddress}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">{{exhibition.companyAddress}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyEmail}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Email: {{exhibition.companyEmail}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyContactNo}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Phone: {{exhibition.companyContactNo}}</p>
+                    {{/if}}
+                    {{#if exhibition.companyWebsite}}
+                    <p style="margin: 5px 0; color: #333; font-size: 14px;">Website: {{exhibition.companyWebsite}}</p>
+                    {{/if}}
+                </div>
+            </div>
+
+            <!-- Letter Date -->
+            <div class="date-section" style="text-align: right; margin-bottom: 30px;">
+                <p style="margin: 0; color: #333; font-size: 14px;">Date: {{formatDate currentDate}}</p>
+            </div>
+
+            <!-- Letter Title -->
+            <div class="title-section" style="text-align: center; margin-bottom: 30px;">
+                <h3 style="margin: 0; color: #333; text-decoration: underline; font-size: 20px; font-weight: bold;">
+                    TRANSPORTATION GUIDELINES & INFORMATION
+                </h3>
+                <p style="margin: 10px 0 0 0; color: #333; font-size: 16px; font-weight: bold;">
+                    {{exhibition.name}}
+                </p>
+            </div>
+
+            <!-- Information Notice -->
+            <div class="info-notice" style="margin-bottom: 30px; padding: 15px; border: 2px solid #2196F3; background-color: #E3F2FD;">
+                <h4 style="margin: 0 0 10px 0; color: #1976D2; font-size: 16px; text-align: center;">IMPORTANT TRANSPORTATION INFORMATION</h4>
+                <p style="margin: 0; color: #1976D2; font-size: 14px; text-align: center; font-weight: bold;">
+                    Please read all transportation guidelines carefully and plan accordingly
+                </p>
+            </div>
+
+            <!-- Exhibition Information -->
+            <div class="exhibition-info" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">📅 Exhibition Schedule</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; width: 25%; border-bottom: 1px solid #eee;">Event:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{exhibition.name}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Venue:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{exhibition.venue}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Exhibition Dates:</td>
+                        <td style="padding: 8px 5px; color: #333; font-weight: bold; border-bottom: 1px solid #eee;">{{formatDate exhibition.startDate}} to {{formatDate exhibition.endDate}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Exhibitor Information -->
+            <div class="exhibitor-info" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">🏢 Exhibitor Details</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; width: 25%; border-bottom: 1px solid #eee;">Company:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{companyName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Contact Person:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{representativeName}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Allocated Stall(s):</td>
+                        <td style="padding: 8px 5px; color: #333; font-weight: bold; font-size: 16px; border-bottom: 1px solid #eee;">{{stallNumbers}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">Mobile:</td>
+                        <td style="padding: 8px 5px; color: #333; border-bottom: 1px solid #eee;">{{mobile}}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 5px; font-weight: bold; color: #333;">Email:</td>
+                        <td style="padding: 8px 5px; color: #333;">{{email}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Transportation Guidelines Content -->
+            <div class="transport-content" style="margin-bottom: 30px; padding: 20px; border: 1px solid #2196F3; background-color: #F8F9FA;">
+                <h4 style="margin: 0 0 15px 0; color: #1976D2; font-size: 16px; text-align: center;">🚛 TRANSPORTATION GUIDELINES</h4>
+                <div style="white-space: pre-line; font-size: 14px; line-height: 1.8; color: #333;">
+                    {{{content}}}
+                </div>
+            </div>
+
+            <!-- Important Timings -->
+            <div class="timings-section" style="margin-bottom: 25px; padding: 15px; border: 1px solid #FF9800; background-color: #FFF3E0;">
+                <h4 style="margin: 0 0 15px 0; color: #F57C00; font-size: 16px;">⏰ Important Timings & Deadlines</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Setup Period:</p>
+                        <p style="margin: 0 0 10px 0; color: #333; font-size: 12px;">Usually 1-2 days before exhibition start</p>
+                        
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Breakdown Period:</p>
+                        <p style="margin: 0; color: #333; font-size: 12px;">Within 24 hours after exhibition end</p>
+                    </div>
+                    <div>
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Delivery Hours:</p>
+                        <p style="margin: 0 0 10px 0; color: #333; font-size: 12px;">Typically 8:00 AM - 6:00 PM</p>
+                        
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Contact for Coordination:</p>
+                        <p style="margin: 0; color: #333; font-size: 12px;">{{exhibition.companyContactNo}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guidelines Checklist -->
+            <div class="checklist-section" style="margin-bottom: 25px; padding: 15px; border: 1px solid #4CAF50; background-color: #E8F5E8;">
+                <h4 style="margin: 0 0 15px 0; color: #2E7D32; font-size: 16px;">✅ Transportation Checklist</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 12px; line-height: 1.6;">
+                            <li>Coordinate delivery timing with venue</li>
+                            <li>Ensure proper vehicle documentation</li>
+                            <li>Arrange for adequate manpower</li>
+                            <li>Plan for material handling equipment</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 12px; line-height: 1.6;">
+                            <li>Verify stall dimensions for planning</li>
+                            <li>Prepare inventory list for security</li>
+                            <li>Keep contact numbers handy</li>
+                            <li>Plan for return transportation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="contact-section" style="margin-bottom: 30px; padding: 15px; border: 1px solid #9C27B0; background-color: #F3E5F5;">
+                <h4 style="margin: 0 0 15px 0; color: #7B1FA2; font-size: 16px;">📞 Emergency Contacts</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Exhibition Office:</p>
+                        <p style="margin: 0 0 10px 0; color: #333; font-size: 12px;">{{exhibition.companyContactNo}}</p>
+                        
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Email Support:</p>
+                        <p style="margin: 0; color: #333; font-size: 12px;">{{exhibition.companyEmail}}</p>
+                    </div>
+                    <div>
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Venue Address:</p>
+                        <p style="margin: 0 0 10px 0; color: #333; font-size: 12px;">{{exhibition.venue}}</p>
+                        
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 13px; font-weight: bold;">Your Stall(s):</p>
+                        <p style="margin: 0; color: #333; font-size: 12px; font-weight: bold;">{{stallNumbers}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acknowledgment Section -->
+            <div class="acknowledgment-section" style="margin-top: 30px; padding: 15px; border: 1px solid #333;">
+                <h4 style="margin: 0 0 15px 0; color: #333; font-size: 14px; text-align: center;">ACKNOWLEDGMENT</h4>
+                <p style="margin: 0 0 20px 0; color: #333; font-size: 12px; text-align: center;">
+                    I acknowledge that I have read and understood the transportation guidelines provided above.
+                </p>
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="width: 45%;">
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 12px; font-weight: bold;">Exhibitor Acknowledgment:</p>
+                        <div style="border-bottom: 1px solid #333; height: 40px; margin-bottom: 10px;"></div>
+                        <p style="margin: 0; color: #333; font-size: 11px;">{{representativeName}}</p>
+                        <p style="margin: 0; color: #333; font-size: 11px;">{{companyName}}</p>
+                        <p style="margin: 5px 0 0 0; color: #333; font-size: 10px;">Date: _______________</p>
+                    </div>
+                    
+                    <div style="width: 45%; text-align: right;">
+                        <p style="margin: 0 0 5px 0; color: #333; font-size: 12px; font-weight: bold;">Issued By:</p>
+                        <div style="border-bottom: 1px solid #333; height: 40px; margin-bottom: 10px;"></div>
+                        <p style="margin: 0; color: #333; font-size: 11px;">{{exhibition.companyName}}</p>
+                        <p style="margin: 5px 0 0 0; color: #333; font-size: 10px;">Date: {{formatDate currentDate}}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer-section" style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #2196F3; text-align: center;">
+                <p style="margin: 0; color: #1976D2; font-size: 12px; font-weight: bold;">
+                    TRANSPORTATION GUIDELINES & INFORMATION
+                </p>
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 11px;">
+                    This document contains important transportation information. Please retain for reference.
+                </p>
+                {{#if exhibition.companyGST}}
+                <p style="margin: 10px 0 0 0; color: #666; font-size: 11px;">
+                    GST No: {{exhibition.companyGST}}
+                </p>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

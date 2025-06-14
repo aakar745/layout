@@ -3,7 +3,7 @@ import api from './api';
 export interface ExhibitionLetter {
   _id: string;
   exhibitionId: string;
-  bookingId: string;
+  bookingId: string | { _id: string; customerName: string; companyName: string };
   exhibitorId: string;
   letterType: 'standPossession' | 'transport';
   
@@ -65,6 +65,28 @@ export interface SendLettersResult {
   sent: number;
   failed: number;
   total: number;
+}
+
+export interface ResendBothResult {
+  message: string;
+  results: {
+    standPossession: {
+      success: boolean;
+      message: string;
+      letterId: string | null;
+    };
+    transport: {
+      success: boolean;
+      message: string;
+      letterId: string | null;
+    };
+  };
+  summary: {
+    total: number;
+    sent: number;
+    failed: number;
+    requested: string[];
+  };
 }
 
 export interface UpcomingSchedule {
@@ -220,6 +242,21 @@ const exhibitionLetterService = {
       const response = await api.get(`/exhibition-letters/letter/${letterId}/download`, {
         responseType: 'blob'
       });
+      return response.data;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  /**
+   * Resend specific letter types for a booking
+   */
+  resendBothLetters: async (exhibitionId: string, bookingId: string, letterTypes: string[]) => {
+    try {
+      const response = await api.post<ResendBothResult>(
+        `/exhibition-letters/${exhibitionId}/resend-both/${bookingId}`,
+        { letterTypes }
+      );
       return response.data;
     } catch (error) {
       return handleApiError(error);

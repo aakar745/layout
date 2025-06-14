@@ -157,29 +157,69 @@ const ExhibitionEdit: React.FC = () => {
     }
   }, [error, message]);
 
-  const handleSubmit = async (values: ExhibitionFormData) => {
+  const handleSubmit = async (values: any) => {
     if (!exhibitionId || !currentExhibition) return;
 
     try {
-      const [startDate, endDate] = values.dateRange;
+      // Handle dateRange properly
+      const [startDate, endDate] = values.dateRange || [null, null];
+      
+      // Validate amenities data before processing
+      const validateAmenities = (amenities: any[], type: string) => {
+        if (!amenities || !Array.isArray(amenities)) {
+          return [];
+        }
+        
+        return amenities.filter((amenity) => {
+          return amenity && 
+            amenity.type && 
+            amenity.name && 
+            amenity.description &&
+            (type === 'extra' ? (typeof amenity.rate === 'number' && amenity.rate >= 0) : 
+             (typeof amenity.perSqm === 'number' && amenity.perSqm > 0 && 
+              typeof amenity.quantity === 'number' && amenity.quantity > 0));
+        });
+      };
+      
+      // Validate and clean amenities
+      const validatedAmenities = validateAmenities(values.amenities, 'extra');
+      const validatedBasicAmenities = validateAmenities(values.basicAmenities, 'basic');
+
       const exhibitionData = {
         // Basic Information
         name: values.name,
         description: values.description,
         venue: values.venue,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        startDate: startDate ? startDate.toISOString() : currentExhibition.startDate,
+        endDate: endDate ? endDate.toISOString() : currentExhibition.endDate,
         status: values.status,
         isActive: values.isActive,
         invoicePrefix: values.invoicePrefix,
-        stallRates: values.stallRates || [],
         dimensions: currentExhibition.dimensions,
-
+        stallRates: values.stallRates?.map((rate: any) => ({
+          stallTypeId: rate.stallTypeId,
+          rate: rate.rate
+        })) || [],
+        
         // Tax and Discount Configuration
-        taxConfig: values.taxConfig || [],
-        discountConfig: values.discountConfig || [],
-        publicDiscountConfig: values.publicDiscountConfig || [],
-
+        taxConfig: values.taxConfig?.map((tax: any) => ({
+          name: tax.name,
+          rate: tax.rate,
+          isActive: tax.isActive
+        })) || [],
+        discountConfig: values.discountConfig?.map((discount: any) => ({
+          name: discount.name,
+          type: discount.type,
+          value: discount.value,
+          isActive: discount.isActive
+        })) || [],
+        publicDiscountConfig: values.publicDiscountConfig?.map((discount: any) => ({
+          name: discount.name,
+          type: discount.type,
+          value: discount.value,
+          isActive: discount.isActive
+        })) || [],
+        
         // Company Details
         companyName: values.companyName,
         companyContactNo: values.companyContactNo,
@@ -192,21 +232,21 @@ const ExhibitionEdit: React.FC = () => {
         companyCIN: values.companyCIN,
         termsAndConditions: values.termsAndConditions,
         piInstructions: values.piInstructions,
-
+        
         // Bank Details
         bankName: values.bankName,
         bankBranch: values.bankBranch,
         bankIFSC: values.bankIFSC,
         bankAccountName: values.bankAccountName,
         bankAccount: values.bankAccount,
-
+        
         // Header settings
         headerTitle: values.headerTitle,
         headerSubtitle: values.headerSubtitle,
         headerDescription: values.headerDescription,
         headerLogo: values.headerLogo,
-        sponsorLogos: values.sponsorLogos || [],
-
+        sponsorLogos: values.sponsorLogos,
+        
         // Footer settings
         footerText: values.footerText,
         footerLogo: values.footerLogo,
@@ -214,20 +254,20 @@ const ExhibitionEdit: React.FC = () => {
         contactPhone: values.contactPhone,
         footerLinks: values.footerLinks || [],
 
-        // Amenities settings
-        amenities: values.amenities?.map(amenity => ({
+        // Amenities settings - Use validated data
+        amenities: validatedAmenities.map(amenity => ({
           type: amenity.type,
-          name: amenity.name,
-          description: amenity.description,
-          rate: amenity.rate
-        })) || [],
-        basicAmenities: values.basicAmenities?.map(amenity => ({
+          name: amenity.name.trim(),
+          description: amenity.description.trim(),
+          rate: Number(amenity.rate)
+        })),
+        basicAmenities: validatedBasicAmenities.map(amenity => ({
           type: amenity.type,
-          name: amenity.name,
-          description: amenity.description,
-          perSqm: amenity.perSqm,
-          quantity: amenity.quantity
-        })) || [],
+          name: amenity.name.trim(),
+          description: amenity.description.trim(),
+          perSqm: Number(amenity.perSqm),
+          quantity: Number(amenity.quantity)
+        })),
         specialRequirements: values.specialRequirements,
         // Letter Settings
         letterSettings: values.letterSettings
@@ -237,6 +277,7 @@ const ExhibitionEdit: React.FC = () => {
       message.success('Exhibition updated successfully');
       navigate(getExhibitionUrl(currentExhibition), { state: { exhibitionId } });
     } catch (error: any) {
+      console.error('Exhibition update error:', error);
       message.error(error.message || 'Failed to update exhibition');
     }
   };

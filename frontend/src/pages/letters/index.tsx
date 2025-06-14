@@ -17,7 +17,9 @@ import {
   DatePicker,
   Tabs,
   Alert,
-  Popconfirm
+  Popconfirm,
+  Dropdown,
+  MenuProps
 } from 'antd';
 import {
   MailOutlined,
@@ -29,17 +31,20 @@ import {
   ExclamationCircleOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  DoubleRightOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import exhibitionLetterService, {
   ExhibitionLetter,
   LetterStatistics,
-  UpcomingSchedule
+  UpcomingSchedule,
+  ResendBothResult
 } from '../../services/exhibitionLetter';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store/store';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../../store/store';
+import { fetchExhibitions } from '../../store/slices/exhibitionSlice';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -48,7 +53,10 @@ const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 
 const LettersPage: React.FC = () => {
-  const [selectedExhibition, setSelectedExhibition] = useState<string>('');
+  // Initialize selectedExhibition from localStorage
+  const [selectedExhibition, setSelectedExhibition] = useState<string>(() => {
+    return localStorage.getItem('letters-selected-exhibition') || '';
+  });
   const [letters, setLetters] = useState<ExhibitionLetter[]>([]);
   const [statistics, setStatistics] = useState<LetterStatistics | null>(null);
   const [upcomingSchedules, setUpcomingSchedules] = useState<UpcomingSchedule[]>([]);
@@ -70,7 +78,37 @@ const LettersPage: React.FC = () => {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState<ExhibitionLetter | null>(null);
 
+  const dispatch = useDispatch<AppDispatch>();
   const { exhibitions } = useSelector((state: RootState) => state.exhibition);
+
+  // Fetch exhibitions on component mount
+  useEffect(() => {
+    dispatch(fetchExhibitions());
+  }, [dispatch]);
+
+  // Handle exhibition selection with localStorage persistence
+  const handleExhibitionChange = (exhibitionId: string) => {
+    setSelectedExhibition(exhibitionId);
+    if (exhibitionId) {
+      localStorage.setItem('letters-selected-exhibition', exhibitionId);
+    } else {
+      localStorage.removeItem('letters-selected-exhibition');
+    }
+    // Reset pagination when changing exhibition
+    setPagination(prev => ({ ...prev, current: 1 }));
+  };
+
+  // Validate selected exhibition exists in available exhibitions
+  useEffect(() => {
+    if (selectedExhibition && exhibitions.length > 0) {
+      const exhibitionExists = exhibitions.some(ex => ex._id === selectedExhibition);
+      if (!exhibitionExists) {
+        // Clear invalid selection
+        setSelectedExhibition('');
+        localStorage.removeItem('letters-selected-exhibition');
+      }
+    }
+  }, [selectedExhibition, exhibitions]);
 
   // Fetch letters when filters change
   useEffect(() => {
@@ -168,6 +206,63 @@ const LettersPage: React.FC = () => {
     }
   };
 
+  const handleResendLetters = async (letter: ExhibitionLetter, letterTypes: string[]) => {
+    if (!selectedExhibition) return;
+
+    try {
+      const letterTypeNames = letterTypes.map(type => 
+        type === 'standPossession' ? 'Stand Possession' : 'Transport'
+      ).join(' and ');
+      
+      message.loading({ content: `Sending ${letterTypeNames} letter(s)...`, key: 'resend-letters' });
+      
+      // Extract bookingId - it could be populated object or string
+      const bookingId = typeof letter.bookingId === 'object' && letter.bookingId !== null 
+        ? (letter.bookingId as any)._id 
+        : letter.bookingId;
+      
+      const result = await exhibitionLetterService.resendBothLetters(selectedExhibition, bookingId, letterTypes);
+      
+      // Show detailed results
+      const successCount = result.summary.sent;
+      const failedCount = result.summary.failed;
+      const total = result.summary.total;
+      
+      if (successCount > 0 && failedCount === 0) {
+        message.success({ 
+          content: `${letterTypeNames} letter(s) sent successfully (${successCount}/${total})`, 
+          key: 'resend-letters' 
+        });
+      } else if (successCount > 0 && failedCount > 0) {
+        message.warning({ 
+          content: `Partially successful: ${successCount} sent, ${failedCount} failed`, 
+          key: 'resend-letters' 
+        });
+      } else {
+        message.error({ 
+          content: `Failed to send ${letterTypeNames} letter(s): ${result.message}`, 
+          key: 'resend-letters' 
+        });
+      }
+
+      // Show detailed breakdown for failed letters only
+      if (letterTypes.includes('standPossession') && result.results.standPossession.message && !result.results.standPossession.success) {
+        message.warning(result.results.standPossession.message);
+      }
+      if (letterTypes.includes('transport') && result.results.transport.message && !result.results.transport.success) {
+        message.warning(result.results.transport.message);
+      }
+
+      fetchLetters();
+      fetchStatistics();
+    } catch (error: any) {
+      message.error({ 
+        content: error.message || 'Failed to resend letters', 
+        key: 'resend-letters' 
+      });
+    }
+  };
+
   const handleViewLetter = async (letter: ExhibitionLetter) => {
     setSelectedLetter(letter);
     setPreviewModalVisible(true);
@@ -207,6 +302,13 @@ const LettersPage: React.FC = () => {
     setSearchQuery('');
     setDateRange(null);
     setPagination(prev => ({ ...prev, current: 1 }));
+    // Note: We don't reset selectedExhibition here as it's the main context
+    // Users can clear it using the allowClear button on the exhibition select
+  };
+
+  // Helper function to check if any filters are active (excluding exhibition)
+  const hasActiveFilters = () => {
+    return !!(letterTypeFilter || statusFilter || searchQuery || dateRange);
   };
 
   const getStatusTag = (status: string) => {
@@ -284,7 +386,7 @@ const LettersPage: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      width: 180,
+      width: 220,
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="View Letter">
@@ -302,9 +404,44 @@ const LettersPage: React.FC = () => {
               onClick={() => handleDownloadLetter(record)}
             />
           </Tooltip>
+
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'both',
+                  label: 'Resend Both Letters',
+                  icon: <DoubleRightOutlined />,
+                  onClick: () => handleResendLetters(record, ['standPossession', 'transport'])
+                },
+                {
+                  key: 'standPossession',
+                  label: 'Resend Stand Possession Only',
+                  icon: <SendOutlined />,
+                  onClick: () => handleResendLetters(record, ['standPossession'])
+                },
+                {
+                  key: 'transport',
+                  label: 'Resend Transport Only', 
+                  icon: <SendOutlined />,
+                  onClick: () => handleResendLetters(record, ['transport'])
+                }
+              ]
+            }}
+            trigger={['click']}
+            placement="bottomLeft"
+          >
+            <Tooltip title="Resend Letters" placement="top">
+              <Button
+                type="text"
+                icon={<DoubleRightOutlined />}
+                style={{ color: '#1890ff' }}
+              />
+            </Tooltip>
+          </Dropdown>
           
           {record.status === 'failed' && (
-            <Tooltip title="Resend Letter">
+            <Tooltip title="Resend This Letter">
               <Button
                 type="text"
                 icon={<SendOutlined />}
@@ -387,16 +524,39 @@ const LettersPage: React.FC = () => {
         <TabPane tab="Letters" key="letters">
           {/* Filters */}
           <Card style={{ marginBottom: '24px' }}>
+            {/* Filter Status Bar */}
+            {(selectedExhibition || hasActiveFilters()) && (
+              <Alert
+                style={{ marginBottom: '16px' }}
+                message={
+                  <span>
+                    <strong>Active Filters:</strong> {[
+                      selectedExhibition ? `Exhibition: ${exhibitions.find(ex => ex._id === selectedExhibition)?.name || 'Selected'}` : null,
+                      letterTypeFilter ? `Type: ${letterTypeFilter === 'standPossession' ? 'Stand Possession' : 'Transport'}` : null,
+                      statusFilter ? `Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}` : null,
+                      searchQuery ? `Search: "${searchQuery}"` : null
+                    ].filter(Boolean).join(' • ')}
+                  </span>
+                }
+                type="info"
+                showIcon
+                closable={false}
+              />
+            )}
             <Row gutter={[16, 16]}>
               <Col xs={24} md={6}>
-                <Text strong>Exhibition:</Text>
+                <Text strong>
+                  Exhibition:
+                  {selectedExhibition && <Tag color="blue" style={{ marginLeft: 8 }}>Selected</Tag>}
+                </Text>
                 <Select
                   style={{ width: '100%', marginTop: '8px' }}
                   placeholder="Select Exhibition"
-                  value={selectedExhibition}
-                  onChange={setSelectedExhibition}
+                  value={selectedExhibition || undefined}
+                  onChange={handleExhibitionChange}
                   showSearch
                   optionFilterProp="children"
+                  allowClear={!!selectedExhibition}
                 >
                   {exhibitions.map(exhibition => (
                     <Option key={exhibition._id} value={exhibition._id}>
@@ -407,13 +567,16 @@ const LettersPage: React.FC = () => {
               </Col>
               
               <Col xs={24} md={4}>
-                <Text strong>Letter Type:</Text>
+                <Text strong>
+                  Letter Type:
+                  {letterTypeFilter && <Tag color="green" style={{ marginLeft: 8 }}>Filtered</Tag>}
+                </Text>
                 <Select
                   style={{ width: '100%', marginTop: '8px' }}
                   placeholder="All Types"
-                  value={letterTypeFilter}
+                  value={letterTypeFilter || undefined}
                   onChange={setLetterTypeFilter}
-                  allowClear
+                  allowClear={!!letterTypeFilter}
                 >
                   <Option value="standPossession">Stand Possession</Option>
                   <Option value="transport">Transport</Option>
@@ -421,13 +584,16 @@ const LettersPage: React.FC = () => {
               </Col>
               
               <Col xs={24} md={4}>
-                <Text strong>Status:</Text>
+                <Text strong>
+                  Status:
+                  {statusFilter && <Tag color="orange" style={{ marginLeft: 8 }}>Filtered</Tag>}
+                </Text>
                 <Select
                   style={{ width: '100%', marginTop: '8px' }}
                   placeholder="All Statuses"
-                  value={statusFilter}
+                  value={statusFilter || undefined}
                   onChange={setStatusFilter}
-                  allowClear
+                  allowClear={!!statusFilter}
                 >
                   <Option value="sent">Sent</Option>
                   <Option value="pending">Pending</Option>
@@ -437,19 +603,29 @@ const LettersPage: React.FC = () => {
               </Col>
               
               <Col xs={24} md={6}>
-                <Text strong>Search:</Text>
+                <Text strong>
+                  Search:
+                  {searchQuery && <Tag color="purple" style={{ marginLeft: 8 }}>Active</Tag>}
+                </Text>
                 <Search
                   style={{ marginTop: '8px' }}
                   placeholder="Search by name, company, email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  allowClear
+                  allowClear={!!searchQuery}
                 />
               </Col>
               
               <Col xs={24} md={4}>
                 <div style={{ marginTop: '32px' }}>
-                  <Button onClick={resetFilters}>Reset Filters</Button>
+                  <Button 
+                    onClick={resetFilters}
+                    disabled={!hasActiveFilters()}
+                    type={hasActiveFilters() ? 'primary' : 'default'}
+                    danger={hasActiveFilters()}
+                  >
+                    Reset Filters
+                  </Button>
                 </div>
               </Col>
             </Row>
@@ -504,7 +680,7 @@ const LettersPage: React.FC = () => {
           {/* Actions */}
           {selectedExhibition && (
             <Card style={{ marginBottom: '24px' }}>
-              <Space>
+              <Space wrap>
                 <Button
                   type="primary"
                   icon={<SendOutlined />}
@@ -528,6 +704,15 @@ const LettersPage: React.FC = () => {
                   Refresh
                 </Button>
               </Space>
+              
+              <Alert
+                style={{ marginTop: '16px' }}
+                message="Quick Actions"
+                description="Click the double arrow (⏩) button in the table to choose which letters to resend: both types together, or individual Stand Possession or Transport letters."
+                type="info"
+                showIcon
+                closable
+              />
             </Card>
           )}
 

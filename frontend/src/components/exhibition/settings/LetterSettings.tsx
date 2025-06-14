@@ -1,5 +1,5 @@
-import React from 'react';
-import { Form, Input, Typography, FormInstance, Card, Row, Col, Switch, InputNumber, Tabs, Space, Tooltip, Alert } from 'antd';
+import React, { useState } from 'react';
+import { Form, Input, Typography, FormInstance, Card, Row, Col, Switch, InputNumber, Tabs, Space, Tooltip, Alert, Button, Modal } from 'antd';
 import { InfoCircleOutlined, MailOutlined, ClockCircleOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -11,42 +11,128 @@ interface LetterSettingsProps {
 }
 
 const LetterSettings: React.FC<LetterSettingsProps> = ({ form }) => {
+  const [previewModal, setPreviewModal] = useState<{
+    visible: boolean;
+    type: 'standPossession' | 'transport' | null;
+    content: string;
+  }>({
+    visible: false,
+    type: null,
+    content: ''
+  });
+
+  // Sample data for preview
+  const sampleData = {
+    COMPANY_NAME: 'ABC Technologies Pvt Ltd',
+    CUSTOMER_NAME: 'John Smith',
+    REPRESENTATIVE_NAME: 'John Smith',
+    STALL_NO: 'A-101, A-102',
+    MOBILE: '+91 9876543210',
+    EMAIL: 'john.smith@abctech.com',
+    EXHIBITION_NAME: 'Tech Expo 2024',
+    EXHIBITION_VENUE: 'Convention Center, Mumbai',
+    EXHIBITION_START_DATE: '15/03/2024',
+    EXHIBITION_END_DATE: '18/03/2024',
+    CURRENT_DATE: new Date().toLocaleDateString(),
+    BOOKING_REFERENCE: 'BOOK1234',
+    TOTAL_AMOUNT: '₹1,50,000',
+    PAYMENT_STATUS: 'PAID IN FULL',
+    STALL_AREA: '36',
+    CONTACT_PERSON: 'Exhibition Manager',
+    CONTACT_PHONE: '+91 9876543210'
+  };
+
+  const previewTemplate = (type: 'standPossession' | 'transport') => {
+    const template = form.getFieldValue(['letterSettings', type === 'standPossession' ? 'standPossessionLetter' : 'transportLetter', 'template']);
+    
+    if (!template) {
+      Modal.warning({
+        title: 'No Template',
+        content: 'Please enter a template first to preview it.'
+      });
+      return;
+    }
+
+    // Replace variables with sample data
+    let previewContent = template;
+    Object.entries(sampleData).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      previewContent = previewContent.replace(regex, value);
+    });
+
+    setPreviewModal({
+      visible: true,
+      type,
+      content: previewContent
+    });
+  };
   // Default templates
-  const defaultStandPossessionTemplate = `STAND POSSESSION FOR EXHIBITOR
-
-Please hand over possession of space allotted to us, to our Representative.
-
-Company Name: {{COMPANY_NAME}}
-
-Name of Representative: {{REPRESENTATIVE_NAME}}
-
-Stall No.: {{STALL_NO}}
-
-Mobile: {{MOBILE}}
-
-We have paid all the dues as per the Debit Note.
-
-Authorized Signature: _________________________
-
-Date: {{CURRENT_DATE}}`;
-
-  const defaultTransportTemplate = `TRANSPORT LETTER
-
-Dear {{CUSTOMER_NAME}},
-
-This letter is to inform you about the transportation arrangements for the upcoming exhibition.
+  const defaultStandPossessionTemplate = `STAND POSSESSION AUTHORIZATION
 
 Exhibition: {{EXHIBITION_NAME}}
 Venue: {{EXHIBITION_VENUE}}
 Dates: {{EXHIBITION_START_DATE}} to {{EXHIBITION_END_DATE}}
 
+Dear {{CUSTOMER_NAME}},
+
+This letter authorizes the handover of stall possession for the above exhibition.
+
+EXHIBITOR DETAILS:
+Company Name: {{COMPANY_NAME}}
+Representative: {{REPRESENTATIVE_NAME}}
+Contact: {{MOBILE}} | {{EMAIL}}
+
+STALL DETAILS:
+Stall Number(s): {{STALL_NO}}
+Total Area: {{STALL_AREA}} sq. meters
+Booking Reference: {{BOOKING_REFERENCE}}
+
+PAYMENT STATUS: {{PAYMENT_STATUS}}
+
+Please hand over possession of the allocated space to our authorized representative. All dues have been settled as per the agreement.
+
+For any queries, contact: {{CONTACT_PERSON}} at {{CONTACT_PHONE}}
+
+Authorized Signature: _________________________
+
+Date: {{CURRENT_DATE}}`;
+
+  const defaultTransportTemplate = `TRANSPORT ARRANGEMENTS & GUIDELINES
+
+Exhibition: {{EXHIBITION_NAME}}
+Venue: {{EXHIBITION_VENUE}}
+Dates: {{EXHIBITION_START_DATE}} to {{EXHIBITION_END_DATE}}
+
+Dear {{CUSTOMER_NAME}},
+
+This letter provides important information regarding transportation arrangements for your participation in the above exhibition.
+
+EXHIBITOR DETAILS:
 Company: {{COMPANY_NAME}}
-Stall Numbers: {{STALL_NO}}
-Contact: {{MOBILE}}
+Stall Number(s): {{STALL_NO}}
+Total Area: {{STALL_AREA}} sq. meters
+Booking Reference: {{BOOKING_REFERENCE}}
+Contact: {{MOBILE}} | {{EMAIL}}
 
-Please ensure all transportation arrangements are made according to the exhibition guidelines.
+TRANSPORT GUIDELINES:
+1. Material delivery is allowed 2 days before the exhibition start date
+2. All vehicles must be registered at the main gate
+3. Loading/unloading is permitted only during designated hours
+4. Heavy machinery requires prior approval from the venue management
+5. All materials must be removed within 24 hours after exhibition closure
 
-Thank you.`;
+IMPORTANT NOTES:
+- Payment Status: {{PAYMENT_STATUS}}
+- Setup begins: 2 days before {{EXHIBITION_START_DATE}}
+- Breakdown deadline: 1 day after {{EXHIBITION_END_DATE}}
+
+For transportation queries and vehicle registration, contact:
+{{CONTACT_PERSON}} at {{CONTACT_PHONE}}
+
+Best regards,
+Exhibition Management Team
+
+Date: {{CURRENT_DATE}}`;
 
   // Available template variables
   const templateVariables = [
@@ -61,6 +147,12 @@ Thank you.`;
     { key: 'EXHIBITION_START_DATE', description: 'Exhibition start date' },
     { key: 'EXHIBITION_END_DATE', description: 'Exhibition end date' },
     { key: 'CURRENT_DATE', description: 'Current date when letter is generated' },
+    { key: 'BOOKING_REFERENCE', description: 'Unique booking reference number' },
+    { key: 'TOTAL_AMOUNT', description: 'Total booking amount' },
+    { key: 'PAYMENT_STATUS', description: 'Current payment status' },
+    { key: 'STALL_AREA', description: 'Total stall area in square meters' },
+    { key: 'CONTACT_PERSON', description: 'Exhibition contact person' },
+    { key: 'CONTACT_PHONE', description: 'Exhibition contact phone number' },
   ];
 
   return (
@@ -138,7 +230,26 @@ Thank you.`;
                   }
                   rules={[
                     { required: true, message: 'Please enter letter template' },
-                    { min: 50, message: 'Template must be at least 50 characters' }
+                    { min: 50, message: 'Template must be at least 50 characters' },
+                    {
+                      validator: (_, value) => {
+                        if (!value) return Promise.resolve();
+                        
+                        // Check for required variables
+                        const requiredVars = ['COMPANY_NAME', 'CUSTOMER_NAME', 'STALL_NO'];
+                        const missingVars = requiredVars.filter(varName => 
+                          !value.includes(`{{${varName}}}`)
+                        );
+                        
+                        if (missingVars.length > 0) {
+                          return Promise.reject(
+                            new Error(`Template must include: ${missingVars.map(v => `{{${v}}}`).join(', ')}`)
+                          );
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
                   ]}
                 >
                   <TextArea
@@ -148,6 +259,13 @@ Thank you.`;
                     style={{ fontFamily: 'monospace' }}
                   />
                 </Form.Item>
+                <Button 
+                  type="dashed" 
+                  onClick={() => previewTemplate('standPossession')}
+                  style={{ marginTop: '8px' }}
+                >
+                  Preview Template
+                </Button>
               </Col>
             </Row>
 
@@ -263,7 +381,26 @@ Thank you.`;
                   }
                   rules={[
                     { required: true, message: 'Please enter letter template' },
-                    { min: 50, message: 'Template must be at least 50 characters' }
+                    { min: 50, message: 'Template must be at least 50 characters' },
+                    {
+                      validator: (_, value) => {
+                        if (!value) return Promise.resolve();
+                        
+                        // Check for required variables
+                        const requiredVars = ['COMPANY_NAME', 'CUSTOMER_NAME', 'EXHIBITION_NAME'];
+                        const missingVars = requiredVars.filter(varName => 
+                          !value.includes(`{{${varName}}}`)
+                        );
+                        
+                        if (missingVars.length > 0) {
+                          return Promise.reject(
+                            new Error(`Template must include: ${missingVars.map(v => `{{${v}}}`).join(', ')}`)
+                          );
+                        }
+                        
+                        return Promise.resolve();
+                      }
+                    }
                   ]}
                 >
                   <TextArea
@@ -273,6 +410,13 @@ Thank you.`;
                     style={{ fontFamily: 'monospace' }}
                   />
                 </Form.Item>
+                <Button 
+                  type="dashed" 
+                  onClick={() => previewTemplate('transport')}
+                  style={{ marginTop: '8px' }}
+                >
+                  Preview Template
+                </Button>
               </Col>
             </Row>
 
@@ -379,6 +523,41 @@ Thank you.`;
           </Card>
         </TabPane>
       </Tabs>
+
+      {/* Template Preview Modal */}
+      <Modal
+        title={`${previewModal.type === 'standPossession' ? 'Stand Possession' : 'Transport'} Letter Preview`}
+        open={previewModal.visible}
+        onCancel={() => setPreviewModal({ visible: false, type: null, content: '' })}
+        footer={[
+          <Button key="close" onClick={() => setPreviewModal({ visible: false, type: null, content: '' })}>
+            Close
+          </Button>
+        ]}
+        width={800}
+      >
+        <Alert
+          message="Template Preview"
+          description="This is how your letter will look with sample data. Variables have been replaced with example values."
+          type="info"
+          showIcon
+          style={{ marginBottom: '16px' }}
+        />
+        <div 
+          style={{ 
+            background: '#f9f9f9', 
+            padding: '20px', 
+            borderRadius: '6px',
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-line',
+            maxHeight: '500px',
+            overflow: 'auto',
+            border: '1px solid #d9d9d9'
+          }}
+        >
+          {previewModal.content}
+        </div>
+      </Modal>
     </div>
   );
 };

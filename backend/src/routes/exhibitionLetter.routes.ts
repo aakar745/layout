@@ -5,6 +5,7 @@ import {
   getStatistics,
   previewLetter,
   resendLetter,
+  resendBothLetters,
   getUpcomingSchedules,
   deleteLetter,
   getLetterById,
@@ -68,6 +69,14 @@ router.get('/letter/:letterId', getLetterById);
  * @access Private (Admin)
  */
 router.post('/letter/:letterId/resend', resendLetter);
+
+/**
+ * @route POST /api/exhibition-letters/:exhibitionId/resend-both/:bookingId
+ * @desc Resend specific letter types for a booking
+ * @access Private (Admin)
+ * @body { letterTypes: ['standPossession', 'transport'] } // Array of letter types to send
+ */
+router.post('/:exhibitionId/resend-both/:bookingId', resendBothLetters);
 
 /**
  * @route DELETE /api/exhibition-letters/letter/:letterId

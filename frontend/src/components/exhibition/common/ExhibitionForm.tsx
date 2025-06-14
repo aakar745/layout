@@ -63,7 +63,17 @@ const ExhibitionForm: React.FC<ExhibitionFormProps> = ({
   const [form] = Form.useForm();
 
   const handleSubmit = (values: any) => {
-    onSubmit(values);
+    // CRITICAL FIX: Manually extract all form field values to ensure nothing is missed
+    const allFormValues = form.getFieldsValue(true);
+    
+    // Merge the onFinish values with manually extracted values
+    // This ensures that fields missing from onFinish are included
+    const completeValues = {
+      ...allFormValues,
+      ...values, // onFinish values take precedence for fields that are included
+    };
+    
+    onSubmit(completeValues);
   };
 
   const items = [

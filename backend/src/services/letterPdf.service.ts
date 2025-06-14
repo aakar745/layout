@@ -131,14 +131,24 @@ export const generateLetterPDF = async (
     // Register Handlebars helpers
     registerLetterHandlebarsHelpers();
     
-    // Load and process template
+    // Load and process template based on letter type
     const currentDir = data.currentDir;
-    const templatePath = join(currentDir, 'letter-template.html');
-    const styleSheetPath = join(currentDir, 'letter-styles.css');
+    const templateFileName = letterType === 'standPossession' 
+      ? 'stand-possession-template.html' 
+      : 'transport-template.html';
+    let templatePath = join(currentDir, templateFileName);
     
+    // Fallback to generic template if specific template not found
     if (!existsSync(templatePath)) {
-      throw new Error(`Letter template file not found at: ${templatePath}`);
+      console.warn(`[WARN] Specific template not found: ${templatePath}. Falling back to generic template.`);
+      templatePath = join(currentDir, 'letter-template.html');
+      
+      if (!existsSync(templatePath)) {
+        throw new Error(`No letter template files found. Expected: ${templateFileName} or letter-template.html`);
+      }
     }
+    
+    const styleSheetPath = join(currentDir, 'letter-styles.css');
     
     if (!existsSync(styleSheetPath)) {
       throw new Error(`Letter stylesheet file not found at: ${styleSheetPath}`);
