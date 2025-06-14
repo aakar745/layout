@@ -18,6 +18,7 @@ const ExhibitorBookings = lazy(() => import('./pages/exhibitor/Bookings'));
 const ExhibitorBookingDetails = lazy(() => import('./pages/exhibitor/BookingDetails'));
 const ExhibitorProfile = lazy(() => import('./pages/exhibitor/Profile'));
 const ExhibitorInvoiceDetails = lazy(() => import('./pages/exhibitor/InvoiceDetails'));
+const ExhibitorSupport = lazy(() => import('./pages/exhibitor/Support'));
 const Profile = lazy(() => import('./pages/account/Profile'));
 const Settings = lazy(() => import('./pages/settings/Settings'));
 const Roles = lazy(() => import('./pages/roles/index'));
@@ -145,7 +146,7 @@ function App() {
                 element={
                   <ExhibitorRoute>
                     <ExhibitorLayout>
-                      <div>Help & Support</div>
+                      <ExhibitorSupport />
                     </ExhibitorLayout>
                   </ExhibitorRoute>
                 }

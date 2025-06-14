@@ -22,14 +22,12 @@ const ExhibitorDashboard: React.FC = () => {
   const [recentBookings, setRecentBookings] = useState<ExtendedBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [upcomingExhibitions, setUpcomingExhibitions] = useState<any[]>([]);
-  const [exhibitionsLoading, setExhibitionsLoading] = useState(true);
+
   const exhibitor = useSelector((state: RootState) => state.exhibitorAuth.exhibitor);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
-    fetchUpcomingExhibitions();
   }, []);
 
   const fetchBookings = async () => {
@@ -47,22 +45,7 @@ const ExhibitorDashboard: React.FC = () => {
     }
   };
 
-  const fetchUpcomingExhibitions = async () => {
-    try {
-      setExhibitionsLoading(true);
-      const response = await publicExhibitionService.getExhibitions();
-      // Only show active exhibitions that haven't ended yet
-      const now = dayjs();
-      const upcoming = (response.data || [])
-        .filter((ex: any) => ex.isActive && dayjs(ex.endDate).isAfter(now))
-        .slice(0, 3); // Show max 3 upcoming exhibitions
-      setUpcomingExhibitions(upcoming);
-    } catch (err) {
-      console.error('Failed to fetch upcoming exhibitions:', err);
-    } finally {
-      setExhibitionsLoading(false);
-    }
-  };
+
 
   // Count bookings by status
   const approvedCount = recentBookings.filter(b => b.status === 'approved').length;
@@ -243,57 +226,7 @@ const ExhibitorDashboard: React.FC = () => {
         )}
       </Card>
       
-      <Card
-        title="Upcoming Exhibitions"
-        style={{ marginTop: 24 }}
-        loading={exhibitionsLoading}
-        extra={<Link to="/exhibitions">View All</Link>}
-      >
-        {exhibitionsLoading ? (
-          <Skeleton active paragraph={{ rows: 3 }} />
-        ) : upcomingExhibitions.length > 0 ? (
-          <List
-            dataSource={upcomingExhibitions}
-            renderItem={exhibition => (
-              <List.Item
-                actions={[
-                  <Button 
-                    type="primary" 
-                    key="book"
-                    onClick={() => navigate(`/exhibitions/${exhibition._id}/layout`)}
-                  >
-                    Book Stall
-                  </Button>
-                ]}
-              >
-                <List.Item.Meta
-                  title={exhibition.name}
-                  description={
-                    <Space direction="vertical" size={1}>
-                      <Text>{exhibition.venue}</Text>
-                      <Text type="secondary">
-                        {dayjs(exhibition.startDate).format('MMM D')} - {dayjs(exhibition.endDate).format('MMM D, YYYY')}
-                      </Text>
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-        ) : (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <FileTextOutlined style={{ fontSize: 48, color: '#1890ff', marginBottom: 16 }} />
-            <div>
-              <Text>No upcoming exhibitions at the moment</Text>
-              <div style={{ marginTop: 16 }}>
-                <Link to="/exhibitions">
-                  <Button type="primary">Browse All Exhibitions</Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
+
       
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
         <Col span={24}>

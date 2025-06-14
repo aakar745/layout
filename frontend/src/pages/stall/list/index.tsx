@@ -599,16 +599,6 @@ const StallList: React.FC = () => {
                   ],
                   onFilter: (value: any, record: any) => record.status === value,
                 },
-                {
-                  title: 'Actions',
-                  key: 'actions',
-                  render: (_: any, record: any) => (
-                    <Space>
-                      <a onClick={() => navigate(`/stall/edit/${record._id || record.id}`)}>Edit</a>
-                      <a onClick={() => navigate(`/stall/view/${record._id || record.id}`)}>View</a>
-                    </Space>
-                  ),
-                },
               ]}
               dataSource={displayStalls}
               rowKey={(record) => record._id || record.id}

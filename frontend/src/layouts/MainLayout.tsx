@@ -486,7 +486,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           alignItems: 'center',
           justifyContent: 'space-between',
           boxShadow: '0 1px 0 0 rgb(0 0 0 / 0.05)',
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          left: collapsed ? 80 : 256,
           zIndex: 99,
+          transition: 'left 0.2s',
         }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <Button
@@ -526,7 +531,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </Header>
         
         <Content style={{ 
-          margin: '24px 16px', 
+          margin: '88px 16px 24px 16px', 
           padding: 24, 
           minHeight: 280, 
           background: '#fff',

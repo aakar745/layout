@@ -55,12 +55,6 @@ const ExhibitorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       onClick: () => navigate('/exhibitor/profile'),
     },
     {
-      key: 'exhibitions',
-      icon: <FileTextOutlined />,
-      label: 'Exhibitions',
-      onClick: () => navigate('/exhibitions'),
-    },
-    {
       key: 'help',
       icon: <QuestionCircleOutlined />,
       label: 'Help & Support',
@@ -127,26 +121,17 @@ const ExhibitorLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       >
         <div style={{ 
           height: 65,
-          padding: '0 24px',
+          padding: '0 50px',
           display: 'flex', 
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'flex-start',
           borderBottom: '1px solid #E5E7EB',
         }}>
-          <img 
-            src="/logo.svg" 
-            alt="Logo" 
-            style={{ 
-              height: 32,
-              width: 'auto',
-            }} 
-          />
           {!collapsed && (
             <span style={{ 
-              marginLeft: 12,
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: 600,
-              color: '#1890ff',
+              color: '#2a5378',
               whiteSpace: 'nowrap',
             }}>
               Exhibitor Portal
