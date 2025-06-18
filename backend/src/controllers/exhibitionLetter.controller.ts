@@ -469,6 +469,7 @@ export const getUpcomingSchedules = async (req: Request, res: Response) => {
 export const deleteLetter = async (req: Request, res: Response) => {
   try {
     const { letterId } = req.params;
+    const { force } = req.query;
 
     // Validate letter ID
     if (!letterId || !mongoose.Types.ObjectId.isValid(letterId)) {
@@ -481,21 +482,182 @@ export const deleteLetter = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Letter not found' });
     }
 
-    // Only allow deleting failed or pending letters
-    if (!['failed', 'pending'].includes(letter.status)) {
+    // Check deletion permissions
+    if (letter.status === 'sent' && force !== 'true') {
       return res.status(400).json({ 
-        message: 'Only failed or pending letters can be deleted' 
+        message: 'Sent letters require force deletion confirmation',
+        requiresForce: true
       });
     }
 
     // Delete letter
     await ExhibitionLetter.findByIdAndDelete(letterId);
 
-    res.json({ message: 'Letter deleted successfully' });
+    res.json({ 
+      message: 'Letter deleted successfully',
+      deletedLetter: {
+        id: letter._id,
+        type: letter.letterType,
+        status: letter.status,
+        recipientName: letter.recipientName
+      }
+    });
   } catch (error) {
     console.error('Error deleting letter:', error);
     res.status(500).json({ 
       message: 'Error deleting letter', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+};
+
+/**
+ * Bulk delete letters for an exhibition
+ */
+export const bulkDeleteLetters = async (req: Request, res: Response) => {
+  try {
+    const { exhibitionId } = req.params;
+    const { 
+      status, 
+      letterType, 
+      olderThanDays, 
+      force = false 
+    } = req.body;
+
+    // Validate exhibition ID
+    if (!exhibitionId || !mongoose.Types.ObjectId.isValid(exhibitionId)) {
+      return res.status(400).json({ message: 'Invalid exhibition ID' });
+    }
+
+    // Check if exhibition exists
+    const exhibition = await Exhibition.findById(exhibitionId);
+    if (!exhibition) {
+      return res.status(404).json({ message: 'Exhibition not found' });
+    }
+
+    // Build delete criteria
+    const deleteCriteria: any = { exhibitionId };
+
+    // Add status filter
+    if (status && Array.isArray(status) && status.length > 0) {
+      deleteCriteria.status = { $in: status };
+    }
+
+    // Add letter type filter
+    if (letterType && ['standPossession', 'transport'].includes(letterType)) {
+      deleteCriteria.letterType = letterType;
+    }
+
+    // Add date filter
+    if (olderThanDays && olderThanDays > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+      deleteCriteria.createdAt = { $lt: cutoffDate };
+    }
+
+    // Check if trying to delete sent letters without force
+    if (deleteCriteria.status?.$in?.includes('sent') && !force) {
+      return res.status(400).json({ 
+        message: 'Deleting sent letters requires force confirmation',
+        requiresForce: true
+      });
+    }
+
+    // Get count before deletion for reporting
+    const lettersToDelete = await ExhibitionLetter.find(deleteCriteria);
+    const deleteCount = lettersToDelete.length;
+
+    if (deleteCount === 0) {
+      return res.json({ 
+        message: 'No letters found matching the criteria',
+        deletedCount: 0,
+        summary: {
+          standPossession: 0,
+          transport: 0,
+          byStatus: {}
+        }
+      });
+    }
+
+    // Create summary
+    const summary = {
+      standPossession: lettersToDelete.filter(l => l.letterType === 'standPossession').length,
+      transport: lettersToDelete.filter(l => l.letterType === 'transport').length,
+      byStatus: lettersToDelete.reduce((acc, letter) => {
+        acc[letter.status] = (acc[letter.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    };
+
+    // Perform bulk deletion
+    await ExhibitionLetter.deleteMany(deleteCriteria);
+
+    res.json({ 
+      message: `Successfully deleted ${deleteCount} letters`,
+      deletedCount: deleteCount,
+      summary,
+      criteria: deleteCriteria
+    });
+  } catch (error) {
+    console.error('Error bulk deleting letters:', error);
+    res.status(500).json({ 
+      message: 'Error bulk deleting letters', 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+};
+
+/**
+ * Clean old letters (convenience endpoint for common cleanup)
+ */
+export const cleanOldLetters = async (req: Request, res: Response) => {
+  try {
+    const { exhibitionId } = req.params;
+    const { daysOld = 30, includeSent = false } = req.body;
+
+    // Validate exhibition ID
+    if (!exhibitionId || !mongoose.Types.ObjectId.isValid(exhibitionId)) {
+      return res.status(400).json({ message: 'Invalid exhibition ID' });
+    }
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    // Build criteria
+    const deleteCriteria: any = {
+      exhibitionId,
+      createdAt: { $lt: cutoffDate }
+    };
+
+    // Include or exclude sent letters
+    if (!includeSent) {
+      deleteCriteria.status = { $in: ['failed', 'pending'] };
+    }
+
+    // Get count and summary before deletion
+    const lettersToDelete = await ExhibitionLetter.find(deleteCriteria);
+    const deleteCount = lettersToDelete.length;
+
+    if (deleteCount === 0) {
+      return res.json({ 
+        message: `No letters older than ${daysOld} days found`,
+        deletedCount: 0
+      });
+    }
+
+    // Perform deletion
+    await ExhibitionLetter.deleteMany(deleteCriteria);
+
+    res.json({ 
+      message: `Cleaned ${deleteCount} letters older than ${daysOld} days`,
+      deletedCount: deleteCount,
+      daysOld,
+      includedSent: includeSent
+    });
+  } catch (error) {
+    console.error('Error cleaning old letters:', error);
+    res.status(500).json({ 
+      message: 'Error cleaning old letters', 
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
   }

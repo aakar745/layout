@@ -274,6 +274,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/exhibitors'),
     },
     {
+      key: 'activity',
+      icon: <BarChartOutlined />,
+      label: 'Activity',
+      requiredPermission: 'view_activities',
+      onClick: () => navigate('/activity'),
+    },
+    {
       key: 'index',
       icon: <UserOutlined />,
       label: 'Users',
@@ -353,6 +360,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'letters': 'view_letters',
       'invoices': 'view_invoices',
       'exhibitors': 'view_exhibitors',
+      'activity': 'view_activities',
       'index': 'users_view',
       'roles': 'roles_view',
       'settings': 'settings_view'

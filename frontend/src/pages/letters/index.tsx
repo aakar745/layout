@@ -19,7 +19,15 @@ import {
   Alert,
   Popconfirm,
   Dropdown,
-  MenuProps
+  MenuProps,
+  Progress,
+  Badge,
+  Divider,
+  Empty,
+  Steps,
+  Form,
+  InputNumber,
+  Checkbox
 } from 'antd';
 import {
   MailOutlined,
@@ -32,7 +40,15 @@ import {
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  DoubleRightOutlined
+  DoubleRightOutlined,
+  FilterOutlined,
+  ClearOutlined,
+  ThunderboltOutlined,
+  FileTextOutlined,
+  BulbOutlined,
+  DashboardOutlined,
+  InfoCircleOutlined,
+  MoreOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -46,11 +62,12 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store/store';
 import { fetchExhibitions } from '../../store/slices/exhibitionSlice';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { Search } = Input;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
+const { Step } = Steps;
 
 const LettersPage: React.FC = () => {
   // Initialize selectedExhibition from localStorage
@@ -62,21 +79,24 @@ const LettersPage: React.FC = () => {
   const [upcomingSchedules, setUpcomingSchedules] = useState<UpcomingSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [sendingLoading, setSendingLoading] = useState(false);
+  const [sendingProgress, setSendingProgress] = useState(0);
+  const [sendingStatus, setSendingStatus] = useState('');
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0
   });
 
-  // Filters
+  // Filters - Simplified
+  const [quickFilter, setQuickFilter] = useState<'all' | 'failed' | 'pending' | 'sent'>('all');
   const [letterTypeFilter, setLetterTypeFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Modal states
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState<ExhibitionLetter | null>(null);
+  const [bulkActionModalVisible, setBulkActionModalVisible] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const { exhibitions } = useSelector((state: RootState) => state.exhibition);
@@ -116,7 +136,7 @@ const LettersPage: React.FC = () => {
       fetchLetters();
       fetchStatistics();
     }
-  }, [selectedExhibition, letterTypeFilter, statusFilter, searchQuery, pagination.current, pagination.pageSize]);
+  }, [selectedExhibition, letterTypeFilter, quickFilter, searchQuery, pagination.current, pagination.pageSize]);
 
   // Fetch upcoming schedules on component mount
   useEffect(() => {
@@ -132,7 +152,7 @@ const LettersPage: React.FC = () => {
         page: pagination.current,
         limit: pagination.pageSize,
         letterType: letterTypeFilter as 'standPossession' | 'transport' | undefined,
-        status: statusFilter,
+        status: quickFilter === 'all' ? '' : quickFilter,
         search: searchQuery
       });
 
@@ -168,20 +188,59 @@ const LettersPage: React.FC = () => {
     }
   };
 
-  const handleSendLetters = async (letterType: 'standPossession' | 'transport') => {
+  // Enhanced bulk sending with progress tracking
+  const handleBulkSendLetters = async (letterTypes: Array<'standPossession' | 'transport'>) => {
     if (!selectedExhibition) return;
 
     setSendingLoading(true);
+    setSendingProgress(0);
+    setBulkActionModalVisible(true);
+
     try {
-      const result = await exhibitionLetterService.sendLettersManually(selectedExhibition, letterType);
-      message.success(`${result.result.sent} letters sent successfully`);
+      const results = [];
+      for (let i = 0; i < letterTypes.length; i++) {
+        const letterType = letterTypes[i];
+        setSendingStatus(`Sending ${letterType === 'standPossession' ? 'Stand Possession' : 'Transport'} letters...`);
+        setSendingProgress(((i) / letterTypes.length) * 100);
+        
+        const result = await exhibitionLetterService.sendLettersManually(selectedExhibition, letterType);
+        results.push({ type: letterType, result: result.result });
+        
+        setSendingProgress(((i + 1) / letterTypes.length) * 100);
+      }
+      
+      setSendingStatus('Complete!');
+      
+      // Show summary
+      const totalSent = results.reduce((sum, r) => sum + r.result.sent, 0);
+      const totalFailed = results.reduce((sum, r) => sum + r.result.failed, 0);
+      
+      if (totalSent > 0) {
+        message.success(`Successfully sent ${totalSent} letters${totalFailed > 0 ? ` (${totalFailed} failed)` : ''}`);
+      } else {
+        message.warning('No letters were sent');
+      }
+      
       fetchLetters();
       fetchStatistics();
     } catch (error: any) {
       message.error(error.message || 'Failed to send letters');
     } finally {
       setSendingLoading(false);
+      setTimeout(() => {
+        setBulkActionModalVisible(false);
+        setSendingProgress(0);
+        setSendingStatus('');
+      }, 2000);
     }
+  };
+
+  const handleSendLetters = async (letterType: 'standPossession' | 'transport') => {
+    await handleBulkSendLetters([letterType]);
+  };
+
+  const handleSendBothLetters = async () => {
+    await handleBulkSendLetters(['standPossession', 'transport']);
   };
 
   const handleResendLetter = async (letterId: string) => {
@@ -195,15 +254,87 @@ const LettersPage: React.FC = () => {
     }
   };
 
-  const handleDeleteLetter = async (letterId: string) => {
+  const handleDeleteLetter = async (letterId: string, letterStatus: string = '', force: boolean = false) => {
     try {
-      await exhibitionLetterService.deleteLetter(letterId);
-      message.success('Letter deleted successfully');
+      const result = await exhibitionLetterService.deleteLetter(letterId, force);
+      
+      if (result.requiresForce) {
+        // Show confirmation modal for sent letters
+        Modal.confirm({
+          title: 'Delete Sent Letter',
+          icon: <ExclamationCircleOutlined />,
+          content: (
+            <div>
+              <Alert
+                message="This letter has already been sent"
+                description="Deleting a sent letter will remove it from your records but cannot unsend the email. Are you sure you want to proceed?"
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+              <p><strong>Letter Details:</strong></p>
+              <ul>
+                <li>Type: {letterStatus === 'standPossession' ? 'Stand Possession' : 'Transport'}</li>
+                <li>Status: {letterStatus}</li>
+              </ul>
+            </div>
+          ),
+          okText: 'Yes, Delete',
+          okType: 'danger',
+          cancelText: 'Cancel',
+          onOk: () => handleDeleteLetter(letterId, letterStatus, true),
+        });
+        return;
+      }
+
+      message.success(result.message || 'Letter deleted successfully');
       fetchLetters();
       fetchStatistics();
     } catch (error: any) {
       message.error(error.message || 'Failed to delete letter');
     }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (!selectedExhibition) return;
+    
+    Modal.confirm({
+      title: 'Bulk Delete Letters',
+      icon: <ExclamationCircleOutlined />,
+      width: 650,
+      content: (
+        <BulkDeleteModal
+          exhibitionId={selectedExhibition}
+          onSuccess={() => {
+            fetchLetters();
+            fetchStatistics();
+          }}
+        />
+      ),
+      footer: null,
+    });
+  };
+
+  // Handle quick cleanup
+  const handleQuickCleanup = () => {
+    if (!selectedExhibition) return;
+    
+    Modal.confirm({
+      title: 'Quick Cleanup',
+      icon: <ClearOutlined />,
+      width: 550,
+      content: (
+        <QuickCleanupModal
+          exhibitionId={selectedExhibition}
+          onSuccess={() => {
+            fetchLetters();
+            fetchStatistics();
+          }}
+        />
+      ),
+      footer: null,
+    });
   };
 
   const handleResendLetters = async (letter: ExhibitionLetter, letterTypes: string[]) => {
@@ -243,14 +374,6 @@ const LettersPage: React.FC = () => {
           content: `Failed to send ${letterTypeNames} letter(s): ${result.message}`, 
           key: 'resend-letters' 
         });
-      }
-
-      // Show detailed breakdown for failed letters only
-      if (letterTypes.includes('standPossession') && result.results.standPossession.message && !result.results.standPossession.success) {
-        message.warning(result.results.standPossession.message);
-      }
-      if (letterTypes.includes('transport') && result.results.transport.message && !result.results.transport.success) {
-        message.warning(result.results.transport.message);
       }
 
       fetchLetters();
@@ -297,18 +420,14 @@ const LettersPage: React.FC = () => {
   };
 
   const resetFilters = () => {
+    setQuickFilter('all');
     setLetterTypeFilter('');
-    setStatusFilter('');
     setSearchQuery('');
-    setDateRange(null);
     setPagination(prev => ({ ...prev, current: 1 }));
-    // Note: We don't reset selectedExhibition here as it's the main context
-    // Users can clear it using the allowClear button on the exhibition select
   };
 
-  // Helper function to check if any filters are active (excluding exhibition)
   const hasActiveFilters = () => {
-    return !!(letterTypeFilter || statusFilter || searchQuery || dateRange);
+    return !!(quickFilter !== 'all' || letterTypeFilter || searchQuery);
   };
 
   const getStatusTag = (status: string) => {
@@ -328,14 +447,360 @@ const LettersPage: React.FC = () => {
     );
   };
 
+  // Bulk Delete Modal Component
+  const BulkDeleteModal: React.FC<{ exhibitionId: string; onSuccess: () => void }> = ({ exhibitionId, onSuccess }) => {
+    const [form] = Form.useForm();
+    const [loading, setLoading] = useState(false);
+
+    const handleBulkDeleteSubmit = async (values: any) => {
+      try {
+        setLoading(true);
+        const result = await exhibitionLetterService.bulkDeleteLetters(exhibitionId, {
+          status: values.status,
+          letterType: values.letterType,
+          olderThanDays: values.olderThanDays,
+          force: values.force || false
+        });
+
+        if (result.requiresForce) {
+          message.warning('Sent letters require force confirmation. Please check the force option and try again.');
+          return;
+        }
+
+        message.success(`Successfully deleted ${result.deletedCount} letters`);
+        onSuccess();
+        Modal.destroyAll();
+      } catch (error: any) {
+        message.error(error.message || 'Failed to delete letters');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <Form form={form} layout="vertical" onFinish={handleBulkDeleteSubmit}>
+        <Alert
+          message="Bulk Delete Letters"
+          description="Select criteria for letters to delete. This action cannot be undone."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Form.Item name="status" label="Status to Delete">
+          <Select
+            mode="multiple"
+            placeholder="Select status types"
+            options={[
+              { label: 'Failed Letters', value: 'failed' },
+              { label: 'Pending Letters', value: 'pending' },
+              { label: 'Sent Letters', value: 'sent' }
+            ]}
+          />
+        </Form.Item>
+
+        <Form.Item name="letterType" label="Letter Type (Optional)">
+          <Select
+            placeholder="All types"
+            allowClear
+            options={[
+              { label: 'Stand Possession', value: 'standPossession' },
+              { label: 'Transport', value: 'transport' }
+            ]}
+          />
+        </Form.Item>
+
+        <Form.Item name="olderThanDays" label="Older Than (Days)">
+          <InputNumber min={1} placeholder="e.g., 30" style={{ width: '100%' }} />
+        </Form.Item>
+
+        <Form.Item name="force" valuePropName="checked">
+          <Checkbox>
+            Force delete sent letters (I understand this removes delivery records)
+          </Checkbox>
+        </Form.Item>
+
+        <Row justify="end" gutter={8}>
+          <Col>
+            <Button onClick={() => Modal.destroyAll()}>Cancel</Button>
+          </Col>
+          <Col>
+            <Button type="primary" danger htmlType="submit" loading={loading}>
+              Delete Letters
+            </Button>
+          </Col>
+        </Row>
+      </Form>
+    );
+  };
+
+  // Quick Cleanup Modal Component
+  const QuickCleanupModal: React.FC<{ exhibitionId: string; onSuccess: () => void }> = ({ exhibitionId, onSuccess }) => {
+    const [form] = Form.useForm();
+    const [loading, setLoading] = useState(false);
+
+    const handleCleanupSubmit = async (values: any) => {
+      try {
+        setLoading(true);
+        const result = await exhibitionLetterService.cleanOldLetters(exhibitionId, {
+          daysOld: values.daysOld || 30,
+          includeSent: values.includeSent || false
+        });
+
+        message.success(`Successfully cleaned ${result.deletedCount} old letters`);
+        onSuccess();
+        Modal.destroyAll();
+      } catch (error: any) {
+        message.error(error.message || 'Failed to clean letters');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <Form form={form} layout="vertical" onFinish={handleCleanupSubmit} initialValues={{ daysOld: 30 }}>
+        <Alert
+          message="Quick Cleanup"
+          description="Remove old letters to keep your database clean. By default, only failed and pending letters are removed."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Form.Item name="daysOld" label="Remove letters older than" rules={[{ required: true }]}>
+          <InputNumber 
+            min={1} 
+            max={365}
+            style={{ width: '100%' }} 
+            suffix="days"
+            placeholder="30"
+          />
+        </Form.Item>
+
+        <Form.Item name="includeSent" valuePropName="checked">
+          <Checkbox>
+            Also remove sent letters (not recommended unless archiving)
+          </Checkbox>
+        </Form.Item>
+
+        <Row justify="end" gutter={8}>
+          <Col>
+            <Button onClick={() => Modal.destroyAll()}>Cancel</Button>
+          </Col>
+          <Col>
+            <Button type="primary" htmlType="submit" loading={loading}>
+              Clean Old Letters
+            </Button>
+          </Col>
+        </Row>
+      </Form>
+    );
+  };
+
+  // Enhanced status overview component
+  const StatusOverview = () => {
+    if (!statistics) return null;
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'sent': return '#52c41a';
+        case 'pending': return '#faad14';
+        case 'failed': return '#ff4d4f';
+        default: return '#1890ff';
+      }
+    };
+
+    const standTotal = statistics.standPossession.sent + statistics.standPossession.pending + statistics.standPossession.failed;
+    const transportTotal = statistics.transport.sent + statistics.transport.pending + statistics.transport.failed;
+
+    return (
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Col xs={24} lg={12}>
+          <Card size="small" title="Stand Possession Letters" extra={<Tag color="blue">Stand Possession</Tag>}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Statistic
+                  title="Sent"
+                  value={statistics.standPossession.sent}
+                  valueStyle={{ color: getStatusColor('sent'), fontSize: '20px' }}
+                  prefix={<CheckCircleOutlined />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Pending"
+                  value={statistics.standPossession.pending}
+                  valueStyle={{ color: getStatusColor('pending'), fontSize: '20px' }}
+                  prefix={<ClockCircleOutlined />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Failed"
+                  value={statistics.standPossession.failed}
+                  valueStyle={{ color: getStatusColor('failed'), fontSize: '20px' }}
+                  prefix={<CloseCircleOutlined />}
+                />
+              </Col>
+            </Row>
+            {standTotal > 0 && (
+              <Progress 
+                percent={Math.round((statistics.standPossession.sent / standTotal) * 100)} 
+                strokeColor={getStatusColor('sent')}
+                style={{ marginTop: '12px' }}
+              />
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card size="small" title="Transport Letters" extra={<Tag color="green">Transport</Tag>}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Statistic
+                  title="Sent"
+                  value={statistics.transport.sent}
+                  valueStyle={{ color: getStatusColor('sent'), fontSize: '20px' }}
+                  prefix={<CheckCircleOutlined />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Pending"
+                  value={statistics.transport.pending}
+                  valueStyle={{ color: getStatusColor('pending'), fontSize: '20px' }}
+                  prefix={<ClockCircleOutlined />}
+                />
+              </Col>
+              <Col span={8}>
+                <Statistic
+                  title="Failed"
+                  value={statistics.transport.failed}
+                  valueStyle={{ color: getStatusColor('failed'), fontSize: '20px' }}
+                  prefix={<CloseCircleOutlined />}
+                />
+              </Col>
+            </Row>
+            {transportTotal > 0 && (
+              <Progress 
+                percent={Math.round((statistics.transport.sent / transportTotal) * 100)} 
+                strokeColor={getStatusColor('sent')}
+                style={{ marginTop: '12px' }}
+              />
+            )}
+          </Card>
+        </Col>
+      </Row>
+    );
+  };
+
+  // Quick Action Panel Component
+  const QuickActionPanel = () => {
+    if (!selectedExhibition) return null;
+
+    return (
+      <Card 
+        title={
+          <Space>
+            <ThunderboltOutlined />
+            <span>Quick Actions</span>
+          </Space>
+        }
+        size="small"
+        style={{ marginBottom: '24px' }}
+      >
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
+            <Button
+              type="primary"
+              size="large"
+              block
+              icon={<DoubleRightOutlined />}
+              loading={sendingLoading}
+              onClick={handleSendBothLetters}
+              style={{ height: '48px' }}
+            >
+              Send Both Letter Types
+            </Button>
+          </Col>
+          <Col xs={12} sm={8}>
+            <Button
+              size="large"
+              block
+              icon={<FileTextOutlined />}
+              loading={sendingLoading}
+              onClick={() => handleSendLetters('standPossession')}
+              style={{ height: '48px' }}
+            >
+              Stand Possession Only
+            </Button>
+          </Col>
+          <Col xs={12} sm={8}>
+            <Button
+              size="large"
+              block
+              icon={<SendOutlined />}
+              loading={sendingLoading}
+              onClick={() => handleSendLetters('transport')}
+              style={{ height: '48px' }}
+            >
+              Transport Only
+            </Button>
+          </Col>
+        </Row>
+        
+        <Divider style={{ margin: '16px 0 12px 0' }} />
+        
+        <Row gutter={[8, 8]} style={{ marginTop: '12px' }}>
+          <Col flex="auto">
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              <InfoCircleOutlined style={{ marginRight: '4px' }} />
+              Letters are sent to exhibitors automatically. Use manual sending for immediate delivery.
+            </Text>
+          </Col>
+          <Col>
+            <Space size="small">
+              <Button
+                icon={<ClearOutlined />}
+                onClick={handleQuickCleanup}
+                size="small"
+                title="Quick cleanup old letters"
+              >
+                Quick Cleanup
+              </Button>
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={handleBulkDelete}
+                size="small"
+                danger
+                title="Bulk delete letters"
+              >
+                Bulk Delete
+              </Button>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={fetchLetters}
+                size="small"
+              >
+                Refresh
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+    );
+  };
+
   const columns: ColumnsType<ExhibitionLetter> = [
     {
       title: 'Type',
       dataIndex: 'letterType',
       key: 'letterType',
-      width: 120,
+      width: 140,
       render: (type: string) => (
-        <Tag color={type === 'standPossession' ? 'blue' : 'green'}>
+        <Tag 
+          color={type === 'standPossession' ? 'blue' : 'green'}
+          style={{ fontSize: '11px', padding: '2px 8px' }}
+        >
           {type === 'standPossession' ? 'Stand Possession' : 'Transport'}
         </Tag>
       ),
@@ -345,9 +810,9 @@ const LettersPage: React.FC = () => {
       key: 'recipient',
       render: (_, record) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{record.recipientName}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{record.companyName}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{record.recipientEmail}</div>
+          <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{record.recipientName}</div>
+          <div style={{ fontSize: '11px', color: '#666' }}>{record.companyName}</div>
+          <div style={{ fontSize: '11px', color: '#999' }}>{record.recipientEmail}</div>
         </div>
       ),
     },
@@ -356,43 +821,52 @@ const LettersPage: React.FC = () => {
       dataIndex: 'stallNumbers',
       key: 'stallNumbers',
       width: 100,
-      render: (stallNumbers: string[]) => stallNumbers.join(', '),
+      render: (stallNumbers: string[]) => (
+        <Tag color="default" style={{ fontSize: '11px' }}>
+          {stallNumbers.join(', ')}
+        </Tag>
+      ),
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (status: string) => getStatusTag(status),
-    },
-    {
-      title: 'Method',
-      dataIndex: 'sendingMethod',
-      key: 'sendingMethod',
-      width: 100,
-      render: (method: string) => (
-        <Tag color={method === 'automatic' ? 'purple' : 'cyan'}>
-          {method.toUpperCase()}
-        </Tag>
+      render: (status: string, record) => (
+        <div>
+          {getStatusTag(status)}
+          {record.failureReason && (
+            <Tooltip title={record.failureReason} placement="top">
+              <ExclamationCircleOutlined 
+                style={{ color: '#ff4d4f', marginLeft: '4px', cursor: 'help' }} 
+              />
+            </Tooltip>
+          )}
+        </div>
       ),
     },
     {
-      title: 'Sent At',
+      title: 'Sent',
       dataIndex: 'sentAt',
       key: 'sentAt',
-      width: 150,
-      render: (sentAt: string) => sentAt ? dayjs(sentAt).format('MMM DD, YYYY HH:mm') : '-',
+      width: 140,
+      render: (sentAt: string) => (
+        <Text style={{ fontSize: '12px' }}>
+          {sentAt ? dayjs(sentAt).format('MMM DD, HH:mm') : '-'}
+        </Text>
+      ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      width: 220,
+      width: 180,
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="View Letter">
+          <Tooltip title="View Details">
             <Button
               type="text"
               icon={<EyeOutlined />}
+              size="small"
               onClick={() => handleViewLetter(record)}
             />
           </Tooltip>
@@ -401,71 +875,71 @@ const LettersPage: React.FC = () => {
             <Button
               type="text"
               icon={<DownloadOutlined />}
+              size="small"
               onClick={() => handleDownloadLetter(record)}
             />
           </Tooltip>
 
+          {record.status === 'failed' && (
+            <Tooltip title="Retry Send">
+              <Button
+                type="text"
+                icon={<SendOutlined />}
+                size="small"
+                onClick={() => handleResendLetter(record._id)}
+                style={{ color: '#1890ff' }}
+              />
+            </Tooltip>
+          )}
+          
           <Dropdown
             menu={{
               items: [
                 {
                   key: 'both',
-                  label: 'Resend Both Letters',
+                  label: 'Resend Both Types',
                   icon: <DoubleRightOutlined />,
                   onClick: () => handleResendLetters(record, ['standPossession', 'transport'])
                 },
                 {
                   key: 'standPossession',
-                  label: 'Resend Stand Possession Only',
-                  icon: <SendOutlined />,
+                  label: 'Resend Stand Possession',
+                  icon: <FileTextOutlined />,
                   onClick: () => handleResendLetters(record, ['standPossession'])
                 },
                 {
                   key: 'transport',
-                  label: 'Resend Transport Only', 
+                  label: 'Resend Transport', 
                   icon: <SendOutlined />,
                   onClick: () => handleResendLetters(record, ['transport'])
+                },
+                { type: 'divider' as const },
+                {
+                  key: 'delete',
+                  label: record.status === 'sent' ? 'Delete Sent Letter' : 'Delete Letter',
+                  icon: <DeleteOutlined />,
+                  danger: true,
+                  onClick: () => {
+                    if (record.status === 'sent') {
+                      // For sent letters, use the enhanced delete handler
+                      handleDeleteLetter(record._id, record.status);
+                    } else {
+                      // For non-sent letters, show simple confirmation
+                      Modal.confirm({
+                        title: 'Delete Letter',
+                        content: 'Are you sure you want to delete this letter?',
+                        onOk: () => handleDeleteLetter(record._id, record.status),
+                      });
+                    }
+                  }
                 }
               ]
             }}
             trigger={['click']}
-            placement="bottomLeft"
+            placement="bottomRight"
           >
-            <Tooltip title="Resend Letters" placement="top">
-              <Button
-                type="text"
-                icon={<DoubleRightOutlined />}
-                style={{ color: '#1890ff' }}
-              />
-            </Tooltip>
+            <Button type="text" icon={<MoreOutlined />} size="small" />
           </Dropdown>
-          
-          {record.status === 'failed' && (
-            <Tooltip title="Resend This Letter">
-              <Button
-                type="text"
-                icon={<SendOutlined />}
-                onClick={() => handleResendLetter(record._id)}
-              />
-            </Tooltip>
-          )}
-          
-          {['failed', 'pending'].includes(record.status) && (
-            <Popconfirm
-              title="Are you sure you want to delete this letter?"
-              onConfirm={() => handleDeleteLetter(record._id)}
-              okText="Yes"
-              cancelText="No"
-            >
-              <Tooltip title="Delete Letter">
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                />
-              </Tooltip>
-            </Popconfirm>
-          )}
         </Space>
       ),
     },
@@ -497,7 +971,13 @@ const LettersPage: React.FC = () => {
       title: 'Days Until Start',
       dataIndex: 'daysUntilStart',
       key: 'daysUntilStart',
-      render: (days: number) => `${days} days`,
+      render: (days: number) => (
+        <Badge 
+          count={days} 
+          style={{ backgroundColor: days <= 7 ? '#ff4d4f' : '#52c41a' }}
+          overflowCount={99}
+        />
+      ),
     },
     {
       title: 'Status',
@@ -512,234 +992,165 @@ const LettersPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>
-        <MailOutlined /> Exhibition Letters Management
-      </Title>
-      <Text type="secondary">
-        Manage and monitor exhibition letters sent to exhibitors
-      </Text>
+    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+      <div style={{ marginBottom: '24px' }}>
+        <Title level={2} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <MailOutlined style={{ color: '#1890ff' }} />
+          Exhibition Letters
+        </Title>
+        <Paragraph type="secondary" style={{ margin: '8px 0 0 0', fontSize: '16px' }}>
+          Manage and monitor exhibition letters sent to exhibitors
+        </Paragraph>
+      </div>
 
-      <Tabs defaultActiveKey="letters" style={{ marginTop: '24px' }}>
-        <TabPane tab="Letters" key="letters">
-          {/* Filters */}
-          <Card style={{ marginBottom: '24px' }}>
-            {/* Filter Status Bar */}
-            {(selectedExhibition || hasActiveFilters()) && (
-              <Alert
-                style={{ marginBottom: '16px' }}
-                message={
-                  <span>
-                    <strong>Active Filters:</strong> {[
-                      selectedExhibition ? `Exhibition: ${exhibitions.find(ex => ex._id === selectedExhibition)?.name || 'Selected'}` : null,
-                      letterTypeFilter ? `Type: ${letterTypeFilter === 'standPossession' ? 'Stand Possession' : 'Transport'}` : null,
-                      statusFilter ? `Status: ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}` : null,
-                      searchQuery ? `Search: "${searchQuery}"` : null
-                    ].filter(Boolean).join(' • ')}
-                  </span>
-                }
-                type="info"
-                showIcon
-                closable={false}
-              />
-            )}
-            <Row gutter={[16, 16]}>
-              <Col xs={24} md={6}>
-                <Text strong>
-                  Exhibition:
-                  {selectedExhibition && <Tag color="blue" style={{ marginLeft: 8 }}>Selected</Tag>}
-                </Text>
-                <Select
-                  style={{ width: '100%', marginTop: '8px' }}
-                  placeholder="Select Exhibition"
-                  value={selectedExhibition || undefined}
-                  onChange={handleExhibitionChange}
-                  showSearch
-                  optionFilterProp="children"
-                  allowClear={!!selectedExhibition}
-                >
-                  {exhibitions.map(exhibition => (
-                    <Option key={exhibition._id} value={exhibition._id}>
-                      {exhibition.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Col>
-              
-              <Col xs={24} md={4}>
-                <Text strong>
-                  Letter Type:
-                  {letterTypeFilter && <Tag color="green" style={{ marginLeft: 8 }}>Filtered</Tag>}
-                </Text>
-                <Select
-                  style={{ width: '100%', marginTop: '8px' }}
-                  placeholder="All Types"
-                  value={letterTypeFilter || undefined}
-                  onChange={setLetterTypeFilter}
-                  allowClear={!!letterTypeFilter}
-                >
-                  <Option value="standPossession">Stand Possession</Option>
-                  <Option value="transport">Transport</Option>
-                </Select>
-              </Col>
-              
-              <Col xs={24} md={4}>
-                <Text strong>
-                  Status:
-                  {statusFilter && <Tag color="orange" style={{ marginLeft: 8 }}>Filtered</Tag>}
-                </Text>
-                <Select
-                  style={{ width: '100%', marginTop: '8px' }}
-                  placeholder="All Statuses"
-                  value={statusFilter || undefined}
-                  onChange={setStatusFilter}
-                  allowClear={!!statusFilter}
-                >
-                  <Option value="sent">Sent</Option>
-                  <Option value="pending">Pending</Option>
-                  <Option value="failed">Failed</Option>
-                  <Option value="scheduled">Scheduled</Option>
-                </Select>
-              </Col>
-              
-              <Col xs={24} md={6}>
-                <Text strong>
-                  Search:
-                  {searchQuery && <Tag color="purple" style={{ marginLeft: 8 }}>Active</Tag>}
-                </Text>
-                <Search
-                  style={{ marginTop: '8px' }}
-                  placeholder="Search by name, company, email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  allowClear={!!searchQuery}
-                />
-              </Col>
-              
-              <Col xs={24} md={4}>
-                <div style={{ marginTop: '32px' }}>
-                  <Button 
-                    onClick={resetFilters}
-                    disabled={!hasActiveFilters()}
-                    type={hasActiveFilters() ? 'primary' : 'default'}
-                    danger={hasActiveFilters()}
+      <Tabs defaultActiveKey="dashboard" style={{ background: 'white', borderRadius: '8px', padding: '24px' }}>
+        <TabPane 
+          tab={
+            <span>
+              <DashboardOutlined />
+              Dashboard
+            </span>
+          } 
+          key="dashboard"
+        >
+          {/* Exhibition Selection */}
+          <Card style={{ marginBottom: '24px' }} size="small">
+            <Row gutter={[16, 16]} align="middle">
+              <Col xs={24} md={12}>
+                <div>
+                  <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                    Select Exhibition:
+                  </Text>
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder="Choose an exhibition to manage letters"
+                    value={selectedExhibition || undefined}
+                    onChange={handleExhibitionChange}
+                    showSearch
+                    optionFilterProp="children"
+                    allowClear={!!selectedExhibition}
+                    size="large"
                   >
-                    Reset Filters
-                  </Button>
+                    {exhibitions.map(exhibition => (
+                      <Option key={exhibition._id} value={exhibition._id}>
+                        {exhibition.name}
+                      </Option>
+                    ))}
+                  </Select>
                 </div>
               </Col>
+              {selectedExhibition && (
+                <Col xs={24} md={12}>
+                  <Alert
+                    message={`Managing letters for: ${exhibitions.find(ex => ex._id === selectedExhibition)?.name}`}
+                    type="info"
+                    showIcon
+                    style={{ margin: 0 }}
+                  />
+                </Col>
+              )}
             </Row>
           </Card>
 
-          {/* Statistics */}
-          {selectedExhibition && statistics && (
-            <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-              <Col xs={12} md={6}>
-                <Card>
-                  <Statistic
-                    title="Stand Possession - Sent"
-                    value={statistics.standPossession.sent}
-                    valueStyle={{ color: '#3f8600' }}
-                    prefix={<CheckCircleOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={12} md={6}>
-                <Card>
-                  <Statistic
-                    title="Stand Possession - Pending"
-                    value={statistics.standPossession.pending}
-                    valueStyle={{ color: '#cf1322' }}
-                    prefix={<ClockCircleOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={12} md={6}>
-                <Card>
-                  <Statistic
-                    title="Transport - Sent"
-                    value={statistics.transport.sent}
-                    valueStyle={{ color: '#3f8600' }}
-                    prefix={<CheckCircleOutlined />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={12} md={6}>
-                <Card>
-                  <Statistic
-                    title="Transport - Pending"
-                    value={statistics.transport.pending}
-                    valueStyle={{ color: '#cf1322' }}
-                    prefix={<ClockCircleOutlined />}
-                  />
-                </Card>
-              </Col>
-            </Row>
-          )}
+          {selectedExhibition ? (
+            <>
+              {/* Status Overview */}
+              <StatusOverview />
 
-          {/* Actions */}
-          {selectedExhibition && (
-            <Card style={{ marginBottom: '24px' }}>
-              <Space wrap>
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  loading={sendingLoading}
-                  onClick={() => handleSendLetters('standPossession')}
-                >
-                  Send Stand Possession Letters
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  loading={sendingLoading}
-                  onClick={() => handleSendLetters('transport')}
-                >
-                  Send Transport Letters
-                </Button>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={fetchLetters}
-                >
-                  Refresh
-                </Button>
-              </Space>
-              
-              <Alert
-                style={{ marginTop: '16px' }}
-                message="Quick Actions"
-                description="Click the double arrow (⏩) button in the table to choose which letters to resend: both types together, or individual Stand Possession or Transport letters."
-                type="info"
-                showIcon
-                closable
-              />
-            </Card>
-          )}
+              {/* Quick Actions */}
+              <QuickActionPanel />
 
-          {/* Letters Table */}
-          <Card>
-            <Table
-              columns={columns}
-              dataSource={letters}
-              rowKey="_id"
-              loading={loading}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: pagination.total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} letters`,
-                onChange: (page, pageSize) => {
-                  setPagination(prev => ({
-                    ...prev,
-                    current: page,
-                    pageSize: pageSize || 10
-                  }));
-                }
-              }}
+              {/* Simplified Filters */}
+              <Card style={{ marginBottom: '24px' }} size="small">
+                <Row gutter={[16, 16]} align="middle">
+                  <Col xs={24} sm={6}>
+                    <Text strong style={{ display: 'block', marginBottom: '8px' }}>Quick Filter:</Text>
+                    <Select
+                      style={{ width: '100%' }}
+                      value={quickFilter}
+                      onChange={setQuickFilter}
+                    >
+                      <Option value="all">All Letters</Option>
+                      <Option value="sent">Sent Only</Option>
+                      <Option value="pending">Pending Only</Option>
+                      <Option value="failed">Failed Only</Option>
+                    </Select>
+                  </Col>
+                  <Col xs={24} sm={6}>
+                    <Text strong style={{ display: 'block', marginBottom: '8px' }}>Letter Type:</Text>
+                    <Select
+                      style={{ width: '100%' }}
+                      placeholder="All Types"
+                      value={letterTypeFilter || undefined}
+                      onChange={setLetterTypeFilter}
+                      allowClear
+                    >
+                      <Option value="standPossession">Stand Possession</Option>
+                      <Option value="transport">Transport</Option>
+                    </Select>
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Text strong style={{ display: 'block', marginBottom: '8px' }}>Search:</Text>
+                    <Search
+                      placeholder="Search by name, company, email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      allowClear
+                    />
+                  </Col>
+                  <Col xs={24} sm={4}>
+                    <div style={{ marginTop: '32px' }}>
+                      <Button 
+                        onClick={resetFilters}
+                        disabled={!hasActiveFilters()}
+                        danger={hasActiveFilters()}
+                        icon={<ClearOutlined />}
+                        block
+                      >
+                        Clear Filters
+                      </Button>
+                    </div>
+                  </Col>
+                </Row>
+              </Card>
+
+              {/* Letters Table */}
+              <Card>
+                <Table
+                  columns={columns}
+                  dataSource={letters}
+                  rowKey="_id"
+                  loading={loading}
+                  size="small"
+                  scroll={{ x: 800 }}
+                  pagination={{
+                    current: pagination.current,
+                    pageSize: pagination.pageSize,
+                    total: pagination.total,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} letters`,
+                    onChange: (page, pageSize) => {
+                      setPagination(prev => ({
+                        ...prev,
+                        current: page,
+                        pageSize: pageSize || 10
+                      }));
+                    }
+                  }}
+                />
+              </Card>
+            </>
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <span>
+                  Please select an exhibition to view and manage letters
+                </span>
+              }
             />
-          </Card>
+          )}
         </TabPane>
 
         <TabPane tab="Upcoming Schedules" key="schedules">
@@ -757,56 +1168,107 @@ const LettersPage: React.FC = () => {
               dataSource={upcomingSchedules}
               rowKey={(record) => `${record.exhibitionId}-${record.letterType}`}
               pagination={false}
+              size="small"
             />
           </Card>
         </TabPane>
       </Tabs>
 
-      {/* Letter Preview Modal */}
+      {/* Bulk Action Progress Modal */}
       <Modal
-        title="Letter Details"
+        title="Sending Letters"
+        open={bulkActionModalVisible}
+        footer={null}
+        closable={false}
+        centered
+      >
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <Progress
+            type="circle"
+            percent={sendingProgress}
+            status={sendingProgress === 100 ? 'success' : 'active'}
+            style={{ marginBottom: '16px' }}
+          />
+          <div style={{ marginTop: '16px' }}>
+            <Text strong>{sendingStatus}</Text>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Letter Preview Modal - Enhanced */}
+      <Modal
+        title={
+          <Space>
+            <EyeOutlined />
+            Letter Details
+          </Space>
+        }
         open={previewModalVisible}
         onCancel={() => setPreviewModalVisible(false)}
         footer={[
           <Button key="close" onClick={() => setPreviewModalVisible(false)}>
             Close
-          </Button>
+          </Button>,
+          selectedLetter && (
+            <Button
+              key="download"
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={() => selectedLetter && handleDownloadLetter(selectedLetter)}
+            >
+              Download PDF
+            </Button>
+          )
         ]}
-        width={800}
+        width={900}
       >
         {selectedLetter && (
           <div>
             <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
               <Col span={12}>
                 <Text strong>Type:</Text>
-                <div>{selectedLetter.letterType === 'standPossession' ? 'Stand Possession' : 'Transport'}</div>
+                <div style={{ marginTop: '4px' }}>
+                  <Tag color={selectedLetter.letterType === 'standPossession' ? 'blue' : 'green'}>
+                    {selectedLetter.letterType === 'standPossession' ? 'Stand Possession' : 'Transport'}
+                  </Tag>
+                </div>
               </Col>
               <Col span={12}>
                 <Text strong>Status:</Text>
-                <div>{getStatusTag(selectedLetter.status)}</div>
+                <div style={{ marginTop: '4px' }}>
+                  {getStatusTag(selectedLetter.status)}
+                </div>
               </Col>
               <Col span={12}>
                 <Text strong>Recipient:</Text>
-                <div>{selectedLetter.recipientName}</div>
-                <div style={{ fontSize: '12px', color: '#666' }}>{selectedLetter.recipientEmail}</div>
+                <div style={{ marginTop: '4px' }}>
+                  <div style={{ fontWeight: 'bold' }}>{selectedLetter.recipientName}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>{selectedLetter.recipientEmail}</div>
+                </div>
               </Col>
               <Col span={12}>
                 <Text strong>Company:</Text>
-                <div>{selectedLetter.companyName}</div>
+                <div style={{ marginTop: '4px' }}>{selectedLetter.companyName}</div>
               </Col>
               <Col span={12}>
                 <Text strong>Stalls:</Text>
-                <div>{selectedLetter.stallNumbers.join(', ')}</div>
+                <div style={{ marginTop: '4px' }}>
+                  <Tag>{selectedLetter.stallNumbers.join(', ')}</Tag>
+                </div>
               </Col>
               <Col span={12}>
                 <Text strong>Sent At:</Text>
-                <div>{selectedLetter.sentAt ? dayjs(selectedLetter.sentAt).format('MMM DD, YYYY HH:mm') : 'Not sent'}</div>
+                <div style={{ marginTop: '4px' }}>
+                  {selectedLetter.sentAt ? dayjs(selectedLetter.sentAt).format('MMM DD, YYYY HH:mm') : 'Not sent'}
+                </div>
               </Col>
             </Row>
             
+            <Divider />
+            
             <div style={{ marginBottom: '16px' }}>
               <Text strong>Subject:</Text>
-              <div style={{ marginTop: '8px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
+              <div style={{ marginTop: '8px', padding: '12px', background: '#f5f5f5', borderRadius: '6px', border: '1px solid #d9d9d9' }}>
                 {selectedLetter.subject}
               </div>
             </div>
@@ -817,11 +1279,14 @@ const LettersPage: React.FC = () => {
                 marginTop: '8px', 
                 padding: '16px', 
                 background: '#f5f5f5', 
-                borderRadius: '4px',
+                borderRadius: '6px',
+                border: '1px solid #d9d9d9',
                 whiteSpace: 'pre-line',
                 fontFamily: 'monospace',
                 maxHeight: '400px',
-                overflow: 'auto'
+                overflow: 'auto',
+                fontSize: '13px',
+                lineHeight: '1.6'
               }}>
                 {selectedLetter.content}
               </div>
@@ -832,12 +1297,13 @@ const LettersPage: React.FC = () => {
                 <Text strong>Failure Reason:</Text>
                 <div style={{ 
                   marginTop: '8px', 
-                  padding: '8px', 
+                  padding: '12px', 
                   background: '#fff2f0', 
                   border: '1px solid #ffccc7',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   color: '#a8071a'
                 }}>
+                  <ExclamationCircleOutlined style={{ marginRight: '8px' }} />
                   {selectedLetter.failureReason}
                 </div>
               </div>

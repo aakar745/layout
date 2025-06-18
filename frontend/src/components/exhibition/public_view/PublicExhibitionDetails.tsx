@@ -171,14 +171,25 @@ const PublicExhibitionDetails: React.FC = () => {
   }
   
   if (error || !exhibition) {
+    // Check if the error is about exhibition not being available
+    const isNotAvailable = error && (
+      error.includes('not found') || 
+      error.includes('no longer available') ||
+      error.includes('404')
+    );
+    
     return (
       <Layout>
         <GlobalHeader />
         <Content style={{ paddingTop: '64px' }}>
           <Result
             status="404"
-            title="Exhibition not found"
-            subTitle={error || "The exhibition you're looking for doesn't exist or has been removed."}
+            title={isNotAvailable ? "Exhibition No Longer Available" : "Exhibition Not Found"}
+            subTitle={
+              isNotAvailable 
+                ? "This exhibition is no longer available or has been deactivated. It may have been removed by the organizer."
+                : (error || "The exhibition you're looking for doesn't exist or has been removed.")
+            }
             extra={
               <Button type="primary" onClick={() => navigate('/exhibitions')}>
                 Back to Exhibitions

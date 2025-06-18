@@ -9,6 +9,8 @@ const { RangePicker } = DatePicker;
 interface GenericExhibition {
   _id: string;
   name: string;
+  status?: string;
+  isActive?: boolean;
 }
 
 interface BookingFiltersProps {

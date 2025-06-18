@@ -20,7 +20,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
 import { fetchBookings, deleteBooking, Exhibition, fetchBookingStats } from '../../../store/slices/bookingSlice';
-import { fetchExhibition, fetchExhibitions } from '../../../store/slices/exhibitionSlice';
+import { fetchExhibition, fetchExhibitions, fetchActiveExhibitions } from '../../../store/slices/exhibitionSlice';
 import { useNavigate } from 'react-router-dom';
 import { useGetInvoicesQuery } from '../../../store/services/invoice';
 import BookingStatistics from './BookingStatistics';
@@ -46,7 +46,7 @@ const { Title, Text } = Typography;
 const StallBookingManager: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { bookings, loading, pagination, stats, statsLoading } = useSelector((state: RootState) => state.booking);
-  const { exhibitions } = useSelector((state: RootState) => state.exhibition);
+  const { exhibitions, activeExhibitions } = useSelector((state: RootState) => state.exhibition);
   const [selectedBooking, setSelectedBooking] = useState<BookingType | null>(null);
   const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
@@ -115,6 +115,8 @@ const StallBookingManager: React.FC = () => {
   // First, fetch all exhibitions to ensure we have the complete list
   useEffect(() => {
     dispatch(fetchExhibitions());
+    // Also fetch active exhibitions for the filter dropdown
+    dispatch(fetchActiveExhibitions());
   }, [dispatch]);
 
   // Then fetch details for the current exhibition when needed
@@ -162,34 +164,69 @@ const StallBookingManager: React.FC = () => {
     fetchBookingsWithPagination(1, pagination.limit, newFilters);
   };
 
-  // Ensure bookings is an array before passing it down
-  const bookingsArray = Array.isArray(bookings) ? bookings : [];
+  // Ensure bookings is an array and filter out bookings from inactive exhibitions
+  const allBookingsArray = Array.isArray(bookings) ? bookings : [];
+  
+  // Filter bookings to only show those from active exhibitions
+  const bookingsArray = allBookingsArray.filter(booking => {
+    const exhibition = exhibitions.find(e => e._id === booking.exhibitionId._id);
+    return exhibition && exhibition.status === 'published' && exhibition.isActive;
+  });
 
   /**
    * Formats a booking ID into a user-friendly booking number using the exhibition's invoice prefix
    */
   const formatBookingNumber = (id: string, createdAt: string): string => {
-    const year = new Date(createdAt).getFullYear();
+    // Handle invalid date
+    const createdDate = new Date(createdAt);
+    if (isNaN(createdDate.getTime())) {
+      return `--/--/--`;
+    }
     
-    // Find the current booking's exhibition
-    const booking = bookingsArray.find(b => b._id === id) as BookingType | undefined;
-    if (!booking) return `--/${year}/--`;
+    const year = createdDate.getFullYear();
+    
+    // Find the current booking's exhibition - check both arrays for export functionality
+    let booking = bookingsArray.find(b => b._id === id) as BookingType | undefined;
+    
+    // If not found in filtered array, it might be from export data
+    if (!booking) {
+      booking = allBookingsArray.find(b => b._id === id) as BookingType | undefined;
+    }
+    
+    if (!booking || !booking.exhibitionId) {
+      return `--/${year}/--`;
+    }
+
+    // Get exhibition ID safely
+    const exhibitionId = booking.exhibitionId._id || booking.exhibitionId;
+    if (!exhibitionId) {
+      return `--/${year}/--`;
+    }
 
     // Get all bookings for this specific exhibition, sorted by creation date
-    const exhibitionBookings = bookingsArray
-      .filter(b => b.exhibitionId._id === booking.exhibitionId._id)
+    const exhibitionBookings = allBookingsArray
+      .filter(b => {
+        const bExhibitionId = b.exhibitionId?._id || b.exhibitionId;
+        return bExhibitionId === exhibitionId;
+      })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
     // Find the sequence number by getting this booking's position in the sorted array
     const sequenceNum = exhibitionBookings.findIndex(b => b._id === id) + 1;
+    if (sequenceNum === 0) {
+      return `--/${year}/--`;
+    }
+    
     // Pad the sequence number to 2 digits (01, 02, etc.)
     const sequence = sequenceNum.toString().padStart(2, '0');
     
     // Get the exhibition details from the Redux store
-    const exhibition = exhibitions.find(e => e._id === booking.exhibitionId._id) as Exhibition | undefined;
+    const exhibition = exhibitions.find(e => e._id === exhibitionId) as Exhibition | undefined;
     
     // Use exhibition's invoice prefix or fall back to booking's exhibition prefix or 'BK'
-    const prefix = exhibition?.invoicePrefix || (booking.exhibitionId as Exhibition).invoicePrefix || 'BK';
+    const prefix = exhibition?.invoicePrefix || 
+                   (booking.exhibitionId as Exhibition)?.invoicePrefix || 
+                   'BK';
     
     return `${prefix}/${year}/${sequence}`;
   };
@@ -201,6 +238,13 @@ const StallBookingManager: React.FC = () => {
   const handleExportBookings = async () => {
     try {
       message.loading({ content: 'Preparing export...', key: 'export' });
+      
+      // Ensure exhibitions are loaded before proceeding
+      if (!exhibitions || exhibitions.length === 0) {
+        message.warning('Exhibitions data is still loading. Please wait and try again.');
+        message.destroy('export');
+        return;
+      }
       
       // Prepare export parameters - use current filters
       const params: any = {};
@@ -234,12 +278,28 @@ const StallBookingManager: React.FC = () => {
         throw new Error('Invalid data format received');
       }
       
+      // Filter out bookings from inactive exhibitions before formatting
+      const filteredBookings = result.filter((booking: BookingType) => {
+        // Handle different possible structures of exhibitionId
+        const exhibitionId = booking.exhibitionId?._id || booking.exhibitionId;
+        if (!exhibitionId || !exhibitions || exhibitions.length === 0) {
+          // If we can't determine the exhibition or exhibitions aren't loaded, include the booking
+          return true;
+        }
+        
+        const exhibition = exhibitions.find(e => e._id === exhibitionId);
+        return exhibition && exhibition.status === 'published' && exhibition.isActive;
+      });
+      
       // Format booking data for Excel
-      const exportData = result.map((booking: BookingType) => {
+      const exportData = filteredBookings.map((booking: BookingType) => {
+        // Safely handle stallIds array
+        const stallIds = booking.stallIds || [];
+        
         // Calculate total area for all stalls
-        const totalArea = booking.stallIds.reduce(
+        const totalArea = stallIds.reduce(
           (sum, stall) => {
-            if (!(stall as any).dimensions) return sum;
+            if (!(stall as any)?.dimensions) return sum;
             return sum + ((stall as any).dimensions.width * (stall as any).dimensions.height);
           }, 
           0
@@ -247,30 +307,30 @@ const StallBookingManager: React.FC = () => {
         
         return {
           'Booking Number': formatBookingNumber(booking._id, booking.createdAt),
-          'Exhibition': booking.exhibitionId.name,
+          'Exhibition': booking.exhibitionId?.name || 'Unknown Exhibition',
           'Company Name': booking.companyName || 'N/A',
           'Customer Name': booking.customerName,
           'Customer Email': booking.customerEmail,
           'Customer Phone': booking.customerPhone,
-          'Stall Numbers': booking.stallIds.map(stall => stall.number).join(', '),
-          'Stall Types': Array.from(new Set(booking.stallIds.map(stall => 
-            stall.type || ((stall as any).stallTypeId && typeof (stall as any).stallTypeId === 'object' ? 
+          'Stall Numbers': stallIds.length > 0 ? stallIds.map(stall => stall?.number || 'N/A').join(', ') : 'No stalls',
+          'Stall Types': stallIds.length > 0 ? Array.from(new Set(stallIds.map(stall => 
+            stall?.type || ((stall as any)?.stallTypeId && typeof (stall as any).stallTypeId === 'object' ? 
             (stall as any).stallTypeId.name : '-')
-          ))).join(', '),
-          'Dimensions': booking.stallIds.map(stall => 
-              (stall as any).dimensions ? 
+          ))).join(', ') : 'No types',
+          'Dimensions': stallIds.length > 0 ? stallIds.map(stall => 
+              (stall as any)?.dimensions ? 
               `${(stall as any).dimensions.width}m × ${(stall as any).dimensions.height}m` : 
               'No dimensions'
-            ).join(', '),
+            ).join(', ') : 'No dimensions',
           'Total Area (sqm)': Math.round(totalArea),
-          'Base Amount': Math.round(booking.calculations.totalBaseAmount),
-          'Discount': Math.round(booking.calculations.totalDiscountAmount),
-          'Total Amount': Math.round(booking.calculations.totalAmount),
-          'Status': booking.status.toUpperCase(),
+          'Base Amount': Math.round(booking.calculations?.totalBaseAmount || 0),
+          'Discount': Math.round(booking.calculations?.totalDiscountAmount || 0),
+          'Total Amount': Math.round(booking.calculations?.totalAmount || booking.amount || 0),
+          'Status': booking.status?.toUpperCase() || 'UNKNOWN',
           'Booked By': booking.bookingSource === 'exhibitor' && booking.exhibitorId ? 
-            `${booking.exhibitorId.contactPerson} (Exhibitor)` : 
+            `${booking.exhibitorId?.contactPerson || 'Unknown'} (Exhibitor)` : 
             booking.userId ? 
-              `${booking.userId.name || booking.userId.username} (Admin)` : 
+              `${booking.userId?.name || booking.userId?.username || 'Unknown'} (Admin)` : 
               'System',
           'Created Date': new Date(booking.createdAt).toLocaleDateString('en-GB', {
             day: '2-digit',
@@ -348,7 +408,7 @@ const StallBookingManager: React.FC = () => {
       {/* Filters */}
       <BookingFilters 
         filters={filters} 
-        exhibitions={exhibitions as any[]}
+        exhibitions={activeExhibitions as any[]}
         onFilterChange={handleFilter}
         onRefresh={refreshAfterAction}
       />

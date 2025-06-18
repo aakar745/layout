@@ -1,0 +1,148 @@
+.activity-page {
+  padding: 24px;
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+.activity-page .ant-card {
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.activity-page .ant-statistic-title {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.activity-page .ant-statistic-content {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.activity-page .ant-table-thead > tr > th {
+  background: #fafafa;
+  border-bottom: 2px solid #e8e8e8;
+  font-weight: 600;
+}
+
+.activity-page .ant-table-tbody > tr:hover > td {
+  background: #f0f9ff;
+}
+
+.activity-page .ant-tag {
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.activity-page .ant-descriptions-bordered .ant-descriptions-item-label {
+  background: #fafafa;
+  font-weight: 600;
+  width: 150px;
+}
+
+.activity-page pre {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #d9d9d9;
+}
+
+.activity-page .ant-modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.activity-page .ant-badge-status-text {
+  font-size: 12px;
+}
+
+/* Clear Logs Modal Styling */
+.clear-logs-modal .ant-modal-header {
+  border-bottom: 2px solid #ffccc7;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #fff2f0 0%, #ffffff 100%);
+}
+
+.clear-logs-modal .ant-modal-body {
+  padding: 20px 24px;
+}
+
+.clear-logs-modal .ant-modal-footer {
+  border-top: 2px solid #f0f0f0;
+  padding: 20px 24px;
+  background-color: #fafafa;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.clear-logs-modal .ant-modal-footer .ant-btn {
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-logs-modal .ant-btn-dangerous {
+  box-shadow: 0 2px 8px rgba(255, 77, 79, 0.15);
+}
+
+.clear-logs-modal .ant-btn-dangerous:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(255, 77, 79, 0.25);
+  transform: translateY(-1px);
+}
+
+.clear-logs-modal .ant-btn-dangerous:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.clear-logs-modal .ant-btn:hover:not(:disabled):not(.ant-btn-dangerous) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.clear-logs-modal .ant-input-affix-wrapper {
+  transition: all 0.3s ease;
+}
+
+.clear-logs-modal .ant-input-affix-wrapper:focus,
+.clear-logs-modal .ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.1);
+}
+
+.clear-logs-modal .ant-alert {
+  transition: all 0.3s ease;
+}
+
+.clear-logs-modal .ant-alert:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .activity-page {
+    padding: 16px;
+  }
+  
+  .activity-page .ant-table {
+    font-size: 12px;
+  }
+  
+  .activity-page .ant-descriptions {
+    font-size: 12px;
+  }
+
+  .clear-logs-modal {
+    width: 95% !important;
+    max-width: 500px;
+  }
+  
+  .clear-logs-modal .ant-modal-body {
+    padding: 16px;
+  }
+} 

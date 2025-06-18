@@ -213,9 +213,72 @@ const exhibitionLetterService = {
   /**
    * Delete a letter record
    */
-  deleteLetter: async (letterId: string) => {
+  deleteLetter: async (letterId: string, force: boolean = false) => {
     try {
-      const response = await api.delete<{ message: string }>(`/exhibition-letters/letter/${letterId}`);
+      const url = `/exhibition-letters/letter/${letterId}${force ? '?force=true' : ''}`;
+      const response = await api.delete<{ 
+        message: string; 
+        deletedLetter?: { 
+          id: string; 
+          type: string; 
+          status: string; 
+          recipientName: string; 
+        };
+        requiresForce?: boolean;
+      }>(url);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  /**
+   * Bulk delete letters for an exhibition
+   */
+  bulkDeleteLetters: async (
+    exhibitionId: string, 
+    options: {
+      status?: string[];
+      letterType?: 'standPossession' | 'transport';
+      olderThanDays?: number;
+      force?: boolean;
+    }
+  ) => {
+    try {
+      const response = await api.post<{
+        message: string;
+        deletedCount: number;
+        summary: {
+          standPossession: number;
+          transport: number;
+          byStatus: Record<string, number>;
+        };
+        criteria: any;
+        requiresForce?: boolean;
+      }>(`/exhibition-letters/${exhibitionId}/bulk-delete`, options);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  /**
+   * Clean old letters (convenience method)
+   */
+  cleanOldLetters: async (
+    exhibitionId: string,
+    options: {
+      daysOld?: number;
+      includeSent?: boolean;
+    } = {}
+  ) => {
+    try {
+      const response = await api.post<{
+        message: string;
+        deletedCount: number;
+        daysOld: number;
+        includedSent: boolean;
+      }>(`/exhibition-letters/${exhibitionId}/clean-old`, options);
       return response.data;
     } catch (error) {
       return handleApiError(error);

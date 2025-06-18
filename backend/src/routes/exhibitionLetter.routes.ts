@@ -8,6 +8,8 @@ import {
   resendBothLetters,
   getUpcomingSchedules,
   deleteLetter,
+  bulkDeleteLetters,
+  cleanOldLetters,
   getLetterById,
   downloadLetterPDF
 } from '../controllers/exhibitionLetter.controller';
@@ -82,8 +84,25 @@ router.post('/:exhibitionId/resend-both/:bookingId', resendBothLetters);
  * @route DELETE /api/exhibition-letters/letter/:letterId
  * @desc Delete a letter record
  * @access Private (Admin)
+ * @query force - Set to 'true' to force delete sent letters
  */
 router.delete('/letter/:letterId', deleteLetter);
+
+/**
+ * @route POST /api/exhibition-letters/:exhibitionId/bulk-delete
+ * @desc Bulk delete letters for an exhibition
+ * @access Private (Admin)
+ * @body { status: string[], letterType?: string, olderThanDays?: number, force?: boolean }
+ */
+router.post('/:exhibitionId/bulk-delete', bulkDeleteLetters);
+
+/**
+ * @route POST /api/exhibition-letters/:exhibitionId/clean-old
+ * @desc Clean old letters (convenience endpoint)
+ * @access Private (Admin)
+ * @body { daysOld?: number, includeSent?: boolean }
+ */
+router.post('/:exhibitionId/clean-old', cleanOldLetters);
 
 /**
  * @route GET /api/exhibition-letters/letter/:letterId/download

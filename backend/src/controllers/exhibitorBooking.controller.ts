@@ -14,6 +14,7 @@ import mongoose from 'mongoose';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
 import { getEmailTransporter } from '../config/email.config';
+import { logActivity } from '../services/activity.service';
 
 /**
  * Creates a new booking from an exhibitor with pending status
@@ -47,16 +48,16 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Please select at least one stall' });
     }
     
-    // Find exhibition by ID or slug
+    // Find exhibition by ID or slug - only allow active exhibitions for booking
     let exhibition;
     if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
-      exhibition = await Exhibition.findById(exhibitionId);
+      exhibition = await Exhibition.findOne({ _id: exhibitionId, isActive: true });
     } else {
-      exhibition = await Exhibition.findOne({ slug: exhibitionId });
+      exhibition = await Exhibition.findOne({ slug: exhibitionId, isActive: true });
     }
     
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
     
     // Get exhibitor details
@@ -226,8 +227,41 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       // Continue even if notification fails
     }
 
+    // Log activity
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      resourceId: booking._id.toString(),
+      description: `Exhibitor "${exhibitor.companyName}" created booking for ${stallIds.length} stall(s) in exhibition "${exhibition.name}"`,
+      newValues: {
+        exhibitionName: exhibition.name,
+        stallCount: stallIds.length,
+        stallNumbers: stallCalculations.map(s => s.number).join(', '),
+        amount: finalAmount,
+        status: booking.status,
+        bookingSource: 'exhibitor'
+      },
+      success: true
+    });
+
     res.status(201).json(booking);
   } catch (error) {
+    console.error('Error creating exhibitor booking:', error);
+    
+    // Log failed booking attempt
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      description: `Failed to create booking for exhibitor`,
+      metadata: { 
+        exhibitionId: req.params.exhibitionId,
+        stallIds: req.body.stallIds,
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Error creating exhibitor booking'
+    });
+    
     res.status(500).json({ message: 'Error creating exhibitor booking', error });
   }
 };

@@ -5,6 +5,7 @@ import Invoice from '../models/invoice.model';
 import Exhibition from '../models/exhibition.model';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
+import { logActivity } from '../services/activity.service';
 
 /**
  * Interface defining the structure of a discount configuration
@@ -120,6 +121,16 @@ export const createBooking = async (req: Request, res: Response) => {
     const exhibition = await Exhibition.findById(exhibitionId);
     if (!exhibition) {
       return res.status(404).json({ message: 'Exhibition not found' });
+    }
+
+    // Check if exhibition is in a bookable state (published and active)
+    if (exhibition.status !== 'published' || !exhibition.isActive) {
+      return res.status(403).json({ 
+        message: 'Cannot create booking for this exhibition',
+        reason: exhibition.status !== 'published' 
+          ? `Exhibition is in ${exhibition.status} status` 
+          : 'Exhibition is inactive'
+      });
     }
 
     // Find selected discount if any
@@ -324,6 +335,26 @@ export const createBooking = async (req: Request, res: Response) => {
         });
       }
       
+      // Log successful booking creation
+      await logActivity(req, {
+        action: 'booking_created',
+        resource: 'booking',
+        resourceId: booking._id.toString(),
+        description: `Created booking for ${customerName} at ${exhibition.name}`,
+        newValues: {
+          customerName,
+          companyName,
+          stallIds: stallIds.length,
+          amount: finalAmount,
+          status: 'confirmed'
+        },
+        metadata: {
+          exhibitionName: exhibition.name,
+          stallCount: stallIds.length,
+          totalAmount: finalAmount
+        }
+      });
+
       return res.status(201).json({
         ...bookingWithInvoice.toObject(),
         invoiceId: invoice._id // Add invoice ID to response
@@ -332,6 +363,28 @@ export const createBooking = async (req: Request, res: Response) => {
       console.error('Error creating invoice:', invoiceError);
       // Even if invoice creation fails, the booking was successful
       // Return success but with a warning
+      
+      // Log successful booking creation (even with invoice error)
+      await logActivity(req, {
+        action: 'booking_created',
+        resource: 'booking',
+        resourceId: booking._id.toString(),
+        description: `Created booking for ${customerName} at ${exhibition.name} (invoice generation failed)`,
+        newValues: {
+          customerName,
+          companyName,
+          stallIds: stallIds.length,
+          amount: finalAmount,
+          status: 'confirmed'
+        },
+        metadata: {
+          exhibitionName: exhibition.name,
+          stallCount: stallIds.length,
+          totalAmount: finalAmount,
+          invoiceError: true
+        }
+      });
+
       return res.status(201).json({
         ...booking.toObject(),
         warning: 'Booking created successfully but invoice generation failed. Please try accessing your invoice later.'
@@ -339,6 +392,17 @@ export const createBooking = async (req: Request, res: Response) => {
     }
   } catch (error) {
     console.error('Error creating booking:', error);
+    
+    // Log failed booking creation
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      description: `Failed to create booking for ${req.body.customerName}`,
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      newValues: req.body
+    });
+
     res.status(500).json({ message: 'Error creating booking', error });
   }
 };
@@ -542,8 +606,9 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
   try {
     const { status, rejectionReason } = req.body;
     const booking = await Booking.findById(req.params.id)
-      .populate('exhibitionId')
-      .populate('exhibitorId');
+      .populate('exhibitionId', 'name')
+      .populate('exhibitorId')
+      .populate('stallIds', 'number');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
@@ -569,6 +634,37 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
       booking.rejectionReason = rejectionReason;
     }
     await booking.save();
+
+    // Get stall numbers for activity logging
+    const stallNumbers = (booking.stallIds as any[]).map(stall => stall.number).join(', ');
+    const exhibitionName = (booking.exhibitionId as any)?.name || 'Unknown Exhibition';
+
+    // Log booking status change
+    await logActivity(req, {
+      action: 'booking_updated',
+      resource: 'booking',
+      resourceId: booking._id.toString(),
+      description: `Changed booking status from "${oldStatus}" to "${status}" for stall(s) ${stallNumbers} in exhibition "${exhibitionName}"${status === 'rejected' && rejectionReason ? ` (Reason: ${rejectionReason})` : ''}`,
+      oldValues: { 
+        status: oldStatus,
+        stallNumbers,
+        exhibitionName
+      },
+      newValues: { 
+        status, 
+        rejectionReason,
+        stallNumbers,
+        exhibitionName
+      },
+      metadata: {
+        customerName: booking.customerName,
+        companyName: booking.companyName,
+        stallNumbers,
+        exhibitionName,
+        oldStatus,
+        newStatus: status
+      }
+    });
 
     // Update all stalls status based on the new booking status
     if (status === 'confirmed' || status === 'approved') {
@@ -760,11 +856,17 @@ export const getBookingsByExhibition = async (req: Request, res: Response) => {
 
 export const deleteBooking = async (req: Request, res: Response) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id)
+      .populate('exhibitionId', 'name')
+      .populate('stallIds', 'number');
     
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
     }
+
+    // Get stall numbers for activity logging
+    const stallNumbers = (booking.stallIds as any[]).map(stall => stall.number).join(', ');
+    const exhibitionName = (booking.exhibitionId as any)?.name || 'Unknown Exhibition';
 
     // Update all stalls status back to available
     await Stall.updateMany(
@@ -775,11 +877,41 @@ export const deleteBooking = async (req: Request, res: Response) => {
     // Delete related invoice
     await Invoice.deleteOne({ bookingId: booking._id });
 
+    // Log activity before deleting
+    await logActivity(req, {
+      action: 'booking_deleted',
+      resource: 'booking',
+      resourceId: booking._id.toString(),
+      description: `Deleted booking for stall(s) ${stallNumbers} in exhibition "${exhibitionName}"`,
+      oldValues: {
+        customerName: booking.customerName,
+        companyName: booking.companyName,
+        stallNumbers,
+        amount: booking.amount,
+        status: booking.status,
+        exhibitionName
+      },
+      success: true
+    });
+
     // Delete the booking
     await Booking.findByIdAndDelete(req.params.id);
 
     res.json({ message: 'Booking deleted successfully' });
   } catch (error) {
+    console.error('Error deleting booking:', error);
+    
+    // Log failed deletion attempt
+    await logActivity(req, {
+      action: 'booking_deleted',
+      resource: 'booking',
+      resourceId: req.params.id,
+      description: `Failed to delete booking`,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Error deleting booking'
+    });
+    
     res.status(500).json({ message: 'Error deleting booking', error });
   }
 };
@@ -866,19 +998,68 @@ export const getBookingStats = async (req: Request, res: Response) => {
 /**
  * Export bookings data without pagination limits
  * Supports all the same filters as getBookings but returns all matching records
+ * Returns full booking objects with proper population for frontend processing
  */
 export const exportBookings = async (req: Request, res: Response) => {
   try {
-    const { exhibitionId, status, bookingSource } = req.query;
+    const { exhibitionId, status, bookingSource, search, startDate, endDate } = req.query;
     
+    // Build filter conditions (same as getBookings)
     const conditions: any = {};
-    if (exhibitionId) conditions.exhibitionId = exhibitionId;
-    if (status) conditions.status = status;
-    if (bookingSource) conditions.bookingSource = bookingSource;
+    
+    if (exhibitionId) {
+      conditions.exhibitionId = exhibitionId;
+    }
+    
+    if (status) {
+      if (Array.isArray(status)) {
+        conditions.status = { $in: status };
+      } else {
+        conditions.status = status;
+      }
+    }
+    
+    if (bookingSource) {
+      conditions.bookingSource = bookingSource;
+    }
+    
+    // Date range filter
+    if (startDate || endDate) {
+      conditions.createdAt = {};
+      if (startDate) {
+        conditions.createdAt.$gte = new Date(startDate as string);
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate as string);
+        endDateTime.setHours(23, 59, 59, 999);
+        conditions.createdAt.$lte = endDateTime;
+      }
+    }
+    
+    // Search filter
+    if (search) {
+      conditions.$or = [
+        { customerName: { $regex: search, $options: 'i' } },
+        { customerEmail: { $regex: search, $options: 'i' } },
+        { customerPhone: { $regex: search, $options: 'i' } },
+        { companyName: { $regex: search, $options: 'i' } }
+      ];
+    }
 
+    // Fetch bookings with full population (same as getBookings)
     const bookings = await Booking.find(conditions)
-      .populate('exhibitionId', 'name')
-      .populate('stallIds', 'number')
+      .populate({
+        path: 'exhibitionId',
+        select: 'name status isActive invoicePrefix'
+      })
+      .populate({
+        path: 'stallIds',
+        select: 'number type dimensions stallTypeId',
+        populate: {
+          path: 'stallTypeId',
+          select: 'name'
+        }
+      })
       .populate({
         path: 'userId',
         select: 'username name email',
@@ -890,32 +1071,8 @@ export const exportBookings = async (req: Request, res: Response) => {
       .populate('exhibitorId', 'companyName contactPerson email phone')
       .sort({ createdAt: -1 });
 
-    // Transform data for export
-    const exportData = bookings.map((booking: any) => {
-      // Determine who booked it
-      let bookedBy = 'System';
-      if (booking.bookingSource === 'exhibitor' && booking.exhibitorId) {
-        bookedBy = `${booking.exhibitorId.contactPerson} (${booking.exhibitorId.email}) - Exhibitor Portal`;
-      } else if (booking.bookingSource === 'admin' && booking.userId) {
-        const roleName = booking.userId.role?.name || 'Admin';
-        bookedBy = `${booking.userId.name || booking.userId.username} (${booking.userId.email}) - ${roleName}`;
-      }
-
-      return {
-        'Exhibition': booking.exhibitionId?.name || 'N/A',
-        'Customer Name': booking.customerName,
-        'Customer Email': booking.customerEmail,
-        'Customer Phone': booking.customerPhone,
-        'Company Name': booking.companyName,
-        'Stalls': booking.stallIds?.map((stall: any) => stall.number).join(', ') || 'N/A',
-        'Amount': booking.amount,
-        'Status': booking.status,
-        'Booked By': bookedBy,
-        'Created At': new Date(booking.createdAt).toLocaleString()
-      };
-    });
-
-    res.json(exportData);
+    // Return the full booking objects for frontend processing
+    res.json(bookings);
   } catch (error) {
     console.error('Error exporting bookings:', error);
     res.status(500).json({ message: 'Error exporting bookings', error });

@@ -7,10 +7,14 @@ import Invoice from '../models/invoice.model';
 import Fixture from '../models/fixture.model';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { logActivity } from '../services/activity.service';
 
 export const getPublicExhibitions = async (req: Request, res: Response) => {
   try {
-    const exhibitions = await Exhibition.find({ status: 'published' })
+    const exhibitions = await Exhibition.find({ 
+      status: 'published',
+      isActive: true 
+    })
       .select('name description startDate endDate venue slug headerLogo')
       .sort({ startDate: 1 });
     res.json(exhibitions);
@@ -26,16 +30,16 @@ export const getPublicExhibition = async (req: Request, res: Response) => {
     
     // If id is a valid ObjectId, search by _id, otherwise search by slug
     if (mongoose.Types.ObjectId.isValid(id)) {
-      query = { _id: id, status: 'published' };
+      query = { _id: id, status: 'published', isActive: true };
     } else {
-      query = { slug: id, status: 'published' };
+      query = { slug: id, status: 'published', isActive: true };
     }
     
     const exhibition = await Exhibition.findOne(query)
       .select('name description startDate endDate venue headerTitle headerSubtitle headerDescription headerLogo sponsorLogos slug amenities basicAmenities');
 
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
 
     res.json(exhibition);
@@ -51,9 +55,9 @@ export const getPublicLayout = async (req: Request, res: Response) => {
     
     // If id is a valid ObjectId, search by _id, otherwise search by slug
     if (mongoose.Types.ObjectId.isValid(id)) {
-      query = { _id: id, status: 'published' };
+      query = { _id: id, status: 'published', isActive: true };
     } else {
-      query = { slug: id, status: 'published' };
+      query = { slug: id, status: 'published', isActive: true };
     }
     
     // Get exhibition
@@ -61,7 +65,7 @@ export const getPublicLayout = async (req: Request, res: Response) => {
       .select('name description startDate endDate dimensions taxConfig publicDiscountConfig venue headerLogo slug amenities basicAmenities');
 
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
 
     // Get halls with their stalls
@@ -154,16 +158,16 @@ export const getPublicStallDetails = async (req: Request, res: Response) => {
     // Query based on whether we have an ID or a slug
     let query = {};
     if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
-      query = { _id: exhibitionId, status: 'published' };
+      query = { _id: exhibitionId, status: 'published', isActive: true };
     } else {
-      query = { slug: exhibitionId, status: 'published' };
+      query = { slug: exhibitionId, status: 'published', isActive: true };
     }
     
     // Find the exhibition first
     const exhibition = await Exhibition.findOne(query);
     
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found or not published' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
     
     const stall = await Stall.findOne({
@@ -226,16 +230,16 @@ export const bookPublicStall = async (req: Request, res: Response) => {
     // Query based on whether we have an ID or a slug
     let query = {};
     if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
-      query = { _id: exhibitionId, status: 'published' };
+      query = { _id: exhibitionId, status: 'published', isActive: true };
     } else {
-      query = { slug: exhibitionId, status: 'published' };
+      query = { slug: exhibitionId, status: 'published', isActive: true };
     }
 
     // Check if exhibition exists and is published
     const exhibition = await Exhibition.findOne(query);
 
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found or not published' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
 
     // Find selected discount if any
@@ -347,9 +351,42 @@ export const bookPublicStall = async (req: Request, res: Response) => {
       status: 'pending'
     });
 
+    // Log activity
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      resourceId: booking._id.toString(),
+      description: `Public booking created for stall ${stall.number} in exhibition "${exhibition.name}" by ${customerName}`,
+      newValues: {
+        exhibitionName: exhibition.name,
+        customerName,
+        companyName,
+        stallNumber: stall.number,
+        amount: totalAmount,
+        status: booking.status,
+        bookingSource: 'public'
+      },
+      success: true
+    });
+
     res.status(201).json(booking);
   } catch (error) {
     console.error('Error booking stall:', error);
+    
+    // Log failed booking attempt
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      description: `Failed to create public booking for ${req.body.customerName || 'unknown customer'}`,
+      metadata: { 
+        exhibitionId: req.params.id,
+        stallId: req.params.stallId,
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Error booking stall'
+    });
+    
     res.status(500).json({ message: 'Error booking stall', error });
   }
 };
@@ -405,16 +442,16 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
     // Query based on whether we have an ID or a slug
     let query = {};
     if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
-      query = { _id: exhibitionId, status: 'published' };
+      query = { _id: exhibitionId, status: 'published', isActive: true };
     } else {
-      query = { slug: exhibitionId, status: 'published' };
+      query = { slug: exhibitionId, status: 'published', isActive: true };
     }
 
     // Check if exhibition exists and is published
     const exhibition = await Exhibition.findOne(query);
 
     if (!exhibition) {
-      return res.status(404).json({ message: 'Exhibition not found or not published' });
+      return res.status(404).json({ message: 'Exhibition not found or no longer available' });
     }
 
     // Find selected discount if any
@@ -560,6 +597,25 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
       status: 'pending'
     });
 
+    // Log activity
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      resourceId: booking._id.toString(),
+      description: `Public booking created for ${stallIds.length} stall(s) in exhibition "${exhibition.name}" by ${customerName}`,
+      newValues: {
+        exhibitionName: exhibition.name,
+        customerName,
+        companyName,
+        stallCount: stallIds.length,
+        stallNumbers: stallCalculations.map(s => s.number).join(', '),
+        amount: totalAmount,
+        status: booking.status,
+        bookingSource: 'public'
+      },
+      success: true
+    });
+
     // Return booking data with reference ID
     res.status(201).json({
       success: true,
@@ -569,6 +625,21 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error booking multiple stalls:', error);
+    
+    // Log failed booking attempt
+    await logActivity(req, {
+      action: 'booking_created',
+      resource: 'booking',
+      description: `Failed to create public booking for ${req.body.customerName || 'unknown customer'}`,
+      metadata: { 
+        exhibitionId: req.params.id,
+        stallIds: req.body.stallIds,
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Error booking stalls'
+    });
+    
     res.status(500).json({ message: 'Error booking stalls', error });
   }
 };

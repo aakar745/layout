@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Stall from '../models/stall.model';
 import StallType from '../models/stallType.model';
 import Exhibition from '../models/exhibition.model';
+import { logActivity } from '../services/activity.service';
 
 interface PopulatedStall extends mongoose.Document {
   stallTypeId: {
@@ -54,6 +55,22 @@ export const getStalls = async (req: Request, res: Response) => {
       minPrice,
       maxPrice
     } = req.query;
+
+    // First, validate that the exhibition exists and is in a bookable state
+    const exhibition = await Exhibition.findById(exhibitionId);
+    if (!exhibition) {
+      return res.status(404).json({ message: 'Exhibition not found' });
+    }
+
+    // Check if exhibition is in a bookable state (published and active)
+    if (exhibition.status !== 'published' || !exhibition.isActive) {
+      return res.status(403).json({ 
+        message: 'Stalls are not available for booking in this exhibition',
+        reason: exhibition.status !== 'published' 
+          ? `Exhibition is in ${exhibition.status} status` 
+          : 'Exhibition is inactive'
+      });
+    }
 
     // Build base query
     const query: any = { 
@@ -267,18 +284,69 @@ export const updateStallStatus = async (req: Request, res: Response) => {
   try {
     const { exhibitionId, id } = req.params;
     const { status } = req.body;
+    
+    // Get the stall first to capture old status and details
+    const existingStall = await Stall.findOne({ _id: id, exhibitionId })
+      .populate('exhibitionId', 'name');
+    
+    if (!existingStall) {
+      return res.status(404).json({ message: 'Stall not found' });
+    }
+
+    const oldStatus = existingStall.status;
+    const exhibitionName = (existingStall.exhibitionId as any)?.name || 'Unknown Exhibition';
+
+    // Update the stall status
     const stall = await Stall.findOneAndUpdate(
       { _id: id, exhibitionId },
       { status },
       { new: true, runValidators: true }
     );
 
-    if (!stall) {
-      return res.status(404).json({ message: 'Stall not found' });
-    }
+    // Log activity
+    await logActivity(req, {
+      action: 'stall_status_changed',
+      resource: 'stall',
+      resourceId: id,
+      description: `Changed stall ${existingStall.number} status from "${oldStatus}" to "${status}" in exhibition "${exhibitionName}"`,
+      oldValues: {
+        status: oldStatus,
+        stallNumber: existingStall.number,
+        exhibitionName
+      },
+      newValues: {
+        status,
+        stallNumber: existingStall.number,
+        exhibitionName
+      },
+      metadata: {
+        stallNumber: existingStall.number,
+        exhibitionName,
+        oldStatus,
+        newStatus: status
+      },
+      success: true
+    });
 
     res.json(stall);
   } catch (error) {
+    console.error('Error updating stall status:', error);
+    
+    // Log failed status update attempt
+    await logActivity(req, {
+      action: 'stall_status_changed',
+      resource: 'stall',
+      resourceId: req.params.id,
+      description: `Failed to update stall status`,
+      metadata: { 
+        exhibitionId: req.params.exhibitionId,
+        targetStatus: req.body.status,
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Error updating stall status'
+    });
+    
     res.status(500).json({ message: 'Error updating stall status', error });
   }
 };

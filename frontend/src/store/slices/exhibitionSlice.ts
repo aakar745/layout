@@ -3,6 +3,7 @@ import exhibitionService, { Exhibition, Hall, Stall, Fixture } from '../../servi
 
 interface ExhibitionState {
   exhibitions: Exhibition[];
+  activeExhibitions: Exhibition[];
   currentExhibition: Exhibition | null;
   halls: Hall[];
   stalls: Stall[];
@@ -23,6 +24,7 @@ interface ExhibitionState {
 
 const initialState: ExhibitionState = {
   exhibitions: [],
+  activeExhibitions: [],
   currentExhibition: null,
   halls: [],
   stalls: [],
@@ -47,6 +49,23 @@ export const fetchExhibitions = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await exhibitionService.getExhibitions();
+      // Normalize the data to include both _id and id
+      const normalizedData = response.data.map(exhibition => ({
+        ...exhibition,
+        id: exhibition._id || exhibition.id // Use existing id as fallback
+      })).filter(exhibition => exhibition.id); // Ensure we only return exhibitions with valid IDs
+      return normalizedData;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchActiveExhibitions = createAsyncThunk(
+  'exhibition/fetchActiveExhibitions',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await exhibitionService.getActiveExhibitions();
       // Normalize the data to include both _id and id
       const normalizedData = response.data.map(exhibition => ({
         ...exhibition,
@@ -298,6 +317,19 @@ const exhibitionSlice = createSlice({
         state.exhibitions = action.payload;
       })
       .addCase(fetchExhibitions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      // Fetch active exhibitions
+      .addCase(fetchActiveExhibitions.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchActiveExhibitions.fulfilled, (state, action) => {
+        state.loading = false;
+        state.activeExhibitions = action.payload;
+      })
+      .addCase(fetchActiveExhibitions.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

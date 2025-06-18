@@ -43,7 +43,9 @@ Thumbs.db
 # Uploaded files
 /uploads
 /backend/uploads
+/pdf-cash
 
 # Logs
 logs
 *.log 
+backend/pdf-cache/00192c8495689b96e20e3c69d0f903fb.json

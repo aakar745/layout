@@ -5,12 +5,12 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { 
   EyeOutlined, FileTextOutlined, CheckCircleOutlined, 
-  DeleteOutlined, MoreOutlined
+  DeleteOutlined, MoreOutlined, MailOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { BookingType } from './types';
-import { useGetInvoicesQuery } from '../../../store/services/invoice';
+import { useGetInvoicesQuery, useShareViaEmailMutation } from '../../../store/services/invoice';
 
 interface BookingTableProps {
   bookings: BookingType[];
@@ -174,6 +174,66 @@ export const getTableColumns = (
     refetchOnFocus: true, // Refetch when window regains focus
   });
   
+  // Hook for sending invoice via email
+  const [shareViaEmail, { isLoading: isSendingEmail }] = useShareViaEmailMutation();
+  
+  // Handle sending invoice via email
+  const handleSendInvoice = async (record: BookingType) => {
+    try {
+      // Check if booking is approved before allowing invoice email
+      if (record.status !== 'approved' && record.status !== 'confirmed') {
+        message.warning('Booking must be approved or confirmed before sending invoice.');
+        return;
+      }
+
+      // Get the invoice ID for this booking
+      const invoiceId = getInvoiceId(record._id);
+      if (!invoiceId) {
+        message.error('Invoice not found for this booking.');
+        return;
+      }
+
+      // Determine recipient email - prioritize exhibitor email, fallback to customer email
+      const recipientEmail = record.exhibitorId?.email || record.customerEmail;
+      if (!recipientEmail) {
+        message.error('No email address found for this booking.');
+        return;
+      }
+
+      // Get customer/company name for personalized message
+      const customerName = record.exhibitorId?.contactPerson || record.customerName;
+      const companyName = record.exhibitorId?.companyName || record.companyName;
+      
+      // Create personalized message
+      const personalizedMessage = `Dear ${customerName},
+
+Please find attached the invoice for your stall booking${companyName ? ` for ${companyName}` : ''}.
+
+Booking Details:
+- Booking ID: ${props.formatBookingNumber(record._id, record.createdAt)}
+- Exhibition: ${record.exhibitionId.name}
+- Total Amount: ₹${record.amount.toLocaleString()}
+- Status: ${record.status.toUpperCase()}
+
+Thank you for your business!
+
+Best regards,
+Exhibition Management Team`;
+
+      // Send the email
+      await shareViaEmail({
+        id: invoiceId,
+        email: recipientEmail,
+        message: personalizedMessage
+      }).unwrap();
+
+      message.success(`Invoice sent successfully to ${recipientEmail}`);
+    } catch (error: any) {
+      console.error('Error sending invoice:', error);
+      message.error(error?.data?.message || 'Failed to send invoice. Please try again.');
+    }
+  };
+  
   // Gets the invoice ID for a booking
   const getInvoiceId = (bookingId: string) => {
     if (isLoadingInvoices || invoiceError || !invoices) {
@@ -306,7 +366,9 @@ export const getTableColumns = (
       dataIndex: ['exhibitionId', 'name'],
       key: 'exhibition',
       width: 250,
-      render: (_: string, record: BookingType) => record.exhibitionId.name
+      render: (_: string, record: BookingType) => (
+        <span>{record.exhibitionId.name}</span>
+      )
     },
     {
       title: 'Company Name',
@@ -511,6 +573,21 @@ export const getTableColumns = (
                     {record.status !== 'approved' && record.status !== 'confirmed' 
                       ? 'Approve First to View Invoice' 
                       : 'View Invoice'
+                    }
+                  </Menu.Item>
+                )}
+                {record.status !== 'cancelled' && props.hasPermission('view_bookings') && (
+                  <Menu.Item 
+                    key="sendInvoice" 
+                    icon={<MailOutlined />}
+                    disabled={isSendingEmail || (record.status !== 'approved' && record.status !== 'confirmed')}
+                    onClick={() => handleSendInvoice(record)}
+                  >
+                    {isSendingEmail 
+                      ? 'Sending...' 
+                      : record.status !== 'approved' && record.status !== 'confirmed' 
+                        ? 'Approve First to Send Invoice' 
+                        : 'Send Invoice'
                     }
                   </Menu.Item>
                 )}

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/user.model';
 import Role from '../models/role.model';
 import { APIError } from '../utils/errors';
+import { logActivity } from '../services/activity.service';
 
 export const register = async (req: Request, res: Response) => {
   try {
@@ -91,6 +92,20 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: '1d' }
     );
 
+    // Log successful login
+    await logActivity(req, {
+      action: 'user_login',
+      resource: 'auth',
+      resourceId: user._id.toString(),
+      description: `User "${user.username}" logged in successfully`,
+      metadata: {
+        username: user.username,
+        email: user.email,
+        role: (user.role as any).name,
+        loginMethod: email ? 'email' : 'username'
+      }
+    });
+
     res.json({
       token,
       user: {
@@ -103,6 +118,20 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    
+    // Log failed login attempt
+    await logActivity(req, {
+      action: 'user_login',
+      resource: 'auth',
+      description: `Failed login attempt for "${req.body.username || req.body.email}"`,
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Login failed',
+      metadata: {
+        attemptedUsername: req.body.username,
+        attemptedEmail: req.body.email
+      }
+    });
+
     res.status(500).json({ message: 'Server error' });
   }
 };

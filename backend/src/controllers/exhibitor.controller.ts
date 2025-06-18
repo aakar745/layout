@@ -11,6 +11,7 @@ import User from '../models/user.model';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
 import bcrypt from 'bcryptjs';
+import { logActivity } from '../services/activity.service';
 
 // Cache directory for PDFs - must match the one in invoice.controller.ts
 const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
@@ -349,6 +350,22 @@ export const register = async (req: Request, res: Response) => {
       // Continue even if notification fails
     }
 
+    // Log activity
+    await logActivity(req, {
+      action: 'exhibitor_registered',
+      resource: 'exhibitor',
+      resourceId: exhibitor._id.toString(),
+      description: `Exhibitor "${companyName}" registered successfully`,
+      newValues: {
+        companyName: exhibitor.companyName,
+        contactPerson: exhibitor.contactPerson,
+        email: exhibitor.email,
+        phone: exhibitor.phone,
+        status: exhibitor.status
+      },
+      success: true
+    });
+
     res.status(201).json({
       exhibitor: exhibitorResponse,
       token,
@@ -356,6 +373,17 @@ export const register = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error registering exhibitor:', error);
+    
+    // Log failed registration attempt
+    await logActivity(req, {
+      action: 'exhibitor_registered',
+      resource: 'exhibitor',
+      description: `Failed to register exhibitor with email: ${req.body.email}`,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Server error during registration'
+    });
+    
     res.status(500).json({ message: 'Server error during registration' });
   }
 };
@@ -695,6 +723,10 @@ export const updateExhibitorStatus = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Exhibitor not found' });
     }
 
+    // Store old values for logging
+    const oldStatus = exhibitor.status;
+    const oldRejectionReason = exhibitor.rejectionReason;
+
     // Update fields
     exhibitor.status = status;
     
@@ -707,6 +739,23 @@ export const updateExhibitorStatus = async (req: Request, res: Response) => {
 
     // Save updated exhibitor
     await exhibitor.save();
+
+    // Log activity
+    await logActivity(req, {
+      action: 'exhibitor_status_updated',
+      resource: 'exhibitor',
+      resourceId: id,
+      description: `Exhibitor "${exhibitor.companyName}" status changed from "${oldStatus}" to "${status}"`,
+      oldValues: {
+        status: oldStatus,
+        rejectionReason: oldRejectionReason
+      },
+      newValues: {
+        status: exhibitor.status,
+        rejectionReason: exhibitor.rejectionReason
+      },
+      success: true
+    });
 
     // Send email notification when exhibitor is approved
     if (status === 'approved') {
@@ -817,16 +866,50 @@ export const deleteExhibitor = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Find and delete the exhibitor
-    const exhibitor = await Exhibitor.findByIdAndDelete(id);
+    // Find the exhibitor first to get details for logging
+    const exhibitor = await Exhibitor.findById(id);
     
     if (!exhibitor) {
       return res.status(404).json({ message: 'Exhibitor not found' });
     }
 
+    // Store exhibitor details for logging
+    const exhibitorDetails = {
+      companyName: exhibitor.companyName,
+      contactPerson: exhibitor.contactPerson,
+      email: exhibitor.email,
+      phone: exhibitor.phone,
+      status: exhibitor.status
+    };
+
+    // Delete the exhibitor
+    await Exhibitor.findByIdAndDelete(id);
+
+    // Log activity
+    await logActivity(req, {
+      action: 'exhibitor_deleted',
+      resource: 'exhibitor',
+      resourceId: id,
+      description: `Exhibitor "${exhibitorDetails.companyName}" deleted by admin`,
+      oldValues: exhibitorDetails,
+      success: true
+    });
+
     res.json({ message: 'Exhibitor deleted successfully' });
   } catch (error) {
     console.error('Error deleting exhibitor:', error);
+    
+    // Log failed deletion attempt
+    await logActivity(req, {
+      action: 'exhibitor_deleted',
+      resource: 'exhibitor',
+      resourceId: req.params.id,
+      description: `Failed to delete exhibitor`,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Server error deleting exhibitor'
+    });
+    
     res.status(500).json({ message: 'Server error deleting exhibitor' });
   }
 };
@@ -862,6 +945,23 @@ export const updateExhibitorDetails = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Exhibitor not found' });
     }
 
+    // Store old values for logging
+    const oldValues = {
+      companyName: exhibitor.companyName,
+      contactPerson: exhibitor.contactPerson,
+      email: exhibitor.email,
+      phone: exhibitor.phone,
+      address: exhibitor.address,
+      website: exhibitor.website,
+      description: exhibitor.description,
+      panNumber: exhibitor.panNumber,
+      gstNumber: exhibitor.gstNumber,
+      city: exhibitor.city,
+      state: exhibitor.state,
+      pinCode: exhibitor.pinCode,
+      isActive: exhibitor.isActive
+    };
+
     // Update fields if provided
     if (companyName !== undefined) exhibitor.companyName = companyName;
     if (contactPerson !== undefined) exhibitor.contactPerson = contactPerson;
@@ -880,9 +980,49 @@ export const updateExhibitorDetails = async (req: Request, res: Response) => {
     // Save updated exhibitor
     await exhibitor.save();
 
+    // Store new values for logging
+    const newValues = {
+      companyName: exhibitor.companyName,
+      contactPerson: exhibitor.contactPerson,
+      email: exhibitor.email,
+      phone: exhibitor.phone,
+      address: exhibitor.address,
+      website: exhibitor.website,
+      description: exhibitor.description,
+      panNumber: exhibitor.panNumber,
+      gstNumber: exhibitor.gstNumber,
+      city: exhibitor.city,
+      state: exhibitor.state,
+      pinCode: exhibitor.pinCode,
+      isActive: exhibitor.isActive
+    };
+
+    // Log activity
+    await logActivity(req, {
+      action: 'exhibitor_updated',
+      resource: 'exhibitor',
+      resourceId: id,
+      description: `Exhibitor "${exhibitor.companyName}" updated by admin`,
+      oldValues,
+      newValues,
+      success: true
+    });
+
     res.json(exhibitor);
   } catch (error) {
     console.error('Error updating exhibitor details:', error);
+    
+    // Log failed update attempt
+    await logActivity(req, {
+      action: 'exhibitor_updated',
+      resource: 'exhibitor',
+      resourceId: req.params.id,
+      description: `Failed to update exhibitor details`,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Server error updating exhibitor details'
+    });
+    
     res.status(500).json({ message: 'Server error updating exhibitor details' });
   }
 };
@@ -1020,6 +1160,24 @@ export const createExhibitor = async (req: Request, res: Response) => {
       // Continue even if notification fails
     }
 
+    // Log activity
+    await logActivity(req, {
+      action: 'exhibitor_created',
+      resource: 'exhibitor',
+      resourceId: exhibitor._id.toString(),
+      description: `Exhibitor "${companyName}" created by admin`,
+      newValues: {
+        companyName: exhibitor.companyName,
+        contactPerson: exhibitor.contactPerson,
+        email: exhibitor.email,
+        phone: exhibitor.phone,
+        address: exhibitor.address,
+        status: exhibitor.status,
+        isActive: exhibitor.isActive
+      },
+      success: true
+    });
+
     // Don't send password in response for security
     const exhibitorResponse = {
       _id: exhibitor._id,
@@ -1047,6 +1205,17 @@ export const createExhibitor = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating exhibitor:', error);
+    
+    // Log failed creation attempt
+    await logActivity(req, {
+      action: 'exhibitor_created',
+      resource: 'exhibitor',
+      description: `Failed to create exhibitor with email: ${req.body.email}`,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+      success: false,
+      errorMessage: error instanceof Error ? error.message : 'Server error creating exhibitor'
+    });
+    
     res.status(500).json({ message: 'Server error creating exhibitor' });
   }
 }; 

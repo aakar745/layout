@@ -31,7 +31,7 @@ body {
 }
 
 .ant-menu-item {
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   margin: 4px 0 !important;
 }
 
@@ -50,6 +50,7 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 500;
+  border-radius: 6px !important;
 }
 
 .ant-btn-primary {
@@ -63,14 +64,14 @@ body {
 
 /* Card styles */
 .ant-card {
-  border-radius: 8px;
+  border-radius: 6px !important;
   border: 1px solid #E5E7EB;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
 /* Table styles */
 .ant-table {
-  border-radius: 8px;
+  border-radius: 6px !important;
   overflow: hidden;
 }
 
@@ -87,7 +88,7 @@ body {
 }
 
 .ant-input, .ant-input-password {
-  border-radius: 8px;
+  border-radius: 6px !important;
   border-color: #E5E7EB;
 }
 
@@ -100,9 +101,59 @@ body {
   box-shadow: 0 0 0 2px rgb(124 58 237 / 0.1);
 }
 
+/* Select and DatePicker styles */
+.ant-select-selector {
+  border-radius: 6px !important;
+}
+
+.ant-picker {
+  border-radius: 6px !important;
+}
+
+.ant-select-dropdown {
+  border-radius: 6px !important;
+}
+
+.ant-picker-dropdown {
+  border-radius: 6px !important;
+}
+
+/* Global border-radius override for consistency */
+.ant-card {
+  border-radius: 6px !important;
+}
+
+.ant-table {
+  border-radius: 6px !important;
+}
+
+.ant-tag {
+  border-radius: 6px !important;
+}
+
+.ant-modal {
+  border-radius: 6px !important;
+}
+
+.ant-modal-content {
+  border-radius: 6px !important;
+}
+
+.ant-alert {
+  border-radius: 6px !important;
+}
+
+.ant-tooltip-inner {
+  border-radius: 6px !important;
+}
+
+.ant-popover-inner {
+  border-radius: 6px !important;
+}
+
 /* Dropdown styles */
 .ant-dropdown-menu {
-  border-radius: 8px;
+  border-radius: 6px !important;
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
@@ -133,7 +184,7 @@ body {
   line-height: 48px !important;
   margin: 4px 0 !important;
   padding: 0 16px !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   color: #6B7280 !important;
   transition: all 0.3s ease !important;
 }

@@ -361,10 +361,14 @@ const CreateBooking: React.FC = () => {
     }
   };
 
-  const exhibitionOptions = exhibitions.map(exhibition => ({
-    label: exhibition.name,
-    value: exhibition._id || exhibition.id
-  }));
+  const exhibitionOptions = exhibitions
+    .filter(exhibition => 
+      exhibition.status === 'published' && exhibition.isActive
+    )
+    .map(exhibition => ({
+      label: exhibition.name,
+      value: exhibition._id || exhibition.id
+    }));
 
   const exhibitorOptions = exhibitors.map(exhibitor => ({
     label: exhibitor.companyName,

@@ -7,6 +7,7 @@ export interface DashboardStats {
   exhibitionCount: number;
   recentBookings: any[];
   recentUsers: any[];
+  recentExhibitions: any[];
 }
 
 /**
@@ -49,13 +50,20 @@ const dashboardService = {
         )
         .slice(0, 5);
       
+      const recentExhibitions = [...exhibitions]
+        .sort((a: any, b: any) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        .slice(0, 5);
+      
       return {
         userCount: users.length,
         bookingCount: bookings.length,
         totalRevenue,
         exhibitionCount: exhibitions.length,
         recentBookings,
-        recentUsers
+        recentUsers,
+        recentExhibitions
       };
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -66,7 +74,8 @@ const dashboardService = {
         totalRevenue: 0,
         exhibitionCount: 0,
         recentBookings: [],
-        recentUsers: []
+        recentUsers: [],
+        recentExhibitions: []
       };
     }
   },

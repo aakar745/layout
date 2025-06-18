@@ -476,14 +476,25 @@ const PublicLayoutView: React.FC = () => {
   }
 
   if (error || !layout) {
+    // Check if the error is about exhibition not being available
+    const isNotAvailable = error && (
+      error.includes('not found') || 
+      error.includes('no longer available') ||
+      error.includes('404')
+    );
+    
     return (
       <Layout>
         <GlobalHeader />
         <Content style={{ paddingTop: '64px' }}>
           <Result
-            status="error"
-            title="Failed to load exhibition layout"
-            subTitle={error || "The exhibition layout couldn't be loaded."}
+            status={isNotAvailable ? "404" : "error"}
+            title={isNotAvailable ? "Exhibition No Longer Available" : "Failed to Load Exhibition"}
+            subTitle={
+              isNotAvailable 
+                ? "This exhibition is no longer available or has been deactivated. It may have been removed by the organizer."
+                : (error || "The exhibition layout couldn't be loaded. Please try again later.")
+            }
             extra={[
               <Button type="primary" key="back" onClick={() => navigate('/exhibitions')}>
                 Back to Exhibitions

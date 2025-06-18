@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import User from '../models/user.model';
 import Role from '../models/role.model';
+import { logActivity } from '../services/activity.service';
 
 // Use consistent type for user property
 // Update the Request interface augmentation to have a single user type definition
@@ -135,6 +136,26 @@ export const createUser = async (req: Request, res: Response) => {
       delete userResponse.password;
     }
 
+    // Log successful user creation
+    await logActivity(req, {
+      action: 'user_created',
+      resource: 'user',
+      resourceId: user._id.toString(),
+      description: `Created user "${username}" with role "${role.name}"`,
+      newValues: {
+        username,
+        name,
+        email,
+        role: role.name,
+        isActive: user.isActive,
+        assignedExhibitions: assignedExhibitions?.length || 0
+      },
+      metadata: {
+        roleName: role.name,
+        exhibitionCount: assignedExhibitions?.length || 0
+      }
+    });
+
     res.status(201).json({
       ...userResponse,
       role,
@@ -142,6 +163,17 @@ export const createUser = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error creating user:', error);
+    
+    // Log failed user creation
+    await logActivity(req, {
+      action: 'user_created',
+      resource: 'user',
+      description: `Failed to create user "${req.body.username}"`,
+      success: false,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      newValues: req.body
+    });
+
     res.status(500).json({ 
       message: 'Error creating user', 
       error: error instanceof Error ? error.message : String(error)

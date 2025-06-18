@@ -1,138 +1,210 @@
-/* Dashboard container */
-.dashboard-container {
-  animation: fadeIn 0.5s ease-out;
+/* Modern Dashboard Styles */
+.modern-dashboard {
+  padding: 0;
+  background: #f8fafc;
+  min-height: calc(100vh - 64px);
 }
 
-/* Stat cards */
-.stat-card {
+/* Dashboard Header */
+.dashboard-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 32px 24px;
+  margin: -24px -24px 32px -24px;
+  border-radius: 0 0 16px 16px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header-info h2 {
+  color: white !important;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.header-info p {
+  color: rgba(255, 255, 255, 0.85) !important;
+  margin: 8px 0 0 0;
+  font-size: 16px;
+}
+
+
+
+/* Modern Stat Cards */
+.modern-stat-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
-  cursor: pointer;
+  border: none;
 }
 
-.stat-card:hover {
+.modern-stat-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 20px -10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
 }
 
-.stat-card-background {
+.stat-card-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.1) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: blur(10px);
 }
 
-.stat-card:hover .stat-card-background {
-  opacity: 1;
+.stat-card-content {
+  position: relative;
+  z-index: 2;
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-card-info {
+  flex: 1;
+}
+
+.stat-card-title {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 14px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.stat-card-value {
+  color: white;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-card-subtitle {
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-size: 12px;
+  display: block;
+}
+
+.stat-card-trend {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
 }
 
 .stat-card-icon {
-  font-size: 28px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 32px;
+  opacity: 0.8;
+}
+
+/* Dashboard Cards */
+.dashboard-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
   transition: all 0.3s ease;
 }
 
-.stat-card:hover .stat-card-icon {
-  transform: scale(1.2);
+.dashboard-card:hover {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* Info cards */
-.info-card {
-  transition: all 0.3s ease;
-  border: 1px solid #E5E7EB;
+.dashboard-card .ant-card-head {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 16px 24px;
 }
 
-.info-card:hover {
-  border-color: #7C3AED;
-  box-shadow: 0 4px 12px -2px rgba(124, 58, 237, 0.1);
+.dashboard-card .ant-card-head-title {
+  font-weight: 600;
+  color: #1f2937;
 }
 
-/* Activity items */
+.dashboard-card .ant-card-body {
+  padding: 24px;
+}
+
+
+
+/* Activity Timeline */
 .activity-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  cursor: pointer;
+  padding-bottom: 8px;
 }
 
-.activity-item:hover {
-  background-color: #F9FAFB;
+
+
+
+
+
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .dashboard-header {
+    padding: 24px 16px;
+    margin: -16px -16px 24px -16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+
+  .header-info h2 {
+    font-size: 24px;
+  }
+
+  .modern-dashboard {
+    padding: 16px;
+  }
+
+  .stat-card-value {
+    font-size: 24px;
+  }
+
+  .dashboard-card .ant-card-body {
+    padding: 16px;
+  }
+
+
 }
 
-/* Status items */
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
+@media (max-width: 576px) {
+  .header-info h2 {
+    font-size: 20px;
+  }
 
-.status-item:hover {
-  background-color: #F9FAFB;
-}
+  .stat-card-value {
+    font-size: 20px;
+  }
 
-.status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  position: relative;
-}
+  .stat-card-icon {
+    font-size: 24px;
+  }
 
-.status-indicator::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
 
-.status-indicator.online {
-  background-color: #10B981;
-}
-
-.status-indicator.online::after {
-  border: 2px solid #10B981;
-}
-
-.status-indicator.connected {
-  background-color: #3B82F6;
-}
-
-.status-indicator.connected::after {
-  border: 2px solid #3B82F6;
-}
-
-.status-indicator.backup {
-  background-color: #F59E0B;
-}
-
-.status-indicator.backup::after {
-  border: 2px solid #F59E0B;
-}
-
-.status-indicator.normal {
-  background-color: #7C3AED;
-}
-
-.status-indicator.normal::after {
-  border: 2px solid #7C3AED;
 }
 
 /* Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -140,17 +212,40 @@
   }
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
+.modern-dashboard > * {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+.modern-dashboard > *:nth-child(1) { animation-delay: 0.1s; }
+.modern-dashboard > *:nth-child(2) { animation-delay: 0.2s; }
+.modern-dashboard > *:nth-child(3) { animation-delay: 0.3s; }
+
+/* Loading States */
+.dashboard-card.ant-card-loading .ant-card-body {
+  padding: 24px;
+}
+
+.dashboard-card.ant-card-loading .ant-card-body::before {
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.04), transparent);
+}
+
+
+
+/* Timeline Customization */
+.dashboard-card .ant-timeline-item-tail {
+  border-left-color: #e5e7eb;
+}
+
+.dashboard-card .ant-timeline-item-head {
+  background: white;
+  border-color: #e5e7eb;
+}
+
+/* Empty State */
+.dashboard-card .ant-empty {
+  margin: 0;
+}
+
+.dashboard-card .ant-empty-description {
+  color: #9ca3af;
 } 
