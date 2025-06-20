@@ -175,6 +175,11 @@ app.use('/api/public/uploads', (req, res, next) => {
   fallthrough: false // Return 404 if file not found
 }));
 
+// Serve temp files for WhatsApp (publicly accessible)
+app.use('/temp', express.static(path.join(__dirname, '../temp'), {
+  fallthrough: false
+}));
+
 // Handle static file errors
 app.use('/api/uploads', (err: any, req: any, res: any, next: any) => {
   console.error('Static file error:', {
@@ -432,6 +437,6 @@ server.listen(port, () => {
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
 
 // Anything that doesn't match the above routes, send back the index.html file
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
-}); 
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+  }); 

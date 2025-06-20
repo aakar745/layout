@@ -8,7 +8,7 @@
 
 import { Request, Response } from 'express';
 import { join } from 'path';
-import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, mkdirSync, createReadStream } from 'fs';
 import axios from 'axios';
 import { getEmailTransporter } from '../config/email.config';
 
@@ -119,38 +119,123 @@ export const sendPdfByEmail = async (
 };
 
 /**
- * Send a PDF via WhatsApp
+ * Send a PDF via WhatsApp using Business Template with PDF attachment
+ * Updated to match the working test file approach (JSON payload, direct URL)
  */
 export const sendPdfByWhatsApp = async (
   pdfBuffer: Buffer,
   phoneNumber: string,
-  message: string,
-  pdfUrl: string
+  templateData: {
+    customerName: string;
+    exhibitionName: string;
+    invoiceNumber: string;
+    supportContact: string;
+    companyName: string;
+  },
+  filename: string
 ): Promise<boolean> => {
   try {
     if (!whatsappApiUrl || !whatsappApiToken) {
       throw new Error('WhatsApp API configuration missing');
     }
-    
-    // Create temp directory if it doesn't exist
-    const tempDir = join(process.cwd(), 'temp');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
+
+    // Clean phone number format (remove + and spaces, remove country code for this API)
+    const cleanPhoneNumber = phoneNumber.replace(/[\s+\-]/g, '');
+    const formattedPhone = cleanPhoneNumber.startsWith('91') ? cleanPhoneNumber.substring(2) : cleanPhoneNumber;
+
+    console.log(`[INFO] Sending WhatsApp template to: ${formattedPhone}`);
+
+    // Create temporary file for PDF access
+    const whatsappTempDir = join(process.cwd(), 'temp');
+    if (!existsSync(whatsappTempDir)) {
+      mkdirSync(whatsappTempDir, { recursive: true });
     }
+
+    const whatsappTimestamp = Date.now();
+    const whatsappTempFilePath = join(whatsappTempDir, `whatsapp-${whatsappTimestamp}-${sanitizeFilename(filename)}`);
+    writeFileSync(whatsappTempFilePath, pdfBuffer);
+
+    // Create public URL for PDF access
+    const baseUrl = process.env.BASE_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+    const publicPdfUrl = `${baseUrl}/temp/whatsapp-${whatsappTimestamp}-${sanitizeFilename(filename)}`;
     
-    // Send message with PDF URL
-    await axios.post(whatsappApiUrl, {
-      phone: phoneNumber,
-      message: `${message}: ${pdfUrl}`,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${whatsappApiToken}`
+    // Use placeholder for download link as requested
+    const downloadLinkPlaceholder = "https://portal.aakarexhibition.com/invoice.pdf";
+
+    // Prepare JSON payload (matching test file approach)
+    const templatePayload = {
+      message: "Invoice notification",
+      brodcast_service: "whatsapp_credits",
+      broadcast_name: `invoice_${templateData.invoiceNumber}`,
+      template_id: "new_perfoma",
+      schedule_date: new Date().toISOString().split('T')[0],
+      schedule_time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      contacts: formattedPhone,
+      // Header document parameter (PDF attachment)
+      uploaded_image1: publicPdfUrl,
+      // Body text parameters - mapping based on API structure (attribute2 = {{1}}, etc.)
+      attribute2: templateData.customerName,    // {{1}} - Customer name
+      attribute3: templateData.exhibitionName,  // {{2}} - Event name  
+      attribute4: templateData.invoiceNumber,   // {{3}} - Invoice number
+      attribute5: templateData.supportContact,  // {{4}} - Support contact
+      attribute6: templateData.companyName,     // {{5}} - Company name
+      attribute7: downloadLinkPlaceholder       // {{6}} - Download link (placeholder)
+    };
+
+    console.log(`[DEBUG] Template payload:`, templatePayload);
+
+    // Send template message using JSON payload (not FormData)
+    const templateResponse = await axios.post(
+      `${whatsappApiUrl}/v5/api/index.php/addbroadcast`,
+      templatePayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': whatsappApiToken
+        }
       }
-    });
+    );
+
+    console.log(`[INFO] Template message sent successfully:`, templateResponse.data);
     
+    // Log request_id for tracking
+    if (templateResponse.data && templateResponse.data.request_id) {
+      console.log(`[INFO] WhatsApp Request ID: ${templateResponse.data.request_id}`);
+      console.log(`[INFO] Status tracking URL: https://goshort.in/api/broadcast_status.php?request_id=${templateResponse.data.request_id}`);
+    }
+
+    // Clean up temporary file
+    try {
+      if (existsSync(whatsappTempFilePath)) {
+        unlinkSync(whatsappTempFilePath);
+        console.log(`[INFO] Cleaned up WhatsApp temporary file: ${whatsappTempFilePath}`);
+      }
+    } catch (cleanupErr) {
+      console.error('[ERROR] Failed to clean up WhatsApp temporary file:', cleanupErr);
+    }
+
+    // Template with document header should be sufficient
+
     return true;
   } catch (error) {
     console.error('[ERROR] Failed to send PDF by WhatsApp:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('[ERROR] Response data:', error.response?.data);
+      console.error('[ERROR] Response status:', error.response?.status);
+    }
+    
+    // Clean up temporary file on error
+    try {
+      const whatsappTimestamp = Date.now();
+      const errorTempFilePath = join(process.cwd(), 'temp', `whatsapp-${whatsappTimestamp}-${sanitizeFilename(filename)}`);
+      if (existsSync(errorTempFilePath)) {
+        unlinkSync(errorTempFilePath);
+        console.log(`[INFO] Cleaned up WhatsApp temporary file after error: ${errorTempFilePath}`);
+      }
+    } catch (cleanupErr) {
+      console.error('[ERROR] Failed to clean up WhatsApp temporary file after error:', cleanupErr);
+    }
+    
     return false;
   }
 }; 

@@ -284,6 +284,11 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { phoneNumber } = req.body;
 
+    // Validate phone number
+    if (!phoneNumber) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+
     // Get invoice with full population to ensure latest data
     const invoice = await Invoice.findById(id)
       .populate({
@@ -318,16 +323,27 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
       
       writeFileSync(pdfPath, pdfBuffer);
 
-      // Generate a public URL for the invoice
-      // This would ideally be implemented with your file storage
-      const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/invoices/${id}/download`;
+      // Prepare template data for WhatsApp Business message
+      const booking = invoice.bookingId as any; // Type assertion for populated data
+      const exhibition = booking.exhibitionId as any;
       
-      // Send WhatsApp message
+      const templateData = {
+        customerName: booking.companyName || 'Customer',
+        exhibitionName: exhibition.name || 'Exhibition',
+        invoiceNumber: invoice.invoiceNumber || `INV-${id}`,
+        supportContact: exhibition.companyContactNo || process.env.SUPPORT_CONTACT || '+91-9876543210',
+        companyName: exhibition.companyName || 'Exhibition Management'
+      };
+
+      // Create filename for PDF attachment
+      const attachmentFilename = `Invoice-${templateData.invoiceNumber}.pdf`;
+
+      // Send WhatsApp message using approved template with PDF attachment
       const success = await sendPdfByWhatsApp(
         pdfBuffer,
         phoneNumber,
-        `Here's your invoice`,
-        pdfUrl
+        templateData,
+        attachmentFilename
       );
       
       // Clean up temporary file

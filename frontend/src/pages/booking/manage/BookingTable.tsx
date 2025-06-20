@@ -5,12 +5,12 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { 
   EyeOutlined, FileTextOutlined, CheckCircleOutlined, 
-  DeleteOutlined, MoreOutlined, MailOutlined
+  DeleteOutlined, MoreOutlined, MailOutlined, MessageOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { BookingType } from './types';
-import { useGetInvoicesQuery, useShareViaEmailMutation } from '../../../store/services/invoice';
+import { useGetInvoicesQuery, useShareViaEmailMutation, useShareViaWhatsAppMutation } from '../../../store/services/invoice';
 
 interface BookingTableProps {
   bookings: BookingType[];
@@ -177,6 +177,9 @@ export const getTableColumns = (
   // Hook for sending invoice via email
   const [shareViaEmail, { isLoading: isSendingEmail }] = useShareViaEmailMutation();
   
+  // Hook for sending invoice via WhatsApp
+  const [shareViaWhatsApp, { isLoading: isSendingWhatsApp }] = useShareViaWhatsAppMutation();
+  
   // Handle sending invoice via email
   const handleSendInvoice = async (record: BookingType) => {
     try {
@@ -231,6 +234,42 @@ Exhibition Management Team`;
     } catch (error: any) {
       console.error('Error sending invoice:', error);
       message.error(error?.data?.message || 'Failed to send invoice. Please try again.');
+    }
+  };
+  
+  // Handle sending invoice via WhatsApp
+  const handleSendWhatsAppInvoice = async (record: BookingType) => {
+    try {
+      // Check if booking is approved before allowing invoice WhatsApp
+      if (record.status !== 'approved' && record.status !== 'confirmed') {
+        message.warning('Booking must be approved or confirmed before sending invoice.');
+        return;
+      }
+
+      // Get the invoice ID for this booking
+      const invoiceId = getInvoiceId(record._id);
+      if (!invoiceId) {
+        message.error('Invoice not found for this booking.');
+        return;
+      }
+
+      // Determine recipient phone - prioritize exhibitor phone, fallback to customer phone
+      const recipientPhone = record.exhibitorId?.phone || record.customerPhone;
+      if (!recipientPhone) {
+        message.error('No phone number found for this booking.');
+        return;
+      }
+
+      // Send the WhatsApp message
+      await shareViaWhatsApp({
+        id: invoiceId,
+        phoneNumber: recipientPhone
+      }).unwrap();
+
+      message.success(`Invoice sent successfully via WhatsApp to ${recipientPhone}`);
+    } catch (error: any) {
+      console.error('Error sending invoice via WhatsApp:', error);
+      message.error(error?.data?.message || 'Failed to send invoice via WhatsApp. Please try again.');
     }
   };
   
@@ -591,6 +630,19 @@ Exhibition Management Team`;
                     }
                   </Menu.Item>
                 )}
+                                  <Menu.Item 
+                    key="sendWhatsApp" 
+                    icon={<MessageOutlined />}
+                    disabled={isSendingWhatsApp || (record.status !== 'approved' && record.status !== 'confirmed')}
+                    onClick={() => handleSendWhatsAppInvoice(record)}
+                  >
+                    {isSendingWhatsApp 
+                      ? 'Sending WhatsApp...' 
+                      : record.status !== 'approved' && record.status !== 'confirmed' 
+                        ? 'Approve First to Send Invoice' 
+                        : 'Send Invoice via WhatsApp'
+                    }
+                  </Menu.Item>
                 <Menu.Item 
                   key="updateStatus" 
                   icon={<CheckCircleOutlined />}

@@ -203,7 +203,7 @@ const LettersPage: React.FC = () => {
         setSendingStatus(`Sending ${letterType === 'standPossession' ? 'Stand Possession' : 'Transport'} letters...`);
         setSendingProgress(((i) / letterTypes.length) * 100);
         
-        const result = await exhibitionLetterService.sendLettersManually(selectedExhibition, letterType);
+      const result = await exhibitionLetterService.sendLettersManually(selectedExhibition, letterType);
         results.push({ type: letterType, result: result.result });
         
         setSendingProgress(((i + 1) / letterTypes.length) * 100);
@@ -891,7 +891,7 @@ const LettersPage: React.FC = () => {
               />
             </Tooltip>
           )}
-          
+
           <Dropdown
             menu={{
               items: [
@@ -997,20 +997,20 @@ const LettersPage: React.FC = () => {
         <Title level={2} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
           <MailOutlined style={{ color: '#1890ff' }} />
           Exhibition Letters
-        </Title>
+      </Title>
         <Paragraph type="secondary" style={{ margin: '8px 0 0 0', fontSize: '16px' }}>
-          Manage and monitor exhibition letters sent to exhibitors
+        Manage and monitor exhibition letters sent to exhibitors
         </Paragraph>
       </div>
 
       <Tabs defaultActiveKey="dashboard" style={{ background: 'white', borderRadius: '8px', padding: '24px' }}>
         <TabPane 
           tab={
-            <span>
+                  <span>
               <DashboardOutlined />
               Dashboard
-            </span>
-          } 
+                  </span>
+                }
           key="dashboard"
         >
           {/* Exhibition Selection */}
@@ -1020,23 +1020,23 @@ const LettersPage: React.FC = () => {
                 <div>
                   <Text strong style={{ display: 'block', marginBottom: '8px' }}>
                     Select Exhibition:
-                  </Text>
-                  <Select
+                </Text>
+                <Select
                     style={{ width: '100%' }}
                     placeholder="Choose an exhibition to manage letters"
-                    value={selectedExhibition || undefined}
-                    onChange={handleExhibitionChange}
-                    showSearch
-                    optionFilterProp="children"
-                    allowClear={!!selectedExhibition}
+                  value={selectedExhibition || undefined}
+                  onChange={handleExhibitionChange}
+                  showSearch
+                  optionFilterProp="children"
+                  allowClear={!!selectedExhibition}
                     size="large"
-                  >
-                    {exhibitions.map(exhibition => (
-                      <Option key={exhibition._id} value={exhibition._id}>
-                        {exhibition.name}
-                      </Option>
-                    ))}
-                  </Select>
+                >
+                  {exhibitions.map(exhibition => (
+                    <Option key={exhibition._id} value={exhibition._id}>
+                      {exhibition.name}
+                    </Option>
+                  ))}
+                </Select>
                 </div>
               </Col>
               {selectedExhibition && (
@@ -1065,7 +1065,7 @@ const LettersPage: React.FC = () => {
                 <Row gutter={[16, 16]} align="middle">
                   <Col xs={24} sm={6}>
                     <Text strong style={{ display: 'block', marginBottom: '8px' }}>Quick Filter:</Text>
-                    <Select
+                <Select
                       style={{ width: '100%' }}
                       value={quickFilter}
                       onChange={setQuickFilter}
@@ -1080,66 +1080,66 @@ const LettersPage: React.FC = () => {
                     <Text strong style={{ display: 'block', marginBottom: '8px' }}>Letter Type:</Text>
                     <Select
                       style={{ width: '100%' }}
-                      placeholder="All Types"
-                      value={letterTypeFilter || undefined}
-                      onChange={setLetterTypeFilter}
+                  placeholder="All Types"
+                  value={letterTypeFilter || undefined}
+                  onChange={setLetterTypeFilter}
                       allowClear
-                    >
-                      <Option value="standPossession">Stand Possession</Option>
-                      <Option value="transport">Transport</Option>
-                    </Select>
-                  </Col>
+                >
+                  <Option value="standPossession">Stand Possession</Option>
+                  <Option value="transport">Transport</Option>
+                </Select>
+              </Col>
                   <Col xs={24} sm={8}>
                     <Text strong style={{ display: 'block', marginBottom: '8px' }}>Search:</Text>
-                    <Search
-                      placeholder="Search by name, company, email..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                <Search
+                  placeholder="Search by name, company, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                       allowClear
-                    />
-                  </Col>
+                />
+              </Col>
                   <Col xs={24} sm={4}>
-                    <div style={{ marginTop: '32px' }}>
-                      <Button 
-                        onClick={resetFilters}
-                        disabled={!hasActiveFilters()}
-                        danger={hasActiveFilters()}
+                <div style={{ marginTop: '32px' }}>
+                  <Button 
+                    onClick={resetFilters}
+                    disabled={!hasActiveFilters()}
+                    danger={hasActiveFilters()}
                         icon={<ClearOutlined />}
                         block
-                      >
+                  >
                         Clear Filters
-                      </Button>
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+          </Card>
 
-              {/* Letters Table */}
-              <Card>
-                <Table
-                  columns={columns}
-                  dataSource={letters}
-                  rowKey="_id"
-                  loading={loading}
+          {/* Letters Table */}
+          <Card>
+            <Table
+              columns={columns}
+              dataSource={letters}
+              rowKey="_id"
+              loading={loading}
                   size="small"
                   scroll={{ x: 800 }}
-                  pagination={{
-                    current: pagination.current,
-                    pageSize: pagination.pageSize,
-                    total: pagination.total,
-                    showSizeChanger: true,
-                    showQuickJumper: true,
-                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} letters`,
-                    onChange: (page, pageSize) => {
-                      setPagination(prev => ({
-                        ...prev,
-                        current: page,
-                        pageSize: pageSize || 10
-                      }));
-                    }
-                  }}
-                />
-              </Card>
+              pagination={{
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                showSizeChanger: true,
+                showQuickJumper: true,
+                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} letters`,
+                onChange: (page, pageSize) => {
+                  setPagination(prev => ({
+                    ...prev,
+                    current: page,
+                    pageSize: pageSize || 10
+                  }));
+                }
+              }}
+            />
+          </Card>
             </>
           ) : (
             <Empty
@@ -1217,7 +1217,7 @@ const LettersPage: React.FC = () => {
               onClick={() => selectedLetter && handleDownloadLetter(selectedLetter)}
             >
               Download PDF
-            </Button>
+          </Button>
           )
         ]}
         width={900}
@@ -1243,7 +1243,7 @@ const LettersPage: React.FC = () => {
                 <Text strong>Recipient:</Text>
                 <div style={{ marginTop: '4px' }}>
                   <div style={{ fontWeight: 'bold' }}>{selectedLetter.recipientName}</div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>{selectedLetter.recipientEmail}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{selectedLetter.recipientEmail}</div>
                 </div>
               </Col>
               <Col span={12}>
