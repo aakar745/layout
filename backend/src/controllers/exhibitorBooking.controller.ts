@@ -621,12 +621,22 @@ export const shareInvoiceViaWhatsApp = async (req: Request, res: Response) => {
       // Generate a URL for the PDF download
       const pdfUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/api/exhibitor-bookings/${req.params.id}/invoice/download`;
       
+      // Prepare template data for WhatsApp
+      const exhibition = booking.exhibitionId as any;
+      const templateData = {
+        customerName: booking.customerName || 'Valued Customer',
+        exhibitionName: exhibition?.name || 'Exhibition',
+        invoiceNumber: invoice.invoiceNumber || `INV-${invoice._id}`,
+        supportContact: exhibition?.companyContactNo || process.env.SUPPORT_CONTACT || '+91-9876543210',
+        companyName: exhibition?.companyName || 'Exhibition Management'
+      };
+      
       // Send via WhatsApp
       const success = await sendPdfByWhatsApp(
         pdfBuffer,
         phoneNumber,
-        `Your invoice for ${booking.exhibitionId ? (booking.exhibitionId as any).name : 'your booking'}`,
-        pdfUrl
+        templateData,
+        `invoice-${invoice._id}.pdf`
       );
       
       if (!success) {
