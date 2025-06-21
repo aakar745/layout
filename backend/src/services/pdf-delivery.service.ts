@@ -168,8 +168,8 @@ export const sendPdfByWhatsApp = async (
     const baseUrl = process.env.BASE_URL || process.env.BACKEND_URL || 'http://localhost:5000';
     const publicPdfUrl = `${baseUrl}/temp/whatsapp-${whatsappTimestamp}-${sanitizeFilename(filename)}`;
     
-    // Use placeholder for download link as requested
-    const downloadLinkPlaceholder = "https://portal.aakarexhibition.com/invoice.pdf";
+    // Create actual download link for the specific invoice (same as the PDF URL)
+    const actualDownloadLink = publicPdfUrl;
 
     // Prepare JSON payload (matching test file approach)
     const templatePayload = {
@@ -188,7 +188,7 @@ export const sendPdfByWhatsApp = async (
       attribute4: templateData.invoiceNumber,   // {{3}} - Invoice number
       attribute5: templateData.supportContact,  // {{4}} - Support contact
       attribute6: templateData.companyName,     // {{5}} - Company name
-      attribute7: downloadLinkPlaceholder       // {{6}} - Download link (placeholder)
+      attribute7: actualDownloadLink            // {{6}} - Download link (actual PDF URL)
     };
 
     console.log(`[DEBUG] Template payload:`, templatePayload);
@@ -214,6 +214,7 @@ export const sendPdfByWhatsApp = async (
     }
 
     // Schedule file cleanup after WhatsApp API has time to fetch it
+    // Use a longer delay to ensure WhatsApp API has enough time to fetch the PDF
     setTimeout(() => {
       try {
         if (existsSync(whatsappTempFilePath)) {
@@ -223,7 +224,9 @@ export const sendPdfByWhatsApp = async (
       } catch (cleanupErr) {
         console.error('[ERROR] Failed to clean up WhatsApp temporary file after delay:', cleanupErr);
       }
-    }, 30000); // Wait 30 seconds before cleanup
+    }, 300000); // Wait 5 minutes before cleanup (increased from 30 seconds)
+    
+    console.log(`[INFO] WhatsApp PDF will be cleaned up in 5 minutes: ${whatsappTempFilePath}`);
 
     // Template with document header should be sufficient
 

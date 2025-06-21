@@ -346,15 +346,8 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
         attachmentFilename
       );
       
-      // Clean up temporary file
-      try {
-        if (existsSync(pdfPath)) {
-          unlinkSync(pdfPath);
-        }
-      } catch (cleanupErr) {
-        console.error('[ERROR] Failed to clean up temporary file:', cleanupErr);
-        // Continue processing - non-critical error
-      }
+      // Note: File cleanup is handled by sendPdfByWhatsApp function with appropriate delay
+      // No immediate cleanup here to avoid race condition with WhatsApp API
       
       if (!success) {
         return res.status(500).json({ message: 'Failed to send WhatsApp message' });
