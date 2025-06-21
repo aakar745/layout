@@ -134,6 +134,9 @@ export const sendPdfByWhatsApp = async (
   },
   filename: string
 ): Promise<boolean> => {
+  console.log(`[DEBUG] ============ sendPdfByWhatsApp CALLED ============`);
+  console.log(`[DEBUG] Phone: ${phoneNumber}, Filename: ${filename}`);
+  console.log(`[DEBUG] Template data:`, templateData);
   try {
     if (!whatsappApiUrl || !whatsappApiToken) {
       throw new Error('WhatsApp API configuration missing');
@@ -144,16 +147,22 @@ export const sendPdfByWhatsApp = async (
     const formattedPhone = cleanPhoneNumber.startsWith('91') ? cleanPhoneNumber.substring(2) : cleanPhoneNumber;
 
     console.log(`[INFO] Sending WhatsApp template to: ${formattedPhone}`);
+    console.log(`[DEBUG] PDF buffer size: ${pdfBuffer.length} bytes`);
+    console.log(`[DEBUG] Filename: ${filename}`);
 
     // Create temporary file for PDF access
     const whatsappTempDir = join(process.cwd(), 'temp');
+    console.log(`[DEBUG] WhatsApp temp directory: ${whatsappTempDir}`);
     if (!existsSync(whatsappTempDir)) {
+      console.log(`[DEBUG] Creating WhatsApp temp directory: ${whatsappTempDir}`);
       mkdirSync(whatsappTempDir, { recursive: true });
     }
 
     const whatsappTimestamp = Date.now();
     const whatsappTempFilePath = join(whatsappTempDir, `whatsapp-${whatsappTimestamp}-${sanitizeFilename(filename)}`);
+    console.log(`[DEBUG] Creating WhatsApp temp file: ${whatsappTempFilePath}`);
     writeFileSync(whatsappTempFilePath, pdfBuffer);
+    console.log(`[DEBUG] WhatsApp temp file created successfully, size: ${pdfBuffer.length} bytes`);
 
     // Create public URL for PDF access
     const baseUrl = process.env.BASE_URL || process.env.BACKEND_URL || 'http://localhost:5000';
@@ -204,15 +213,17 @@ export const sendPdfByWhatsApp = async (
       console.log(`[INFO] Status tracking URL: https://goshort.in/api/broadcast_status.php?request_id=${templateResponse.data.request_id}`);
     }
 
-    // Clean up temporary file
-    try {
-      if (existsSync(whatsappTempFilePath)) {
-        unlinkSync(whatsappTempFilePath);
-        console.log(`[INFO] Cleaned up WhatsApp temporary file: ${whatsappTempFilePath}`);
+    // Schedule file cleanup after WhatsApp API has time to fetch it
+    setTimeout(() => {
+      try {
+        if (existsSync(whatsappTempFilePath)) {
+          unlinkSync(whatsappTempFilePath);
+          console.log(`[INFO] Cleaned up WhatsApp temporary file after delay: ${whatsappTempFilePath}`);
+        }
+      } catch (cleanupErr) {
+        console.error('[ERROR] Failed to clean up WhatsApp temporary file after delay:', cleanupErr);
       }
-    } catch (cleanupErr) {
-      console.error('[ERROR] Failed to clean up WhatsApp temporary file:', cleanupErr);
-    }
+    }, 30000); // Wait 30 seconds before cleanup
 
     // Template with document header should be sufficient
 

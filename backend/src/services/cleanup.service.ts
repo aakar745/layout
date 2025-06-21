@@ -54,9 +54,10 @@ export const cleanupTempFiles = async (): Promise<void> => {
         // Check if file is a temporary invoice file
         const isTempInvoice = file.startsWith('temp-invoice-') && file.endsWith('.pdf');
         const isInvoice = file.startsWith('invoice-') && file.endsWith('.pdf');
+        const isWhatsAppTemp = file.startsWith('whatsapp-') && file.endsWith('.pdf');
         
         // Only process temp directories for regular 'invoice-*.pdf' files to avoid deleting important invoices
-        const shouldProcess = isTempInvoice || 
+        const shouldProcess = isTempInvoice || isWhatsAppTemp ||
           (isInvoice && dir !== ROOT_DIR); // Only delete invoice-*.pdf in temp directories
         
         if (shouldProcess) {
@@ -66,8 +67,12 @@ export const cleanupTempFiles = async (): Promise<void> => {
             // Get file stats
             const stats = await fs.promises.stat(filePath);
             
-            // Check if file is older than one day
-            if (now - stats.mtime.getTime() > ONE_DAY_MS) {
+            // Different cleanup times for different file types
+            const isWhatsAppFile = file.startsWith('whatsapp-');
+            const cleanupAge = isWhatsAppFile ? 60 * 60 * 1000 : ONE_DAY_MS; // 1 hour for WhatsApp files, 24 hours for others
+            
+            // Check if file is older than cleanup age
+            if (now - stats.mtime.getTime() > cleanupAge) {
               // Delete the file
               await fs.promises.unlink(filePath);
               log(`[INFO] Deleted old temporary file: ${filePath}`);
