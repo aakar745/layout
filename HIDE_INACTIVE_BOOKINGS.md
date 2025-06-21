@@ -12,7 +12,7 @@ The user requested that bookings from inactive exhibitions should be **completel
 
 ## Solution Implementation
 
-### Frontend Changes
+### Frontend Changes //
 
 #### 1. Booking List Filtering (`frontend/src/pages/booking/manage/index.tsx`)
 
