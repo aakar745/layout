@@ -63,9 +63,10 @@ const StallBookingManager: React.FC = () => {
     page: 1, 
     limit: 200 
   }, {
-    // Reduce cache time to get fresher data
-    refetchOnMountOrArgChange: 30, // Refetch if data is older than 30 seconds
+    // More aggressive cache invalidation for fresher data
+    refetchOnMountOrArgChange: 10, // Refetch if data is older than 10 seconds
     refetchOnFocus: true, // Refetch when window regains focus
+    refetchOnReconnect: true, // Refetch when connection is restored
   });
   const { hasPermission } = usePermission();
 

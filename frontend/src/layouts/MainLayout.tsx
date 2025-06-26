@@ -281,6 +281,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/activity'),
     },
     {
+      key: 'analytics',
+      icon: <ReloadOutlined />,
+      label: 'Analytics',
+      requiredPermission: 'analytics_view',
+      onClick: () => navigate('/analytics'),
+    },
+    {
       key: 'index',
       icon: <UserOutlined />,
       label: 'Users',
@@ -361,6 +368,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'invoices': 'view_invoices',
       'exhibitors': 'view_exhibitors',
       'activity': 'view_activities',
+      'analytics': 'analytics_view',
       'index': 'users_view',
       'roles': 'roles_view',
       'settings': 'settings_view'

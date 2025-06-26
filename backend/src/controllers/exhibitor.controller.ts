@@ -7,6 +7,7 @@ import { join } from 'path';
 import { existsSync, unlinkSync } from 'fs';
 import crypto from 'crypto';
 import { getEmailTransporter, emailConfig } from '../config/email.config';
+import { sendOTPViaWhatsApp, sendCredentialsViaWhatsApp } from '../services/whatsapp-otp.service';
 import User from '../models/user.model';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
@@ -23,7 +24,7 @@ const otpStorage: Record<string, { otp: string; expiresAt: Date }> = {};
 const passwordResetOtpStorage: Record<string, { otp: string; expiresAt: Date }> = {};
 
 /**
- * Generate and send OTP for exhibitor registration
+ * Generate and send OTP for exhibitor registration (Email)
  * POST /api/exhibitors/send-otp
  * Public route
  */
@@ -96,27 +97,96 @@ export const sendOTP = async (req: Request, res: Response) => {
 };
 
 /**
- * Verify OTP for exhibitor registration
+ * Generate and send OTP for exhibitor registration via WhatsApp
+ * POST /api/exhibitors/send-whatsapp-otp
+ * Public route
+ */
+export const sendWhatsAppOTP = async (req: Request, res: Response) => {
+  try {
+    const { phone, companyName } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+    
+    // Clean phone number format
+    const cleanPhoneNumber = phone.replace(/[\s+\-]/g, '');
+    
+    // Check if phone already exists in the system
+    const existingExhibitor = await Exhibitor.findOne({ phone: cleanPhoneNumber });
+    if (existingExhibitor) {
+      return res.status(400).json({ message: 'An exhibitor with this phone number already exists' });
+    }
+    
+    // Generate a 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    
+    // Store OTP with 10-minute expiration using phone as key
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    otpStorage[cleanPhoneNumber] = { otp, expiresAt };
+    
+    // Always log the OTP in development for testing purposes
+    console.log(`[WhatsApp OTP for ${cleanPhoneNumber}]: ${otp}`);
+    
+    // Send OTP via WhatsApp
+    try {
+      const whatsappSuccess = await sendOTPViaWhatsApp(
+        cleanPhoneNumber,
+        companyName || 'Exhibitor',
+        otp,
+        10 // 10 minutes expiry
+      );
+      
+      if (!whatsappSuccess) {
+        console.error('Failed to send WhatsApp OTP');
+        return res.status(500).json({ message: 'Failed to send OTP via WhatsApp. Please try again.' });
+      }
+    } catch (whatsappError) {
+      console.error('Error sending WhatsApp OTP:', whatsappError);
+      return res.status(500).json({ message: 'Failed to send OTP via WhatsApp. Please try again.' });
+    }
+    
+    res.status(200).json({ 
+      message: 'OTP sent successfully via WhatsApp',
+      expiresAt,
+      phone: cleanPhoneNumber
+    });
+  } catch (error) {
+    console.error('Error sending WhatsApp OTP:', error);
+    res.status(500).json({ message: 'Server error while sending OTP' });
+  }
+};
+
+/**
+ * Verify OTP for exhibitor registration (supports both email and phone)
  * POST /api/exhibitors/verify-otp
  * Public route
  */
 export const verifyOTP = async (req: Request, res: Response) => {
   try {
-    const { email, otp } = req.body;
+    const { email, phone, otp } = req.body;
     
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Email and OTP are required' });
+    // Support both email and phone verification
+    const identifier = email || phone;
+    const verificationType = email ? 'email' : 'phone';
+    
+    if (!identifier || !otp) {
+      return res.status(400).json({ message: `${verificationType === 'email' ? 'Email' : 'Phone number'} and OTP are required` });
     }
     
-    // Check if OTP exists for this email
-    const storedData = otpStorage[email];
+    // Clean phone number if provided
+    const cleanIdentifier = phone ? phone.replace(/[\s+\-]/g, '') : identifier;
+    
+    // Check if OTP exists for this identifier
+    const storedData = otpStorage[cleanIdentifier];
     if (!storedData) {
       return res.status(400).json({ message: 'OTP not found or expired. Please request a new one.' });
     }
     
     // Check if OTP has expired
     if (new Date() > storedData.expiresAt) {
-      delete otpStorage[email];
+      delete otpStorage[cleanIdentifier];
       return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
     }
     
@@ -126,11 +196,12 @@ export const verifyOTP = async (req: Request, res: Response) => {
     }
     
     // OTP is valid - remove it from storage to prevent reuse
-    delete otpStorage[email];
+    delete otpStorage[cleanIdentifier];
     
     res.status(200).json({ 
-      message: 'Email verified successfully',
-      verified: true
+      message: `${verificationType === 'email' ? 'Email' : 'Phone number'} verified successfully`,
+      verified: true,
+      verificationType
     });
   } catch (error) {
     console.error('Error verifying OTP:', error);
@@ -542,7 +613,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       
       if (Object.keys(bookingUpdates).length > 0) {
         console.log(`[INFO] Updating booking ${booking._id} with new exhibitor data`);
-        await Booking.findByIdAndUpdate(booking._id, bookingUpdates);
+        await Booking.findByIdAndUpdate(booking._id, bookingUpdates, { new: true });
         
         // Find the invoice for this booking
         const invoice = await Invoice.findOne({ bookingId: booking._id });
@@ -979,6 +1050,62 @@ export const updateExhibitorDetails = async (req: Request, res: Response) => {
 
     // Save updated exhibitor
     await exhibitor.save();
+
+    // Update all associated bookings with new exhibitor data
+    const bookings = await Booking.find({ exhibitorId: exhibitor._id });
+    console.log(`[INFO] Updating ${bookings.length} bookings for exhibitor ${exhibitor._id}`);
+    
+    // For each booking, update the data and invalidate the invoice cache
+    for (const booking of bookings) {
+      const bookingUpdates: any = {};
+      
+      if (companyName !== undefined) bookingUpdates.companyName = companyName;
+      if (address !== undefined) bookingUpdates.customerAddress = address;
+      if (phone !== undefined) bookingUpdates.customerPhone = phone;
+      if (contactPerson !== undefined) bookingUpdates.customerName = contactPerson;
+      if (panNumber !== undefined) bookingUpdates.customerPAN = panNumber;
+      if (gstNumber !== undefined) bookingUpdates.customerGSTIN = gstNumber;
+      
+      if (Object.keys(bookingUpdates).length > 0) {
+        console.log(`[INFO] Updating booking ${booking._id} with new exhibitor data`);
+        await Booking.findByIdAndUpdate(booking._id, bookingUpdates, { new: true });
+        
+        // Find the invoice for this booking
+        const invoice = await Invoice.findOne({ bookingId: booking._id });
+        if (invoice) {
+          console.log(`[INFO] Invalidating cache for invoice ${invoice._id}`);
+          
+          // Find all cached files for this invoice
+          try {
+            // This logic mimics the invalidateInvoiceCache function
+            // Try different key patterns to ensure all possible cached files are cleared
+            const possiblePrefixes = [
+              invoice._id.toString(),
+              booking._id.toString()
+            ];
+            
+            if (existsSync(PDF_CACHE_DIR)) {
+              const files = require('fs').readdirSync(PDF_CACHE_DIR);
+              for (const file of files) {
+                for (const prefix of possiblePrefixes) {
+                  if (file.includes(prefix) || file.startsWith(prefix)) {
+                    const filePath = join(PDF_CACHE_DIR, file);
+                    console.log(`[INFO] Removing cached file: ${file}`);
+                    try {
+                      unlinkSync(filePath);
+                    } catch (err) {
+                      console.error(`[ERROR] Failed to remove cache file: ${file}`, err);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (cacheError) {
+            console.error(`[ERROR] Error invalidating cache for invoice ${invoice._id}:`, cacheError);
+          }
+        }
+      }
+    }
 
     // Store new values for logging
     const newValues = {

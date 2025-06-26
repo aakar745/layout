@@ -43,6 +43,7 @@ const ExhibitorManagement = lazy(() => import('./pages/exhibitors'));
 const AmenitiesPage = lazy(() => import('./pages/amenities/index'));
 const LettersPage = lazy(() => import('./pages/letters/index'));
 const ActivityPage = lazy(() => import('./pages/activity/index'));
+const AnalyticsPage = lazy(() => import('./pages/analytics'));
 
 // Preload critical routes to avoid loading delays
 const preloadCriticalRoutes = () => {
@@ -425,6 +426,18 @@ function App() {
                   <PrivateRoute>
                     <MainLayout>
                       <ActivityPage />
+                    </MainLayout>
+                  </PrivateRoute>
+                }
+              />
+              
+              {/* Analytics Route */}
+              <Route
+                path="/analytics"
+                element={
+                  <PrivateRoute>
+                    <MainLayout>
+                      <AnalyticsPage />
                     </MainLayout>
                   </PrivateRoute>
                 }

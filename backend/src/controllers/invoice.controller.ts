@@ -160,7 +160,7 @@ export const getInvoice = async (req: Request, res: Response) => {
         path: 'bookingId',
         populate: [
           { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName' },
-          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId updatedAt', populate: { path: 'stallTypeId', select: 'name updatedAt' } },
         ],
       });
 

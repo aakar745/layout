@@ -121,14 +121,14 @@ export const downloadInvoice = async (req: Request, res: Response) => {
         populate: [
           { 
             path: 'exhibitionId',
-            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo'
+            select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo updatedAt'
           },
           { 
             path: 'stallIds', 
-            select: 'number dimensions ratePerSqm status stallTypeId', 
+            select: 'number dimensions ratePerSqm status stallTypeId updatedAt', 
             populate: { 
               path: 'stallTypeId', 
-              select: 'name' 
+              select: 'name updatedAt' 
             } 
           },
         ],
@@ -226,8 +226,8 @@ export const shareViaEmail = async (req: Request, res: Response) => {
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo' },
-          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo updatedAt' },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId updatedAt', populate: { path: 'stallTypeId', select: 'name updatedAt' } },
         ],
       });
 
@@ -294,8 +294,8 @@ export const shareViaWhatsApp = async (req: Request, res: Response) => {
       .populate({
         path: 'bookingId',
         populate: [
-          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo' },
-          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId', populate: { path: 'stallTypeId', select: 'name' } },
+          { path: 'exhibitionId', select: 'name venue startDate endDate description invoicePrefix companyName companyAddress companyContactNo companyEmail companyGST companyPAN companySAC companyCIN companyWebsite termsAndConditions piInstructions bankName bankAccount bankIFSC bankBranch bankAccountName logo updatedAt' },
+          { path: 'stallIds', select: 'number dimensions ratePerSqm stallTypeId updatedAt', populate: { path: 'stallTypeId', select: 'name updatedAt' } },
         ],
       });
 

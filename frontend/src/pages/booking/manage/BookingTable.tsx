@@ -169,9 +169,10 @@ export const getTableColumns = (
     page: 1, 
     limit: 200 // Increased to ensure we get all invoices for better matching
   }, {
-    // Reduce cache time to get fresher data
-    refetchOnMountOrArgChange: 30, // Refetch if data is older than 30 seconds
+    // More aggressive cache invalidation for fresher data
+    refetchOnMountOrArgChange: 10, // Refetch if data is older than 10 seconds
     refetchOnFocus: true, // Refetch when window regains focus
+    refetchOnReconnect: true, // Refetch when connection is restored
   });
   
   // Hook for sending invoice via email
@@ -207,6 +208,46 @@ export const getTableColumns = (
       const customerName = record.exhibitorId?.contactPerson || record.customerName;
       const companyName = record.exhibitorId?.companyName || record.companyName;
       
+      // Calculate the current total amount using the same logic as the PDF generation
+      const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
+        const width = stall.dimensions?.width || 0;
+        const height = stall.dimensions?.height || 0;
+        const rate = stall.ratePerSqm || 0;
+        return sum + Math.round(width * height * rate * 100) / 100;
+      }, 0);
+
+      // Calculate current discount amount
+      let currentDiscountAmount = 0;
+      const discountDetails = record.calculations.stalls
+        .filter(stall => stall.discount)
+        .map(stall => stall.discount);
+
+      if (discountDetails.length > 0) {
+        const firstDiscount = discountDetails[0];
+        if (firstDiscount) {
+          if (firstDiscount.type === 'percentage') {
+            currentDiscountAmount = Math.round((currentBaseAmount * firstDiscount.value / 100) * 100) / 100;
+          } else if (firstDiscount.type === 'fixed') {
+            currentDiscountAmount = Math.min(firstDiscount.value, currentBaseAmount);
+          }
+        }
+      }
+
+      // Calculate amount after discount
+      const currentAmountAfterDiscount = currentBaseAmount - currentDiscountAmount;
+
+      // Calculate current tax amount (using stored tax rate from calculations)
+      let currentTaxAmount = 0;
+      if (record.calculations.taxes && record.calculations.taxes.length > 0) {
+        currentTaxAmount = record.calculations.taxes.reduce((sum, tax) => {
+          const taxAmount = Math.round((currentAmountAfterDiscount * tax.rate / 100) * 100) / 100;
+          return sum + taxAmount;
+        }, 0);
+      }
+
+      // Calculate final total amount - this matches what's shown in the PDF
+      const currentTotalAmount = Math.round((currentAmountAfterDiscount + currentTaxAmount) * 100) / 100;
+      
       // Create personalized message
       const personalizedMessage = `Dear ${customerName},
 
@@ -215,7 +256,7 @@ Please find attached the invoice for your stall booking${companyName ? ` for ${c
 Booking Details:
 - Booking ID: ${props.formatBookingNumber(record._id, record.createdAt)}
 - Exhibition: ${record.exhibitionId.name}
-- Total Amount: ₹${record.amount.toLocaleString()}
+- Total Amount: ₹${currentTotalAmount.toLocaleString()}
 - Status: ${record.status.toUpperCase()}
 
 Thank you for your business!
@@ -307,76 +348,138 @@ Exhibition Management Team`;
     // Try to find the invoice first
     let invoiceId = getInvoiceId(record._id);
     
-    // If not found, refetch and try again
+    // If not found, check if this is a recently created booking (within the last 10 minutes)
     if (!invoiceId) {
-      const messageKey = 'invoice-loading';
-      message.loading({ content: 'Checking for invoice...', key: messageKey });
-      
-      // Force a refetch from backend with skip cache option
-      await refetchInvoices();
-      invoiceId = getInvoiceId(record._id);
-
-      if (invoiceId) {
-        message.success({ content: 'Invoice found!', key: messageKey, duration: 1 });
-        navigate(`/invoice/${invoiceId}`);
-        return;
-      }
-
-      // Check if the booking is recent or if it's an approved booking
       const bookingDate = new Date(record.createdAt);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000); // Reduced from 30 minutes to 5 minutes
-      const isRecentOrApproved = bookingDate > fiveMinutesAgo || record.status === 'approved';
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const isRecentBooking = bookingDate > tenMinutesAgo;
       
-      if (isRecentOrApproved) {
-        message.info({ 
-          content: 'Invoice is being generated. Please wait...', 
-          key: messageKey 
-        });
+      if (isRecentBooking) {
+        // For recent bookings, immediately invalidate cache and refetch
+        const messageKey = 'invoice-loading';
+        message.loading({ content: 'Loading invoice...', key: messageKey });
         
-        // Reduced retry attempts and shorter intervals for better UX
-        let retryCount = 0;
-        const maxRetries = 3; // Reduced from 5 to 3
-        const retryIntervals = [1500, 2500, 4000]; // Shorter intervals
-        
-        const attemptFetch = async () => {
-          retryCount++;
-          
-          // Use skipCache option to force a network request instead of using cached data
+        try {
+          // Force cache invalidation and refetch
           await refetchInvoices();
-          const retryInvoiceId = getInvoiceId(record._id);
+          invoiceId = getInvoiceId(record._id);
           
-          if (retryInvoiceId) {
-            message.success({ 
-              content: 'Invoice is ready!', 
-              key: messageKey,
-              duration: 1
-            });
-            navigate(`/invoice/${retryInvoiceId}`);
-          } else if (retryCount < maxRetries) {
-            // Continue retrying with less verbose messaging
-            const nextInterval = retryIntervals[retryCount] || 3000;
-            
-            message.loading({ 
-              content: `Checking invoice availability... (${retryCount}/${maxRetries})`, 
-              key: messageKey 
-            });
-            setTimeout(attemptFetch, nextInterval);
-          } else {
-            message.warning({ 
-              content: 'Invoice is still being processed. Please refresh the page in a moment or try again later.', 
-              key: messageKey,
-              duration: 4
-            });
+          if (invoiceId) {
+            message.success({ content: 'Invoice ready!', key: messageKey, duration: 1 });
+            navigate(`/invoice/${invoiceId}`);
+            return;
           }
-        };
-        
-        // Start the retry process with the first interval
-        setTimeout(attemptFetch, retryIntervals[0]);
+          
+          // If still not found after forced refetch, start retry logic with shorter intervals for recent bookings
+          message.info({ 
+            content: 'Invoice is being generated. Please wait...', 
+            key: messageKey 
+          });
+          
+          let retryCount = 0;
+          const maxRetries = 4; // Slightly more retries for recent bookings
+          const retryIntervals = [1000, 2000, 3000, 5000]; // Faster initial retries
+          
+          const attemptFetch = async () => {
+            retryCount++;
+            
+            await refetchInvoices();
+            const retryInvoiceId = getInvoiceId(record._id);
+            
+            if (retryInvoiceId) {
+              message.success({ 
+                content: 'Invoice is ready!', 
+                key: messageKey,
+                duration: 1
+              });
+              navigate(`/invoice/${retryInvoiceId}`);
+            } else if (retryCount < maxRetries) {
+              const nextInterval = retryIntervals[retryCount - 1] || 3000;
+              
+              message.loading({ 
+                content: `Preparing invoice... (${retryCount}/${maxRetries})`, 
+                key: messageKey 
+              });
+              setTimeout(attemptFetch, nextInterval);
+            } else {
+              message.warning({ 
+                content: 'Invoice is still being processed. Please try again in a moment.', 
+                key: messageKey,
+                duration: 4
+              });
+            }
+          };
+          
+          // Start the retry process
+          setTimeout(attemptFetch, retryIntervals[0]);
+          
+        } catch (error) {
+          message.error({ content: 'Failed to load invoice. Please try again.', key: messageKey });
+        }
       } else {
-        message.error({ 
-          content: 'No invoice found for this booking. Please contact support if this persists.', 
-          key: messageKey 
-        });
+        // For older bookings, use the existing logic with one refetch attempt
+        const messageKey = 'invoice-loading';
+        message.loading({ content: 'Checking for invoice...', key: messageKey });
+        
+        // Force a refetch from backend
+        await refetchInvoices();
+        invoiceId = getInvoiceId(record._id);
+
+        if (invoiceId) {
+          message.success({ content: 'Invoice found!', key: messageKey, duration: 1 });
+          navigate(`/invoice/${invoiceId}`);
+          return;
+        }
+        
+        // Check if it's an approved booking that should have an invoice
+        if (record.status === 'approved') {
+          message.info({ 
+            content: 'Invoice is being generated. Please wait...', 
+            key: messageKey 
+          });
+          
+          let retryCount = 0;
+          const maxRetries = 3;
+          const retryIntervals = [2000, 4000, 6000]; // Slower retries for older bookings
+          
+          const attemptFetch = async () => {
+            retryCount++;
+            
+            await refetchInvoices();
+            const retryInvoiceId = getInvoiceId(record._id);
+            
+            if (retryInvoiceId) {
+              message.success({ 
+                content: 'Invoice is ready!', 
+                key: messageKey,
+                duration: 1
+              });
+              navigate(`/invoice/${retryInvoiceId}`);
+            } else if (retryCount < maxRetries) {
+              const nextInterval = retryIntervals[retryCount - 1] || 4000;
+              
+              message.loading({ 
+                content: `Checking invoice availability... (${retryCount}/${maxRetries})`, 
+                key: messageKey 
+              });
+              setTimeout(attemptFetch, nextInterval);
+            } else {
+              message.warning({ 
+                content: 'Invoice is still being processed. Please refresh the page or try again later.', 
+                key: messageKey,
+                duration: 4
+              });
+            }
+          };
+          
+          // Start the retry process
+          setTimeout(attemptFetch, retryIntervals[0]);
+        } else {
+          message.error({ 
+            content: 'No invoice found for this booking. Please contact support if this persists.', 
+            key: messageKey 
+          });
+        }
       }
     } else {
       // Invoice was found immediately
@@ -479,19 +582,33 @@ Exhibition Management Team`;
     },
     {
       title: 'Base Amount',
-      dataIndex: ['calculations', 'totalBaseAmount'],
       key: 'baseAmount',
       width: 150,
-      render: (amount: number) => `₹${amount.toLocaleString()}`
+      render: (_: any, record: BookingType) => {
+        // Calculate current base amount based on live stall data
+        const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
+          const width = stall.dimensions?.width || 0;
+          const height = stall.dimensions?.height || 0;
+          const rate = stall.ratePerSqm || 0;
+          return sum + Math.round(width * height * rate * 100) / 100;
+        }, 0);
+        return `₹${currentBaseAmount.toLocaleString()}`;
+      }
     },
     {
       title: 'Discount',
       key: 'discount',
       width: 150,
       render: (_: any, record: BookingType) => {
-        const totalDiscount = record.calculations.totalDiscountAmount;
-        if (!totalDiscount || totalDiscount === 0) return '-';
+        // Calculate current base amount for discount calculation
+        const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
+          const width = stall.dimensions?.width || 0;
+          const height = stall.dimensions?.height || 0;
+          const rate = stall.ratePerSqm || 0;
+          return sum + Math.round(width * height * rate * 100) / 100;
+        }, 0);
 
+        // Get discount info from stored calculations
         const discountDetails = record.calculations.stalls
           .filter(stall => stall.discount)
           .map(stall => stall.discount);
@@ -499,6 +616,18 @@ Exhibition Management Team`;
         if (discountDetails.length === 0) return '-';
 
         const firstDiscount = discountDetails[0];
+        if (!firstDiscount) return '-';
+
+        // Recalculate discount based on current base amount
+        let currentDiscountAmount = 0;
+        if (firstDiscount.type === 'percentage') {
+          currentDiscountAmount = Math.round((currentBaseAmount * firstDiscount.value / 100) * 100) / 100;
+        } else if (firstDiscount.type === 'fixed') {
+          currentDiscountAmount = Math.min(firstDiscount.value, currentBaseAmount);
+        }
+
+        if (currentDiscountAmount === 0) return '-';
+
         return (
           <Tooltip title={
             <div>
@@ -506,13 +635,13 @@ Exhibition Management Team`;
                 <div key={`discount-${index}-${discount?.name || 'unnamed'}`}>
                   {discount?.name}: {discount?.type === 'percentage' ? `${discount?.value}%` : `₹${discount?.value}`}
                   <br />
-                  Amount: ₹{discount?.amount.toLocaleString()}
+                  Current Amount: ₹{currentDiscountAmount.toLocaleString()}
                 </div>
               ))}
             </div>
           }>
             <Tag color="red">
-              -₹{totalDiscount.toLocaleString()}
+              -₹{currentDiscountAmount.toLocaleString()}
               {firstDiscount?.type === 'percentage' && ` (${firstDiscount.value}%)`}
               {discountDetails.length > 1 && ' +'}
             </Tag>
@@ -522,10 +651,51 @@ Exhibition Management Team`;
     },
     {
       title: 'Total Amount',
-      dataIndex: 'amount',
       key: 'amount',
       width: 150,
-      render: (amount: number) => `₹${amount.toLocaleString()}`
+      render: (_: any, record: BookingType) => {
+        // Calculate current base amount
+        const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
+          const width = stall.dimensions?.width || 0;
+          const height = stall.dimensions?.height || 0;
+          const rate = stall.ratePerSqm || 0;
+          return sum + Math.round(width * height * rate * 100) / 100;
+        }, 0);
+
+        // Calculate current discount amount
+        let currentDiscountAmount = 0;
+        const discountDetails = record.calculations.stalls
+          .filter(stall => stall.discount)
+          .map(stall => stall.discount);
+
+        if (discountDetails.length > 0) {
+          const firstDiscount = discountDetails[0];
+          if (firstDiscount) {
+            if (firstDiscount.type === 'percentage') {
+              currentDiscountAmount = Math.round((currentBaseAmount * firstDiscount.value / 100) * 100) / 100;
+            } else if (firstDiscount.type === 'fixed') {
+              currentDiscountAmount = Math.min(firstDiscount.value, currentBaseAmount);
+            }
+          }
+        }
+
+        // Calculate amount after discount
+        const currentAmountAfterDiscount = currentBaseAmount - currentDiscountAmount;
+
+        // Calculate current tax amount (using stored tax rate from calculations)
+        let currentTaxAmount = 0;
+        if (record.calculations.taxes && record.calculations.taxes.length > 0) {
+          currentTaxAmount = record.calculations.taxes.reduce((sum, tax) => {
+            const taxAmount = Math.round((currentAmountAfterDiscount * tax.rate / 100) * 100) / 100;
+            return sum + taxAmount;
+          }, 0);
+        }
+
+        // Calculate final total amount
+        const currentTotalAmount = Math.round((currentAmountAfterDiscount + currentTaxAmount) * 100) / 100;
+
+        return `₹${currentTotalAmount.toLocaleString()}`;
+      }
     },
     {
       title: 'Booked By',

@@ -11,6 +11,7 @@ import {
   createExhibitor,
   testRoute,
   sendOTP,
+  sendWhatsAppOTP,
   verifyOTP,
   forgotPassword,
   resetPassword
@@ -27,6 +28,7 @@ router.get('/test', testRoute);
 router.post('/register', register);
 router.post('/login', login);
 router.post('/send-otp', sendOTP);
+router.post('/send-whatsapp-otp', sendWhatsAppOTP);
 router.post('/verify-otp', verifyOTP);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

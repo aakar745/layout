@@ -160,7 +160,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
       sn: index + 1,
       stallNo: stall.number,
       stallType: typedStall.stallTypeId?.name || 'Standard',
-      dimensions: `${stall.dimensions.width}x${stall.dimensions.height}m`,
+      dimensions: `${stall.dimensions.width}m x ${stall.dimensions.height}m`,
       area: area.toFixed(0),
       rate: stall.ratePerSqm.toFixed(0),
       amount: amount
@@ -396,7 +396,11 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
         </div>
 
         <div className="signature-section">
-          <div className="signature-text">Authorised Signature</div>
+          <div style={{ textAlign: 'center', color: '#333' }}>
+            <div style={{ marginBottom: '0px' }}>For, {booking.exhibitionId.companyName}</div>
+            <div style={{ borderTop: '1px solid black', minWidth: '200px', display: 'inline-block', margin: '0 auto' }}></div>
+            <div style={{ marginTop: '0px' }}>Authorised Signature</div>
+          </div>
         </div>
       </div>
     </div>

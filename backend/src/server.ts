@@ -33,6 +33,7 @@ import settingsRoutes from './routes/settings.routes';
 import notificationRoutes from './routes/notification.routes';
 import exhibitionLetterRoutes from './routes/exhibitionLetter.routes';
 import activityRoutes from './routes/activity.routes';
+import analyticsRoutes from './routes/analytics.routes';
 
 // Load environment variables
 dotenv.config();
@@ -306,6 +307,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/exhibition-letters', exhibitionLetterRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Direct endpoint for exhibitor booking that doesn't rely on the global middleware order
 app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {

@@ -3,7 +3,14 @@ import mongoose from 'mongoose';
 import Stall from '../models/stall.model';
 import StallType from '../models/stallType.model';
 import Exhibition from '../models/exhibition.model';
+import Booking from '../models/booking.model';
+import Invoice from '../models/invoice.model';
 import { logActivity } from '../services/activity.service';
+import { existsSync, unlinkSync, readdirSync } from 'fs';
+import { join } from 'path';
+
+// Cache directory for PDFs - must match the one in other controllers
+const PDF_CACHE_DIR = join(process.cwd(), 'pdf-cache');
 
 interface PopulatedStall extends mongoose.Document {
   stallTypeId: {
@@ -248,6 +255,48 @@ export const updateStall = async (req: Request, res: Response) => {
     }
 
     console.log('Stall updated successfully:', stall);
+    
+    // Invalidate PDF cache for all invoices related to this stall
+    // This ensures that when stall data (like dimensions, ratePerSqm) changes,
+    // the PDFs reflect the latest information
+    try {
+      console.log(`[INFO] Stall ${id} updated, invalidating related PDF caches`);
+      
+      // Find all bookings that include this stall
+      const bookings = await Booking.find({ stallIds: stall._id });
+      console.log(`[INFO] Found ${bookings.length} bookings for stall ${id}`);
+      
+      // Find all invoices for these bookings and remove their cached PDFs
+      for (const booking of bookings) {
+        const invoices = await Invoice.find({ bookingId: booking._id });
+        
+        for (const invoice of invoices) {
+          // Check if cache directory exists
+          if (existsSync(PDF_CACHE_DIR)) {
+            // Remove any cached files for this invoice
+            const files = readdirSync(PDF_CACHE_DIR);
+            
+            for (const file of files) {
+              if (file.includes(invoice._id.toString()) || file.includes(invoice.invoiceNumber)) {
+                try {
+                  const filePath = join(PDF_CACHE_DIR, file);
+                  unlinkSync(filePath);
+                  console.log(`[INFO] Removed cached file: ${file}`);
+                } catch (err) {
+                  console.error(`[ERROR] Failed to remove cached file: ${file}`, err);
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`[INFO] PDF cache invalidation completed for stall ${id}`);
+    } catch (error) {
+      console.error(`[ERROR] Failed to invalidate PDF cache for stall ${id}:`, error);
+      // Continue without failing the update operation
+    }
+    
     res.json(stall);
   } catch (error: any) {
     console.error('Error updating stall:', error);

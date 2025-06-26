@@ -32,6 +32,15 @@ export const generateCacheKey = (invoice: any): string => {
     // Extract required entities
     const bookingId = invoice.bookingId;
     const exhibition = bookingId?.exhibitionId;
+    const stalls = bookingId?.stallIds || [];
+    
+    // Collect stall and stallType timestamps
+    const stallTimestamps = stalls.map((stall: any) => ({
+      stallId: stall._id?.toString(),
+      stallUpdatedAt: stall.updatedAt?.toString(),
+      stallTypeId: stall.stallTypeId?._id?.toString(),
+      stallTypeUpdatedAt: stall.stallTypeId?.updatedAt?.toString()
+    }));
     
     // Create data fingerprint with updatedAt timestamps from all relevant entities
     const dataToHash = {
@@ -43,7 +52,9 @@ export const generateCacheKey = (invoice: any): string => {
       // Include these timestamps to detect changes in related data
       exhibitionId: exhibition?._id?.toString(),
       exhibitionUpdatedAt: exhibition?.updatedAt?.toString(),
-      bookingUpdatedAt: bookingId?.updatedAt?.toString()
+      bookingUpdatedAt: bookingId?.updatedAt?.toString(),
+      // Add stall and stallType tracking
+      stallsData: stallTimestamps
     };
     
     const hash = crypto.createHash('md5').update(JSON.stringify(dataToHash)).digest('hex');
@@ -111,6 +122,26 @@ export const getCachedPDF = (cacheKey: string, invoice: any, ignoreTimestamp = f
         const exhibitionUpdatedTime = new Date(invoice.bookingId.exhibitionId.updatedAt).getTime();
         if (exhibitionUpdatedTime > cacheTime) {
           return null;
+        }
+      }
+      
+      // Check if any stall or stallType was updated
+      const stalls = invoice.bookingId?.stallIds || [];
+      for (const stall of stalls) {
+        // Check stall updates
+        if (stall.updatedAt) {
+          const stallUpdatedTime = new Date(stall.updatedAt).getTime();
+          if (stallUpdatedTime > cacheTime) {
+            return null;
+          }
+        }
+        
+        // Check stallType updates
+        if (stall.stallTypeId?.updatedAt) {
+          const stallTypeUpdatedTime = new Date(stall.stallTypeId.updatedAt).getTime();
+          if (stallTypeUpdatedTime > cacheTime) {
+            return null;
+          }
         }
       }
     }

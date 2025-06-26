@@ -15,6 +15,7 @@ import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../../../store/store';
 import { message } from 'antd';
 import { useGetInvoicesQuery } from '../../../store/services/invoice';
+import { invoiceApi } from '../../../store/services/invoice';
 
 const { Title, Text } = Typography;
 
@@ -261,33 +262,75 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
 
           <Card title="Financial Summary" size="small" styles={{ body: { padding: '12px' } }}>
             <Space direction="vertical" style={{ width: '100%' }} size={8}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Total Base Amount:</Text>
-                <Text>₹{selectedBooking.calculations.totalBaseAmount.toLocaleString()}</Text>
-              </div>
-              {selectedBooking.calculations.totalDiscountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Text>Total Discount:</Text>
-                  <Text type="danger">
-                    -₹{selectedBooking.calculations.totalDiscountAmount.toLocaleString()}
-                  </Text>
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text>Amount after Discount:</Text>
-                <Text>₹{selectedBooking.calculations.totalAmountAfterDiscount.toLocaleString()}</Text>
-              </div>
-              <Divider style={{ margin: '8px 0' }} />
-              {selectedBooking.calculations.taxes.map(tax => (
-                <div key={`tax-${tax.name}-${tax.rate}`} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Text>{tax.name} ({tax.rate}%):</Text>
-                  <Text>₹{tax.amount.toLocaleString()}</Text>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
-                <Text strong>Total Amount (incl. Taxes):</Text>
-                <Text strong>₹{selectedBooking.amount.toLocaleString()}</Text>
-              </div>
+              {(() => {
+                // Calculate current amounts based on live stall data
+                const currentBaseAmount = selectedBooking.stallIds.reduce((sum, stall) => {
+                  const width = stall.dimensions?.width || 0;
+                  const height = stall.dimensions?.height || 0;
+                  const rate = stall.ratePerSqm || 0;
+                  return sum + Math.round(width * height * rate * 100) / 100;
+                }, 0);
+
+                // Calculate current discount amount
+                let currentDiscountAmount = 0;
+                const discountDetails = selectedBooking.calculations.stalls
+                  .filter(stall => stall.discount)
+                  .map(stall => stall.discount);
+
+                if (discountDetails.length > 0) {
+                  const firstDiscount = discountDetails[0];
+                  if (firstDiscount) {
+                    if (firstDiscount.type === 'percentage') {
+                      currentDiscountAmount = Math.round((currentBaseAmount * firstDiscount.value / 100) * 100) / 100;
+                    } else if (firstDiscount.type === 'fixed') {
+                      currentDiscountAmount = Math.min(firstDiscount.value, currentBaseAmount);
+                    }
+                  }
+                }
+
+                const currentAmountAfterDiscount = currentBaseAmount - currentDiscountAmount;
+
+                // Calculate current tax amounts
+                const currentTaxes = selectedBooking.calculations.taxes.map(tax => ({
+                  ...tax,
+                  amount: Math.round((currentAmountAfterDiscount * tax.rate / 100) * 100) / 100
+                }));
+
+                const currentTotalTaxAmount = currentTaxes.reduce((sum, tax) => sum + tax.amount, 0);
+                const currentTotalAmount = Math.round((currentAmountAfterDiscount + currentTotalTaxAmount) * 100) / 100;
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text>Total Base Amount:</Text>
+                      <Text>₹{currentBaseAmount.toLocaleString()}</Text>
+                    </div>
+                    {currentDiscountAmount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text>Total Discount:</Text>
+                        <Text type="danger">
+                          -₹{currentDiscountAmount.toLocaleString()}
+                        </Text>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text>Amount after Discount:</Text>
+                      <Text>₹{currentAmountAfterDiscount.toLocaleString()}</Text>
+                    </div>
+                    <Divider style={{ margin: '8px 0' }} />
+                    {currentTaxes.map(tax => (
+                      <div key={`tax-${tax.name}-${tax.rate}`} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Text>{tax.name} ({tax.rate}%):</Text>
+                        <Text>₹{tax.amount.toLocaleString()}</Text>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                      <Text strong>Total Amount (incl. Taxes):</Text>
+                      <Text strong>₹{currentTotalAmount.toLocaleString()}</Text>
+                    </div>
+                  </>
+                );
+              })()}
             </Space>
           </Card>
         </Space>
@@ -344,11 +387,15 @@ export const StatusUpdateModal: React.FC<StatusModalProps> = ({
       setIsStatusModalVisible(false);
       setSelectedBooking(null);
 
-      // Refetch invoices when booking is approved or confirmed (both create invoices)
+      // Invalidate invoice cache and refetch when booking is approved or confirmed (both create invoices)
       if (newStatus === 'approved' || newStatus === 'confirmed') {
+        // Invalidate cache immediately
+        dispatch(invoiceApi.util.invalidateTags(['Invoice']));
+        
+        // Also refetch with a small delay to ensure backend processing is complete
         setTimeout(async () => {
           await refetch();
-        }, 1000);
+        }, 1500);
       }
     } catch (error) {
       message.error('Failed to update booking status');

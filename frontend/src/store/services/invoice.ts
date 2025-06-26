@@ -79,7 +79,13 @@ export const invoiceApi = createApi({
         console.error('Invoice API Error:', response);
         return response;
       },
-      providesTags: ['Invoice']
+      providesTags: (result) => 
+        result
+          ? [
+              ...result.data.map(({ _id }) => ({ type: 'Invoice' as const, id: _id })),
+              { type: 'Invoice', id: 'LIST' },
+            ]
+          : [{ type: 'Invoice', id: 'LIST' }],
     }),
     getInvoice: builder.query<Invoice, string>({
       query: (id) => ({

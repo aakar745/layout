@@ -218,7 +218,7 @@ export const prepareInvoiceData = async (invoice: any, isAdmin: boolean = false)
         index: index + 1,
         stallNo: stall.number || `Stall ${index + 1}`,
         stallType: stall.stallTypeId?.name || 'Standard',
-        dimensions: `${width}x${height}m`,
+        dimensions: `${width}m x ${height}m`,
         area: Number(area.toFixed(0)),
         rate: rate,
         amount: amount
