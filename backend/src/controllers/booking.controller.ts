@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Booking from '../models/booking.model';
 import Stall from '../models/stall.model';
 import Invoice from '../models/invoice.model';
@@ -918,12 +919,24 @@ export const deleteBooking = async (req: Request, res: Response) => {
 
 /**
  * Get booking statistics
- * Returns counts for each booking status and total revenue
+ * Returns counts for each booking status, total SQM and booked SQM
+ * Supports exhibition filtering to show stats for specific exhibition
  */
 export const getBookingStats = async (req: Request, res: Response) => {
   try {
-    // Get all metrics in a single aggregation pipeline for better performance
-    const stats = await Booking.aggregate([
+    const { exhibitionId } = req.query;
+    
+    // Build base match conditions for bookings
+    const bookingMatchConditions: any = {};
+    if (exhibitionId) {
+      bookingMatchConditions.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
+    }
+
+    // Get booking stats and booked SQM from bookings
+    const bookingStats = await Booking.aggregate([
+      {
+        $match: bookingMatchConditions
+      },
       {
         $facet: {
           // Get counts by status
@@ -935,26 +948,32 @@ export const getBookingStats = async (req: Request, res: Response) => {
               }
             }
           ],
-          // Calculate total revenue from confirmed and approved bookings
-          revenue: [
+          // Calculate booked SQM from confirmed and approved bookings
+          bookedSQM: [
             {
               $match: {
                 status: { $in: ['confirmed', 'approved'] }
               }
             },
             {
-              $group: {
-                _id: null,
-                total: { $sum: '$amount' }
+              $lookup: {
+                from: 'stalls',
+                localField: 'stallIds',
+                foreignField: '_id',
+                as: 'stalls'
               }
-            }
-          ],
-          // Calculate total base amount (before tax/discount)
-          baseAmount: [
+            },
+            {
+              $unwind: '$stalls'
+            },
             {
               $group: {
                 _id: null,
-                total: { $sum: '$calculations.totalBaseAmount' }
+                total: { 
+                  $sum: { 
+                    $multiply: ['$stalls.dimensions.width', '$stalls.dimensions.height'] 
+                  } 
+                }
               }
             }
           ],
@@ -968,15 +987,57 @@ export const getBookingStats = async (req: Request, res: Response) => {
       }
     ]);
 
+    // Get total SQM - filter by exhibition if specified
+    let totalSQMPipeline: any[] = [];
+    
+    if (exhibitionId) {
+      // If exhibition is selected, get total SQM only for that exhibition's stalls
+      totalSQMPipeline = [
+        {
+          $match: {
+            exhibitionId: new mongoose.Types.ObjectId(exhibitionId as string)
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { 
+              $sum: { 
+                $multiply: ['$dimensions.width', '$dimensions.height'] 
+              } 
+            }
+          }
+        }
+      ];
+    } else {
+      // If no exhibition selected, get total SQM from all stalls
+      totalSQMPipeline = [
+        {
+          $group: {
+            _id: null,
+            total: { 
+              $sum: { 
+                $multiply: ['$dimensions.width', '$dimensions.height'] 
+              } 
+            }
+          }
+        }
+      ];
+    }
+
+    const totalSQMResult = await Stall.aggregate(totalSQMPipeline);
+
     // Process the aggregation results
     const statusMap: Record<string, number> = {};
-    stats[0].statusCounts.forEach((item: { _id: string; count: number }) => {
-      statusMap[item._id] = item.count;
-    });
+    if (bookingStats[0] && bookingStats[0].statusCounts) {
+      bookingStats[0].statusCounts.forEach((item: { _id: string; count: number }) => {
+        statusMap[item._id] = item.count;
+      });
+    }
 
-    const totalRevenue = stats[0].revenue.length > 0 ? stats[0].revenue[0].total : 0;
-    const totalBaseAmount = stats[0].baseAmount.length > 0 ? stats[0].baseAmount[0].total : 0;
-    const total = stats[0].total.length > 0 ? stats[0].total[0].count : 0;
+    const totalSQM = totalSQMResult.length > 0 ? Math.round(totalSQMResult[0].total * 100) / 100 : 0;
+    const bookedSQM = (bookingStats[0] && bookingStats[0].bookedSQM.length > 0) ? Math.round(bookingStats[0].bookedSQM[0].total * 100) / 100 : 0;
+    const total = (bookingStats[0] && bookingStats[0].total.length > 0) ? bookingStats[0].total[0].count : 0;
 
     // Return the formatted statistics
     res.json({
@@ -986,8 +1047,8 @@ export const getBookingStats = async (req: Request, res: Response) => {
       rejected: statusMap['rejected'] || 0,
       confirmed: statusMap['confirmed'] || 0,
       cancelled: statusMap['cancelled'] || 0,
-      totalRevenue,
-      totalBaseAmount
+      totalSQM,
+      bookedSQM
     });
   } catch (error) {
     console.error('Error fetching booking statistics:', error);

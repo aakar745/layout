@@ -251,8 +251,8 @@ export interface BookingStats {
   rejected: number;
   confirmed: number;
   cancelled: number;
-  totalRevenue: number;
-  totalBaseAmount: number;
+  totalSQM: number;
+  bookedSQM: number;
 }
 
 /**
@@ -294,8 +294,8 @@ const initialState: BookingState = {
     rejected: 0,
     confirmed: 0,
     cancelled: 0,
-    totalRevenue: 0,
-    totalBaseAmount: 0
+    totalSQM: 0,
+    bookedSQM: 0
   }
 };
 
@@ -418,12 +418,22 @@ export const deleteBooking = createAsyncThunk(
 
 /**
  * Fetches booking statistics (counts by status, etc.) for dashboard display
+ * Supports optional exhibition filter to get exhibition-specific stats
  */
 export const fetchBookingStats = createAsyncThunk(
   'booking/fetchBookingStats',
-  async (_, { rejectWithValue }) => {
+  async (params: { exhibitionId?: string } = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/bookings/stats');
+      const queryParams = new URLSearchParams();
+      if (params?.exhibitionId) {
+        queryParams.append('exhibitionId', params.exhibitionId);
+      }
+      
+      const url = queryParams.toString() 
+        ? `/bookings/stats?${queryParams.toString()}`
+        : '/bookings/stats';
+      
+      const response = await api.get(url);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error?.response?.data?.message || 'Failed to fetch booking statistics');

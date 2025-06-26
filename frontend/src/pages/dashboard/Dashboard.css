@@ -1,6 +1,6 @@
 /* Modern Dashboard Styles */
 .modern-dashboard {
-  padding: 0;
+  padding: 24px;
   background: #f8fafc;
   min-height: calc(100vh - 64px);
 }
@@ -146,6 +146,82 @@
   padding-bottom: 8px;
 }
 
+/* New Creative Components */
+.greeting-card {
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+  overflow: hidden;
+}
+
+.greeting-card .ant-card-body {
+  padding: 32px 24px !important;
+}
+
+.quote-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid #e5e7eb !important;
+  transition: all 0.3s ease !important;
+}
+
+.quote-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
+}
+
+.quote-card .ant-card-body {
+  padding: 24px !important;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+}
+
+.calendar-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.calendar-card .ant-card-body {
+  padding: 16px !important;
+}
+
+.calendar-card .ant-calendar,
+.calendar-card .ant-picker-calendar {
+  border: none !important;
+  background: transparent !important;
+}
+
+.calendar-card .ant-picker-calendar-date {
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.calendar-card .ant-picker-calendar-date:hover {
+  background: #f0f9ff !important;
+}
+
+.calendar-card .ant-picker-calendar-date-selected {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+
+.calendar-card .ant-picker-calendar-date-today {
+  border: 2px solid #3b82f6 !important;
+  font-weight: bold !important;
+}
+
+/* Sunday styling - red background for Sundays */
+.calendar-card .ant-picker-cell:first-child .ant-picker-calendar-date {
+  background-color: #fff2f0 !important;
+  color: #cf1322 !important;
+}
+
+.calendar-card .ant-picker-cell:first-child .ant-picker-calendar-date:hover {
+  background-color: #ffebe6 !important;
+  color: #a8071a !important;
+}
+
 
 
 
@@ -154,34 +230,30 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .dashboard-header {
-    padding: 24px 16px;
-    margin: -16px -16px 24px -16px;
-  }
-
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-  }
-
-  .header-info h2 {
-    font-size: 24px;
-  }
-
   .modern-dashboard {
     padding: 16px;
   }
 
-  .stat-card-value {
-    font-size: 24px;
+  .greeting-card .ant-card-body {
+    padding: 24px 16px !important;
+  }
+
+  .greeting-card h2 {
+    font-size: 20px !important;
+  }
+
+  .quote-card .ant-card-body {
+    padding: 20px 16px !important;
+    min-height: 120px;
+  }
+
+  .calendar-card {
+    min-height: 300px !important;
   }
 
   .dashboard-card .ant-card-body {
     padding: 16px;
   }
-
-
 }
 
 @media (max-width: 576px) {

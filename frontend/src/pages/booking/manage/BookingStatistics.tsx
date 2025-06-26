@@ -6,7 +6,8 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   InfoCircleOutlined,
-  DollarOutlined
+  ExpandOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons';
 import { BookingType } from '../../../pages/booking/manage/types';
 import { BookingStats } from '../../../store/slices/bookingSlice';
@@ -32,6 +33,19 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
     // Use the pagination total for the total count if available
     const totalBookings = paginationTotal !== undefined ? paginationTotal : bookings.length;
     
+    // Calculate booked SQM from confirmed and approved bookings only
+    const bookedSQM = bookings
+      .filter(b => b.status === 'confirmed' || b.status === 'approved')
+      .reduce((sum, booking) => {
+        const stallArea = booking.stallIds?.reduce((stallSum, stall) => {
+          if (stall?.dimensions?.width && stall?.dimensions?.height) {
+            return stallSum + (stall.dimensions.width * stall.dimensions.height);
+          }
+          return stallSum;
+        }, 0) || 0;
+        return sum + stallArea;
+      }, 0);
+    
     // For fallback, just use direct counts from visible data
     return {
       total: totalBookings,
@@ -40,15 +54,35 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
       rejected: bookings.filter(b => b.status === 'rejected').length,
       confirmed: bookings.filter(b => b.status === 'confirmed').length,
       cancelled: bookings.filter(b => b.status === 'cancelled').length,
-      totalRevenue: bookings
-        .filter(b => b.status === 'confirmed' || b.status === 'approved')
-        .reduce((sum, b) => sum + b.amount, 0),
-      totalBaseAmount: bookings.reduce((sum, b) => sum + (b.calculations?.totalBaseAmount || 0), 0)
+      totalSQM: 0, // Fallback cannot calculate total SQM correctly
+      bookedSQM: Math.round(bookedSQM * 100) / 100
     };
   };
 
   // Use stats from Redux if available, otherwise calculate locally
-  const displayStats = stats || calculateFallbackStats();
+  // For totalSQM, always prefer backend stats over fallback calculation
+  const displayStats = stats ? {
+    ...stats,
+    // Override status counts with filtered data if using filtered bookings
+    total: paginationTotal !== undefined ? paginationTotal : stats.total,
+    pending: bookings.filter(b => b.status === 'pending').length,
+    approved: bookings.filter(b => b.status === 'approved').length,
+    rejected: bookings.filter(b => b.status === 'rejected').length,
+    confirmed: bookings.filter(b => b.status === 'confirmed').length,
+    cancelled: bookings.filter(b => b.status === 'cancelled').length,
+    // Calculate filtered booked SQM
+    bookedSQM: Math.round(bookings
+      .filter(b => b.status === 'confirmed' || b.status === 'approved')
+      .reduce((sum, booking) => {
+        const stallArea = booking.stallIds?.reduce((stallSum, stall) => {
+          if (stall?.dimensions?.width && stall?.dimensions?.height) {
+            return stallSum + (stall.dimensions.width * stall.dimensions.height);
+          }
+          return stallSum;
+        }, 0) || 0;
+        return sum + stallArea;
+      }, 0) * 100) / 100
+  } : calculateFallbackStats();
 
   return (
     <>
@@ -178,13 +212,15 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
             ) : (
               <Statistic
                 title={
-                  <Tooltip title="Total revenue from all bookings">
-                    Total Revenue <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: 4 }} />
+                  <Tooltip title="Total area from all stalls in bookings">
+                    Total SQM <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: 4 }} />
                   </Tooltip>
                 }
-                value={displayStats.totalRevenue}
-                precision={0}
-                prefix="₹"
+                value={displayStats.totalSQM}
+                precision={1}
+                suffix="sqm"
+                prefix={<DatabaseOutlined />}
+                valueStyle={{ color: '#722ed1' }}
               />
             )}
           </Card>
@@ -198,14 +234,15 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
             ) : (
               <Statistic
                 title={
-                  <Tooltip title="Total base amount before taxes and discounts">
-                    Total Base Amount <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: 4 }} />
+                  <Tooltip title="Booked area from confirmed and approved bookings">
+                    Booked SQM <InfoCircleOutlined style={{ fontSize: '14px', marginLeft: 4 }} />
                   </Tooltip>
                 }
-                value={displayStats.totalBaseAmount}
-                precision={0}
-                prefix="₹"
-                valueStyle={{ color: '#1890ff' }}
+                value={displayStats.bookedSQM}
+                precision={1}
+                suffix="sqm"
+                prefix={<ExpandOutlined />}
+                valueStyle={{ color: '#52c41a' }}
               />
             )}
           </Card>

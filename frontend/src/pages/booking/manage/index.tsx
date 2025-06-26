@@ -97,21 +97,22 @@ const StallBookingManager: React.FC = () => {
   }, [dispatch, filters]);
   
   // Fetch booking stats separately to ensure accurate counts
-  const fetchStats = useCallback(() => {
-    dispatch(fetchBookingStats());
+  const fetchStats = useCallback((exhibitionFilter?: string) => {
+    const params = exhibitionFilter ? { exhibitionId: exhibitionFilter } : {};
+    dispatch(fetchBookingStats(params));
   }, [dispatch]);
 
   // Define refresh function that updates both bookings and stats
   const refreshAfterAction = useCallback(() => {
     fetchBookingsWithPagination(pagination.page, pagination.limit);
-    fetchStats();
-  }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit]);
+    fetchStats(filters.exhibition || undefined);
+  }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit, filters.exhibition]);
 
   // Initial fetch of bookings and stats on component mount
   useEffect(() => {
     fetchBookingsWithPagination(pagination.page, pagination.limit);
-    fetchStats();
-  }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit]);
+    fetchStats(filters.exhibition || undefined);
+  }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit, filters.exhibition]);
 
   // First, fetch all exhibitions to ensure we have the complete list
   useEffect(() => {
@@ -163,6 +164,8 @@ const StallBookingManager: React.FC = () => {
     setFilters(newFilters);
     // Reset to first page when filters change and pass the new filters directly
     fetchBookingsWithPagination(1, pagination.limit, newFilters);
+    // Update stats with the new exhibition filter
+    fetchStats(newFilters.exhibition || undefined);
   };
 
   // Ensure bookings is an array and filter out bookings from inactive exhibitions
@@ -172,6 +175,53 @@ const StallBookingManager: React.FC = () => {
   const bookingsArray = allBookingsArray.filter(booking => {
     const exhibition = exhibitions.find(e => e._id === booking.exhibitionId._id);
     return exhibition && exhibition.status === 'published' && exhibition.isActive;
+  });
+
+  // Apply current filters to bookings for statistics (same logic as table filtering)
+  const filteredBookingsForStats = bookingsArray.filter(booking => {
+    // Filter by selected exhibition
+    if (filters.exhibition) {
+      const exhibitionId = typeof booking.exhibitionId === 'string' 
+        ? booking.exhibitionId 
+        : booking.exhibitionId._id;
+      if (exhibitionId !== filters.exhibition) {
+        return false;
+      }
+    }
+
+    // Filter by selected status
+    if (filters.status && filters.status.length > 0) {
+      if (!filters.status.includes(booking.status)) {
+        return false;
+      }
+    }
+
+    // Filter by date range
+    if (filters.dateRange && filters.dateRange.length === 2) {
+      const bookingDate = new Date(booking.createdAt);
+      const startDate = new Date(filters.dateRange[0]);
+      const endDate = new Date(filters.dateRange[1]);
+      if (bookingDate < startDate || bookingDate > endDate) {
+        return false;
+      }
+    }
+
+    // Filter by search text
+    if (filters.search) {
+      const searchText = filters.search.toLowerCase();
+      const searchableText = [
+        booking.companyName,
+        booking.customerName,
+        booking.customerEmail,
+        booking.customerPhone
+      ].join(' ').toLowerCase();
+      
+      if (!searchableText.includes(searchText)) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   /**
@@ -199,7 +249,9 @@ const StallBookingManager: React.FC = () => {
     }
 
     // Get exhibition ID safely
-    const exhibitionId = booking.exhibitionId._id || booking.exhibitionId;
+    const exhibitionId = typeof booking.exhibitionId === 'string' 
+      ? booking.exhibitionId 
+      : booking.exhibitionId._id;
     if (!exhibitionId) {
       return `--/${year}/--`;
     }
@@ -207,7 +259,9 @@ const StallBookingManager: React.FC = () => {
     // Get all bookings for this specific exhibition, sorted by creation date
     const exhibitionBookings = allBookingsArray
       .filter(b => {
-        const bExhibitionId = b.exhibitionId?._id || b.exhibitionId;
+        const bExhibitionId = typeof b.exhibitionId === 'string' 
+          ? b.exhibitionId 
+          : b.exhibitionId?._id;
         return bExhibitionId === exhibitionId;
       })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -282,7 +336,9 @@ const StallBookingManager: React.FC = () => {
       // Filter out bookings from inactive exhibitions before formatting
       const filteredBookings = result.filter((booking: BookingType) => {
         // Handle different possible structures of exhibitionId
-        const exhibitionId = booking.exhibitionId?._id || booking.exhibitionId;
+        const exhibitionId = typeof booking.exhibitionId === 'string' 
+          ? booking.exhibitionId 
+          : booking.exhibitionId?._id;
         if (!exhibitionId || !exhibitions || exhibitions.length === 0) {
           // If we can't determine the exhibition or exhibitions aren't loaded, include the booking
           return true;
@@ -400,8 +456,8 @@ const StallBookingManager: React.FC = () => {
 
       {/* Statistics */}
       <BookingStatistics 
-        bookings={bookings as unknown as BookingType[]} 
-        paginationTotal={pagination.total} 
+        bookings={filteredBookingsForStats as unknown as BookingType[]} 
+        paginationTotal={filteredBookingsForStats.length} 
         stats={stats}
         statsLoading={statsLoading}
       />
