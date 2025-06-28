@@ -158,8 +158,18 @@ const GreetingCard: React.FC<{ currentTime: Date; quote: string }> = ({ currentT
         {currentTime.toLocaleTimeString('en-US', { 
           hour: '2-digit', 
           minute: '2-digit',
+          second: '2-digit',
           hour12: true
         })}
+        <span style={{ 
+          display: 'inline-block',
+          width: '8px',
+          height: '8px',
+          backgroundColor: '#52c41a',
+          borderRadius: '50%',
+          marginLeft: '8px',
+          animation: 'pulse 2s infinite'
+        }} title="Live time" />
       </div>
     </div>
   </Card>
@@ -210,13 +220,33 @@ const Dashboard: React.FC = () => {
 
   const navigate = useNavigate();
 
-  // Update time every minute
+  // Update time every second for live display
   useEffect(() => {
+    // Set initial time
+    setCurrentTime(new Date());
+    
+    // Update time every second
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 1000); // Update every second
 
-    return () => clearInterval(timer);
+    // Pause timer when tab is not visible and resume when visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, we could pause here if needed
+        // For now, we'll keep it running for simplicity
+      } else {
+        // Tab is visible, update time immediately
+        setCurrentTime(new Date());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Set random quote on component mount
