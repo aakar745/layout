@@ -8,6 +8,7 @@ import Fixture from '../models/fixture.model';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { logActivity } from '../services/activity.service';
+import { calculateStallArea } from '../utils/stallUtils';
 
 export const getPublicExhibitions = async (req: Request, res: Response) => {
   try {
@@ -114,7 +115,11 @@ export const getPublicLayout = async (req: Request, res: Response) => {
             type: stall.stallTypeId ? (stall.stallTypeId as any).name : 'Standard',
             dimensions: {
               width: stall.dimensions.width,
-              height: stall.dimensions.height
+              height: stall.dimensions.height,
+              x: stall.dimensions.x,
+              y: stall.dimensions.y,
+              shapeType: stall.dimensions.shapeType,
+              lShape: stall.dimensions.lShape
             },
             position: {
               x: stall.dimensions.x,
@@ -122,7 +127,7 @@ export const getPublicLayout = async (req: Request, res: Response) => {
             },
             status: stall.status,
             ratePerSqm: stall.ratePerSqm,
-            price: stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height,
+            price: stall.ratePerSqm * calculateStallArea(stall.dimensions),
             // Include company name if stall is booked/reserved/sold
             companyName: stall.status !== 'available' ? companyName : undefined
           };
@@ -189,7 +194,9 @@ export const getPublicStallDetails = async (req: Request, res: Response) => {
       type: stall.stallTypeId ? (stall.stallTypeId as any).name : 'Standard',
       dimensions: {
         width: stall.dimensions.width,
-        height: stall.dimensions.height
+        height: stall.dimensions.height,
+        shapeType: stall.dimensions.shapeType,
+        lShape: stall.dimensions.lShape
       },
       position: {
         x: stall.dimensions.x,
@@ -197,7 +204,7 @@ export const getPublicStallDetails = async (req: Request, res: Response) => {
       },
       status: stall.status,
       ratePerSqm: stall.ratePerSqm,
-      price: stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height,
+      price: stall.ratePerSqm * calculateStallArea(stall.dimensions),
       hallName: stall.hallId?.name
     });
   } catch (error) {
@@ -259,7 +266,7 @@ export const bookPublicStall = async (req: Request, res: Response) => {
     }
 
     // Calculate amounts
-    const baseAmount = stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height;
+    const baseAmount = stall.ratePerSqm * calculateStallArea(stall.dimensions);
     const discountAmount = calculateDiscount(baseAmount, selectedDiscount);
     const amountAfterDiscount = baseAmount - discountAmount;
 

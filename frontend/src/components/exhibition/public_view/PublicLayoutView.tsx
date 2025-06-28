@@ -428,7 +428,9 @@ const PublicLayoutView: React.FC = () => {
                 x: stall.position?.x || 0,
                 y: stall.position?.y || 0,
                 width: stall.dimensions?.width || 0,
-                height: stall.dimensions?.height || 0
+                height: stall.dimensions?.height || 0,
+                shapeType: stall.dimensions?.shapeType || 'rectangle',
+                lShape: stall.dimensions?.lShape
               },
               status: stall.status === 'maintenance' ? 'booked' : stall.status
             }}

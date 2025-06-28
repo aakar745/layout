@@ -33,6 +33,25 @@ import { saveAs } from 'file-saver';
 import BookingTable from './BookingTable';
 import { BookingDetailsModal, StatusUpdateModal } from './BookingModals';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 const { Title, Text } = Typography;
 
 /**
@@ -357,7 +376,7 @@ const StallBookingManager: React.FC = () => {
         const totalArea = stallIds.reduce(
           (sum, stall) => {
             if (!(stall as any)?.dimensions) return sum;
-            return sum + ((stall as any).dimensions.width * (stall as any).dimensions.height);
+            return sum + calculateStallArea((stall as any).dimensions);
           }, 
           0
         );
@@ -374,11 +393,14 @@ const StallBookingManager: React.FC = () => {
             stall?.type || ((stall as any)?.stallTypeId && typeof (stall as any).stallTypeId === 'object' ? 
             (stall as any).stallTypeId.name : '-')
           ))).join(', ') : 'No types',
-          'Dimensions': stallIds.length > 0 ? stallIds.map(stall => 
-              (stall as any)?.dimensions ? 
-              `${(stall as any).dimensions.width}m × ${(stall as any).dimensions.height}m` : 
-              'No dimensions'
-            ).join(', ') : 'No dimensions',
+          'Dimensions': stallIds.length > 0 ? stallIds.map(stall => {
+              const dimensions = (stall as any)?.dimensions;
+              if (!dimensions) return 'No dimensions';
+              
+              return dimensions.shapeType === 'l-shape' 
+                ? 'L-Shape' 
+                : `${dimensions.width}m × ${dimensions.height}m`;
+            }).join(', ') : 'No dimensions',
           'Total Area (sqm)': Math.round(totalArea),
           'Base Amount': Math.round(booking.calculations?.totalBaseAmount || 0),
           'Discount': Math.round(booking.calculations?.totalDiscountAmount || 0),

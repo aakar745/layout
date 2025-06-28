@@ -16,6 +16,9 @@ const calculateArea = (width: number, height: number): number => {
   return width * height;
 };
 
+// Import stallUtils for L-shape calculations
+import { calculateStallArea } from '../utils/stallUtils';
+
 /**
  * Registers all Handlebars helpers needed for invoice templates
  */
@@ -98,11 +101,16 @@ const registerHandlebarsHelpers = () => {
     }
   });
   
-  handlebars.registerHelper('calculateArea', (width: number, height: number) => {
-    if (typeof width !== 'number' || typeof height !== 'number') {
-      return '0';
+  handlebars.registerHelper('calculateArea', (widthOrDimensions: number | any, height?: number) => {
+    // Handle both old format (width, height) and new format (dimensions object)
+    if (typeof widthOrDimensions === 'object' && widthOrDimensions !== null) {
+      // New format: dimensions object
+      return calculateStallArea(widthOrDimensions).toFixed(2);
+    } else if (typeof widthOrDimensions === 'number' && typeof height === 'number') {
+      // Old format: width, height parameters
+      return (widthOrDimensions * height).toFixed(2);
     }
-    return (width * height).toFixed(2);
+    return '0';
   });
 };
 
@@ -208,17 +216,20 @@ export const prepareInvoiceData = async (invoice: any, isAdmin: boolean = false)
   // Recalculate totals based on current stall dimensions
   const stalls = bookingId.stallIds.map((stall: any, index: number) => {
     try {
-      const width = stall.dimensions?.width || 0;
-      const height = stall.dimensions?.height || 0;
-      const area = calculateArea(width, height);
+      const area = calculateStallArea(stall.dimensions);
       const rate = stall.ratePerSqm || 0;
       const amount = area * rate;
+      
+      // Format dimensions display based on shape type
+      const dimensionsDisplay = stall.dimensions?.shapeType === 'l-shape' 
+        ? 'L-Shape' 
+        : `${stall.dimensions?.width || 0}m x ${stall.dimensions?.height || 0}m`;
       
       return {
         index: index + 1,
         stallNo: stall.number || `Stall ${index + 1}`,
         stallType: stall.stallTypeId?.name || 'Standard',
-        dimensions: `${width}m x ${height}m`,
+        dimensions: dimensionsDisplay,
         area: Number(area.toFixed(0)),
         rate: rate,
         amount: amount

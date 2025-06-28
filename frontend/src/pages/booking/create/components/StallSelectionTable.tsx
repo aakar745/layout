@@ -4,6 +4,25 @@ import { Stall } from '../../../../services/exhibition';
 
 const { Text } = Typography;
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface StallSelectionTableProps {
   selectedStalls: Stall[];
   calculateBaseAmount: (stall: Stall) => number;
@@ -36,15 +55,20 @@ const StallSelectionTable: React.FC<StallSelectionTableProps> = ({
       title: 'Dimensions',
       key: 'dimensions',
       width: 120,
-      render: (_: any, stall: Stall) => 
-        `${stall.dimensions.width}m × ${stall.dimensions.height}m`
+      render: (_: any, stall: Stall) => {
+        if (stall.dimensions.shapeType === 'l-shape') {
+          return 'L-Shape';
+        }
+        return `${stall.dimensions.width}m × ${stall.dimensions.height}m`;
+      }
     },
     {
       title: 'Area (sqm)',
       key: 'area',
       width: 100,
-      render: (_: any, stall: Stall) => 
-        (stall.dimensions.width * stall.dimensions.height).toFixed(2)
+      render: (_: any, stall: Stall) => {
+        return calculateStallArea(stall.dimensions).toFixed(2);
+      }
     },
     {
       title: 'Rate/sq.m',

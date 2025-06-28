@@ -3,6 +3,7 @@ import { Table, Card, Typography, Tag, Space, Button, Tooltip, Badge, Dropdown, 
 import { DownloadOutlined, EllipsisOutlined, EyeOutlined, EditOutlined, SettingOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import axios from 'axios';
+import { calculateStallArea, formatStallDimensions } from '../../../utils/stallUtils';
 
 const { Text, Title } = Typography;
 
@@ -127,10 +128,9 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
             key: amenity.stallId,
             companyName: amenity.exhibitorName || 'Unknown',
             stallNumber: amenity.stallNumber,
-            dimension: amenity.dimensions ? `${amenity.dimensions.width}x${amenity.dimensions.height}m` : '-',
+            dimension: formatStallDimensions(amenity.dimensions),
             stallType: amenity.stallType || '-',
-            area: amenity.area || (amenity.dimensions?.width && amenity.dimensions?.height ? 
-              amenity.dimensions.width * amenity.dimensions.height : '-'),
+            area: calculateStallArea(amenity.dimensions),
             bookingDate: amenity.bookingDate ? new Date(amenity.bookingDate).toISOString().slice(0, 10) : '-',
             status: amenity.bookingStatus || '-',
             amenities: {},

@@ -421,6 +421,8 @@ const exhibitionSlice = createSlice({
           ...stall,
           id: stall._id || stall.id,
           _id: stall._id || stall.id,
+          // Ensure hallId is a string for proper comparison
+          hallId: typeof stall.hallId === 'string' ? stall.hallId : stall.hallId?.toString() || stall.hallId,
           // Ensure stallTypeId is preserved
           stallTypeId: typeof stall.stallTypeId === 'string' ? stall.stallTypeId : stall.stallTypeId?._id,
           // Keep the stall type information

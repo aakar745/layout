@@ -7,6 +7,7 @@ import Exhibition from '../models/exhibition.model';
 import { createNotification } from './notification.controller';
 import { NotificationType, NotificationPriority } from '../models/notification.model';
 import { logActivity } from '../services/activity.service';
+import { calculateStallArea } from '../utils/stallUtils';
 
 /**
  * Interface defining the structure of a discount configuration
@@ -161,7 +162,7 @@ export const createBooking = async (req: Request, res: Response) => {
     // Calculate base amounts for all stalls
     const stallsWithBase = stalls.map(stall => ({
       stall,
-      baseAmount: Math.round(stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height * 100) / 100
+      baseAmount: Math.round(stall.ratePerSqm * calculateStallArea(stall.dimensions) * 100) / 100
     }));
 
     const totalBaseAmount = stallsWithBase.reduce((sum, s) => sum + s.baseAmount, 0);
@@ -967,12 +968,26 @@ export const getBookingStats = async (req: Request, res: Response) => {
               $unwind: '$stalls'
             },
             {
+              $addFields: {
+                stallArea: {
+                  $cond: {
+                    if: { $eq: ['$stalls.dimensions.shapeType', 'l-shape'] },
+                    then: {
+                      $add: [
+                        { $multiply: ['$stalls.dimensions.lShape.rect1Width', '$stalls.dimensions.lShape.rect1Height'] },
+                        { $multiply: ['$stalls.dimensions.lShape.rect2Width', '$stalls.dimensions.lShape.rect2Height'] }
+                      ]
+                    },
+                    else: { $multiply: ['$stalls.dimensions.width', '$stalls.dimensions.height'] }
+                  }
+                }
+              }
+            },
+            {
               $group: {
                 _id: null,
                 total: { 
-                  $sum: { 
-                    $multiply: ['$stalls.dimensions.width', '$stalls.dimensions.height'] 
-                  } 
+                  $sum: '$stallArea'
                 }
               }
             }
@@ -999,12 +1014,26 @@ export const getBookingStats = async (req: Request, res: Response) => {
           }
         },
         {
+          $addFields: {
+            stallArea: {
+              $cond: {
+                if: { $eq: ['$dimensions.shapeType', 'l-shape'] },
+                then: {
+                  $add: [
+                    { $multiply: ['$dimensions.lShape.rect1Width', '$dimensions.lShape.rect1Height'] },
+                    { $multiply: ['$dimensions.lShape.rect2Width', '$dimensions.lShape.rect2Height'] }
+                  ]
+                },
+                else: { $multiply: ['$dimensions.width', '$dimensions.height'] }
+              }
+            }
+          }
+        },
+        {
           $group: {
             _id: null,
             total: { 
-              $sum: { 
-                $multiply: ['$dimensions.width', '$dimensions.height'] 
-              } 
+              $sum: '$stallArea'
             }
           }
         }
@@ -1013,12 +1042,26 @@ export const getBookingStats = async (req: Request, res: Response) => {
       // If no exhibition selected, get total SQM from all stalls
       totalSQMPipeline = [
         {
+          $addFields: {
+            stallArea: {
+              $cond: {
+                if: { $eq: ['$dimensions.shapeType', 'l-shape'] },
+                then: {
+                  $add: [
+                    { $multiply: ['$dimensions.lShape.rect1Width', '$dimensions.lShape.rect1Height'] },
+                    { $multiply: ['$dimensions.lShape.rect2Width', '$dimensions.lShape.rect2Height'] }
+                  ]
+                },
+                else: { $multiply: ['$dimensions.width', '$dimensions.height'] }
+              }
+            }
+          }
+        },
+        {
           $group: {
             _id: null,
             total: { 
-              $sum: { 
-                $multiply: ['$dimensions.width', '$dimensions.height'] 
-              } 
+              $sum: '$stallArea'
             }
           }
         }

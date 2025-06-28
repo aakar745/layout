@@ -8,6 +8,25 @@ const { Title, Paragraph, Text } = Typography;
 const { Panel } = Collapse;
 const { Option } = Select;
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 // Define interfaces for amenities
 interface BasicAmenity {
   _id?: string;
@@ -60,7 +79,7 @@ const AmenitiesStep: React.FC<StepProps> = ({
   // Calculate total square meters of all selected stalls
   const totalStallArea = useMemo(() => {
     return selectedStallDetails.reduce((total, stall) => {
-      return total + (stall.dimensions.width * stall.dimensions.height);
+      return total + calculateStallArea(stall.dimensions);
     }, 0);
   }, [selectedStallDetails]);
   

@@ -162,9 +162,11 @@ const StallManager: React.FC = () => {
   }, [currentExhibition, exhibitionId, halls, dispatch, hasLoadedInitialData]);
 
   // Filter stalls based on selected hall
-  const visibleStalls = stalls.filter(stall => 
-    stall.hallId === (selectedHall?.id || selectedHall?._id)
-  );
+  const visibleStalls = stalls.filter(stall => {
+    const stallHallId = typeof stall.hallId === 'string' ? stall.hallId : String(stall.hallId || '');
+    const selectedHallId = String(selectedHall?.id || selectedHall?._id || '');
+    return stallHallId === selectedHallId;
+  });
 
   // Load selected hall from URL
   useEffect(() => {

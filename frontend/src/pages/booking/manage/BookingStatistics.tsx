@@ -12,6 +12,25 @@ import {
 import { BookingType } from '../../../pages/booking/manage/types';
 import { BookingStats } from '../../../store/slices/bookingSlice';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface BookingStatisticsProps {
   bookings: BookingType[];
   paginationTotal?: number;
@@ -38,8 +57,8 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
       .filter(b => b.status === 'confirmed' || b.status === 'approved')
       .reduce((sum, booking) => {
         const stallArea = booking.stallIds?.reduce((stallSum, stall) => {
-          if (stall?.dimensions?.width && stall?.dimensions?.height) {
-            return stallSum + (stall.dimensions.width * stall.dimensions.height);
+          if (stall?.dimensions) {
+            return stallSum + calculateStallArea(stall.dimensions);
           }
           return stallSum;
         }, 0) || 0;
@@ -75,8 +94,8 @@ const BookingStatistics: React.FC<BookingStatisticsProps> = ({
       .filter(b => b.status === 'confirmed' || b.status === 'approved')
       .reduce((sum, booking) => {
         const stallArea = booking.stallIds?.reduce((stallSum, stall) => {
-          if (stall?.dimensions?.width && stall?.dimensions?.height) {
-            return stallSum + (stall.dimensions.width * stall.dimensions.height);
+          if (stall?.dimensions) {
+            return stallSum + calculateStallArea(stall.dimensions);
           }
           return stallSum;
         }, 0) || 0;

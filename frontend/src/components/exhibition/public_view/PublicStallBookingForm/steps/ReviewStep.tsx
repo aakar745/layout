@@ -7,6 +7,25 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 
 const { Title, Paragraph, Text } = Typography;
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface CalculatedDiscount {
   name: string;
   type: 'percentage' | 'fixed';
@@ -95,10 +114,12 @@ const ReviewStep: React.FC<StepProps> = ({
         id: stall.id,
         number: stall.number || (stall as any).stallNumber || `Stall ${stall.id}`,
         hallName: stall.hallName || `Hall ${stall.hallId}`,
-        size: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
-        area: stall.dimensions.width * stall.dimensions.height,
+        size: (stall.dimensions as any).shapeType === 'l-shape' 
+          ? 'L-Shape' 
+          : `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
+        area: calculateStallArea(stall.dimensions),
         rate: stall.ratePerSqm,
-        price: stall.price || stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height,
+        price: stall.price || stall.ratePerSqm * calculateStallArea(stall.dimensions),
         type: stall.typeName || stall.type || 'Standard'
       }));
       

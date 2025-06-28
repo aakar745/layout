@@ -8,6 +8,25 @@ import AmenitiesStep from './steps/AmenitiesStep';
 import ReviewStep from './steps/ReviewStep';
 import { StyledModal, StepsNav, StepContent, StyledButton } from './styles';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface PublicStallBookingFormProps {
   visible: boolean;
   stallDetails: any;
@@ -168,7 +187,7 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
         
         // Calculate total stall area
         const totalStallArea = selectedStallDetails.reduce((total: number, stall: any) => 
-          total + (stall.dimensions.width * stall.dimensions.height),
+          total + calculateStallArea(stall.dimensions),
           0
         );
         

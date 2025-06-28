@@ -12,6 +12,7 @@ import api from '../../services/api';
 
 // Import components
 import { AmenitiesFilter, AmenitiesStats, AmenitiesTable } from './components';
+import { calculateStallArea, formatStallDimensions } from '../../utils/stallUtils';
 
 // Import CSS
 import './styles.css';
@@ -193,7 +194,7 @@ const AmenitiesPage: React.FC = () => {
               exhibitorName: booking.companyName,
               bookingDate: booking.createdAt,
               dimensions: stall.dimensions,
-              area: stall.dimensions.width * stall.dimensions.height,
+              area: calculateStallArea(stall.dimensions),
               status: booking.status,
               stallType: stallTypeName
             };
@@ -207,7 +208,7 @@ const AmenitiesPage: React.FC = () => {
               // If no basicAmenities in booking, calculate them from exhibition settings
               // for each stall based on area
               return booking.stallIds.flatMap((stall: any) => {
-                const stallArea = stall.dimensions.width * stall.dimensions.height;
+                const stallArea = calculateStallArea(stall.dimensions);
                 // Use the stall's type property from the populated data, or fall back to stall types map without 'Standard' fallback
                 const stallTypeName = stall.type || (stall.stallTypeId && typeof stall.stallTypeId === 'object' ? 
                   stall.stallTypeId.name : stallTypes[stall.stallTypeId]) || '-';
@@ -247,7 +248,7 @@ const AmenitiesPage: React.FC = () => {
                     exhibitorName: booking.companyName,
                     bookingDate: booking.createdAt,
                     dimensions: stall.dimensions,
-                    area: stall.dimensions.width * stall.dimensions.height,
+                    area: calculateStallArea(stall.dimensions),
                     bookingStatus: booking.status,
                     stallType: stallTypeName
                   };
@@ -268,7 +269,7 @@ const AmenitiesPage: React.FC = () => {
             return booking.extraAmenities.map((amenity: any) => {
               // Collect data from all stalls in the booking
               const stallDimensions = booking.stallIds.map((stall: any) => 
-                `${stall.dimensions.width}x${stall.dimensions.height}m`).join(', ');
+                formatStallDimensions(stall.dimensions)).join(', ');
               
               // Collect all unique stall types
               const stallTypesArray = booking.stallIds.map((stall: any) => {
@@ -291,7 +292,7 @@ const AmenitiesPage: React.FC = () => {
                 bookingDate: booking.createdAt,
                 dimensions: stallDimensions, // All stall dimensions
                 area: booking.stallIds.reduce((total: number, stall: any) => 
-                  total + (stall.dimensions.width * stall.dimensions.height), 0), // Total area of all stalls
+                  total + calculateStallArea(stall.dimensions), 0), // Total area of all stalls
                 bookingStatus: booking.status,
                 stallType: stallTypeDisplay, // All stall types
                 allStalls: booking.stallIds, // Keep reference to all stalls
@@ -321,7 +322,7 @@ const AmenitiesPage: React.FC = () => {
               
               // Collect data from all stalls in the booking
               const stallDimensions = booking.stallIds.map((stall: any) => 
-                `${stall.dimensions.width}x${stall.dimensions.height}m`).join(', ');
+                formatStallDimensions(stall.dimensions)).join(', ');
               
               // Collect all unique stall types
               const stallTypesArray = booking.stallIds.map((stall: any) => {
@@ -344,7 +345,7 @@ const AmenitiesPage: React.FC = () => {
                 bookingDate: booking.createdAt || new Date().toISOString(),
                 dimensions: stallDimensions, // All stall dimensions
                 area: booking.stallIds.reduce((total: number, stall: any) => 
-                  total + (stall.dimensions.width * stall.dimensions.height), 0), // Total area of all stalls
+                  total + calculateStallArea(stall.dimensions), 0), // Total area of all stalls
                 bookingStatus: booking.status || 'approved',
                 stallType: stallTypeDisplay, // All stall types
                 allStalls: booking.stallIds, // Keep reference to all stalls
@@ -558,13 +559,12 @@ const AmenitiesPage: React.FC = () => {
         // Handle stall-level basic amenities (existing logic)
         if (!stallMap.has(amenity.stallId)) {
           const dimensions = amenity.dimensions || { width: 0, height: 0 };
-          const area = amenity.area || 
-            (dimensions.width && dimensions.height ? dimensions.width * dimensions.height : 0);
+          const area = calculateStallArea(dimensions);
           
           stallMap.set(amenity.stallId, {
             'Company Name': amenity.exhibitorName || 'Unknown',
             'Stall No.': amenity.stallNumber,
-            'Dimension': dimensions ? `${dimensions.width}x${dimensions.height}m` : '-',
+            'Dimension': formatStallDimensions(dimensions),
             'Stall Type': amenity.stallType || '-',
             'Area (SQM)': typeof area === 'number' ? area : 0,
             'Booking Date': amenity.bookingDate ? new Date(amenity.bookingDate).toLocaleDateString() : '-',

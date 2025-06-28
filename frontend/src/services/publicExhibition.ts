@@ -76,6 +76,14 @@ export interface PublicLayout {
       dimensions: {
         width: number;
         height: number;
+        shapeType?: 'rectangle' | 'l-shape';
+        lShape?: {
+          rect1Width: number;
+          rect1Height: number;
+          rect2Width: number;
+          rect2Height: number;
+          orientation: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'horizontal' | 'vertical';
+        };
       };
       rotation: number;
       status: 'available' | 'booked' | 'reserved' | 'maintenance';

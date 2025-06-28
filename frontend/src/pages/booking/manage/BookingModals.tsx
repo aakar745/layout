@@ -17,6 +17,25 @@ import { message } from 'antd';
 import { useGetInvoicesQuery } from '../../../store/services/invoice';
 import { invoiceApi } from '../../../store/services/invoice';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 const { Title, Text } = Typography;
 
 interface DetailsModalProps {
@@ -211,8 +230,10 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
                   render: (record: Stall) => (
                     <Tag color="blue">
                       {record.dimensions ? 
-                       `${record.dimensions.width}x${record.dimensions.height}m` : 
-                       'No dimensions'}
+                        (record.dimensions as any).shapeType === 'l-shape' 
+                          ? 'L-Shape' 
+                          : `${record.dimensions.width}x${record.dimensions.height}m`
+                        : 'No dimensions'}
                     </Tag>
                   )
                 },
@@ -265,10 +286,9 @@ export const BookingDetailsModal: React.FC<DetailsModalProps> = ({
               {(() => {
                 // Calculate current amounts based on live stall data
                 const currentBaseAmount = selectedBooking.stallIds.reduce((sum, stall) => {
-                  const width = stall.dimensions?.width || 0;
-                  const height = stall.dimensions?.height || 0;
+                  const area = calculateStallArea(stall.dimensions);
                   const rate = stall.ratePerSqm || 0;
-                  return sum + Math.round(width * height * rate * 100) / 100;
+                  return sum + Math.round(area * rate * 100) / 100;
                 }, 0);
 
                 // Calculate current discount amount

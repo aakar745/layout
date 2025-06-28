@@ -5,6 +5,7 @@ import Stall from '../models/stall.model';
 import Hall from '../models/hall.model';
 import User from '../models/user.model';
 import Exhibitor from '../models/exhibitor.model';
+import { calculateStallArea } from '../utils/stallUtils';
 import mongoose from 'mongoose';
 
 /**
@@ -48,15 +49,15 @@ export const getExhibitionAnalytics = async (req: Request, res: Response) => {
     const availableStalls = stalls.filter(stall => stall.status === 'available').length;
     const reservedStalls = stalls.filter(stall => stall.status === 'reserved').length;
 
-    // Calculate area analytics
+    // Calculate area analytics - using calculateStallArea for proper L-shape support
     const totalSQM = stalls.reduce((total, stall) => {
-      return total + (stall.dimensions.width * stall.dimensions.height);
+      return total + calculateStallArea(stall.dimensions);
     }, 0);
 
     const bookedSQM = stalls
       .filter(stall => stall.status === 'booked')
       .reduce((total, stall) => {
-        return total + (stall.dimensions.width * stall.dimensions.height);
+        return total + calculateStallArea(stall.dimensions);
       }, 0);
 
     // Calculate booking status analytics
@@ -134,7 +135,7 @@ export const getExhibitionAnalytics = async (req: Request, res: Response) => {
       }
       acc[typeName].total++;
       acc[typeName][stall.status]++;
-      const area = stall.dimensions.width * stall.dimensions.height;
+      const area = calculateStallArea(stall.dimensions);
       acc[typeName].totalArea += area;
       if (stall.status === 'booked') {
         acc[typeName].bookedArea += area;
@@ -188,13 +189,13 @@ export const getExhibitionAnalytics = async (req: Request, res: Response) => {
       const reservedStallsInHall = hallStalls.filter(stall => stall.status === 'reserved').length;
 
       const totalAreaInHall = hallStalls.reduce((sum, stall) => {
-        return sum + (stall.dimensions.width * stall.dimensions.height);
+        return sum + calculateStallArea(stall.dimensions);
       }, 0);
 
       const bookedAreaInHall = hallStalls
         .filter(stall => stall.status === 'booked')
         .reduce((sum, stall) => {
-          return sum + (stall.dimensions.width * stall.dimensions.height);
+          return sum + calculateStallArea(stall.dimensions);
         }, 0);
 
       const hallRevenue = hallBookings

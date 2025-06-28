@@ -12,6 +12,25 @@ import { useNavigate } from 'react-router-dom';
 import { BookingType } from './types';
 import { useGetInvoicesQuery, useShareViaEmailMutation, useShareViaWhatsAppMutation } from '../../../store/services/invoice';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface BookingTableProps {
   bookings: BookingType[];
   loading: boolean;
@@ -557,8 +576,10 @@ Exhibition Management Team`;
           {record.stallIds.map((stall, index) => (
             <span key={`dim-${stall._id || index}`}>
               {stall.dimensions ? 
-              `${stall.dimensions.width}m × ${stall.dimensions.height}m` : 
-              'No dimensions'}
+                (stall.dimensions as any).shapeType === 'l-shape' 
+                  ? 'L-Shape' 
+                  : `${stall.dimensions.width}m × ${stall.dimensions.height}m`
+                : 'No dimensions'}
               {index < record.stallIds.length - 1 ? ', ' : ''}
             </span>
           ))}
@@ -573,7 +594,7 @@ Exhibition Management Team`;
         const totalArea = record.stallIds.reduce(
           (sum, stall) => {
             if (!stall.dimensions) return sum;
-            return sum + (stall.dimensions.width * stall.dimensions.height);
+            return sum + calculateStallArea(stall.dimensions);
           }, 
           0
         );
@@ -587,10 +608,9 @@ Exhibition Management Team`;
       render: (_: any, record: BookingType) => {
         // Calculate current base amount based on live stall data
         const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
-          const width = stall.dimensions?.width || 0;
-          const height = stall.dimensions?.height || 0;
+          const area = calculateStallArea(stall.dimensions);
           const rate = stall.ratePerSqm || 0;
-          return sum + Math.round(width * height * rate * 100) / 100;
+          return sum + Math.round(area * rate * 100) / 100;
         }, 0);
         return `₹${currentBaseAmount.toLocaleString()}`;
       }
@@ -602,10 +622,9 @@ Exhibition Management Team`;
       render: (_: any, record: BookingType) => {
         // Calculate current base amount for discount calculation
         const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
-          const width = stall.dimensions?.width || 0;
-          const height = stall.dimensions?.height || 0;
+          const area = calculateStallArea(stall.dimensions);
           const rate = stall.ratePerSqm || 0;
-          return sum + Math.round(width * height * rate * 100) / 100;
+          return sum + Math.round(area * rate * 100) / 100;
         }, 0);
 
         // Get discount info from stored calculations
@@ -656,10 +675,9 @@ Exhibition Management Team`;
       render: (_: any, record: BookingType) => {
         // Calculate current base amount
         const currentBaseAmount = record.stallIds.reduce((sum, stall) => {
-          const width = stall.dimensions?.width || 0;
-          const height = stall.dimensions?.height || 0;
+          const area = calculateStallArea(stall.dimensions);
           const rate = stall.ratePerSqm || 0;
-          return sum + Math.round(width * height * rate * 100) / 100;
+          return sum + Math.round(area * rate * 100) / 100;
         }, 0);
 
         // Calculate current discount amount

@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Space, Input, Typography, Row, Col, Select, message, Tag, Statistic, Button } from 'antd';
-import { SearchOutlined, FilterOutlined, LayoutOutlined, ApartmentOutlined, DownloadOutlined } from '@ant-design/icons';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Card, Table, Space, Input, Typography, Row, Col, Select, message, Tag, Statistic, Button, Modal, Tooltip } from 'antd';
+import { SearchOutlined, FilterOutlined, LayoutOutlined, ApartmentOutlined, DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
 import { fetchExhibition, fetchHalls, fetchStalls } from '../../../store/slices/exhibitionSlice';
 import exhibitionService from '../../../services/exhibition';
+import { calculateStallArea } from '../../../utils/stallUtils';
 import '../../dashboard/Dashboard.css';
 
 const { Title, Text } = Typography;
@@ -222,9 +223,9 @@ const StallList: React.FC = () => {
         'Hall': halls.find(h => h._id === stall.hallId)?.name || 'N/A',
         'Stall Type': stall.stallType?.name || 'N/A',
         'Dimensions (W×H)': `${stall.dimensions.width}×${stall.dimensions.height}`,
-        'Area (sq.m)': stall.dimensions.width * stall.dimensions.height,
+        'Area (sq.m)': calculateStallArea(stall.dimensions),
         'Rate per Sq.m': `₹${stall.ratePerSqm.toLocaleString()}`,
-        'Total Price': `₹${(stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height).toLocaleString()}`,
+        'Total Price': `₹${(stall.ratePerSqm * calculateStallArea(stall.dimensions)).toLocaleString()}`,
         'Status': stall.status.charAt(0).toUpperCase() + stall.status.slice(1),
         'Position (X,Y)': `${stall.dimensions.x},${stall.dimensions.y}`,
         'Created Date': new Date(stall.createdAt || Date.now()).toLocaleDateString(),
@@ -504,8 +505,6 @@ const StallList: React.FC = () => {
             </Card>
           </Col>
 
-
-
           {/* Table */}
           <Col span={24}>
             <Table
@@ -544,15 +543,15 @@ const StallList: React.FC = () => {
                   title: 'Area (sqm)',
                   key: 'area',
                   render: (_: any, record: any) => {
-                    if (record?.dimensions?.width && record?.dimensions?.height) {
-                      const area = record.dimensions.width * record.dimensions.height;
+                    if (record?.dimensions) {
+                      const area = calculateStallArea(record.dimensions);
                       return `${area} sqm`;
                     }
                     return 'N/A';
                   },
                   sorter: (a: any, b: any) => {
-                    const areaA = (a.dimensions?.width || 0) * (a.dimensions?.height || 0);
-                    const areaB = (b.dimensions?.width || 0) * (b.dimensions?.height || 0);
+                    const areaA = a.dimensions ? calculateStallArea(a.dimensions) : 0;
+                    const areaB = b.dimensions ? calculateStallArea(b.dimensions) : 0;
                     return areaA - areaB;
                   },
                 },
@@ -570,15 +569,18 @@ const StallList: React.FC = () => {
                   title: 'Total Price',
                   key: 'totalPrice',
                   render: (_: any, record: any) => {
-                    if (record?.dimensions?.width && record?.dimensions?.height && record.ratePerSqm) {
-                      const total = record.ratePerSqm * record.dimensions.width * record.dimensions.height;
+                    if (record?.dimensions && record.ratePerSqm) {
+                      const area = calculateStallArea(record.dimensions);
+                      const total = record.ratePerSqm * area;
                       return `₹${total.toLocaleString()}`;
                     }
                     return 'N/A';
                   },
                   sorter: (a: any, b: any) => {
-                    const totalA = (a.ratePerSqm || 0) * (a.dimensions?.width || 0) * (a.dimensions?.height || 0);
-                    const totalB = (b.ratePerSqm || 0) * (b.dimensions?.width || 0) * (b.dimensions?.height || 0);
+                    const areaA = a.dimensions ? calculateStallArea(a.dimensions) : 0;
+                    const areaB = b.dimensions ? calculateStallArea(b.dimensions) : 0;
+                    const totalA = (a.ratePerSqm || 0) * areaA;
+                    const totalB = (b.ratePerSqm || 0) * areaB;
                     return totalA - totalB;
                   },
                 },

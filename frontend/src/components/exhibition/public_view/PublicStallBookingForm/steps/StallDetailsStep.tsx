@@ -17,6 +17,25 @@ interface CalculatedDiscount {
   amount: number;
 }
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 const StallDetailsStep: React.FC<StepProps> = ({
   form,
   stallDetails = [],
@@ -122,7 +141,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
     const selectedStalls = stallDetails.filter(stall => internalSelectedStallIds.includes(stall.id));
     
     const baseAmount = selectedStalls.reduce((sum, stall) => 
-      sum + (stall.price || (stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height)), 0);
+      sum + (stall.price || (stall.ratePerSqm * calculateStallArea(stall.dimensions))), 0);
 
     // Find active public discounts and calculate total discount
     const activeDiscounts = exhibition?.publicDiscountConfig?.filter((d: PublicDiscount) => d.isActive) || [];
@@ -223,18 +242,26 @@ const StallDetailsStep: React.FC<StepProps> = ({
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)' 
         }}>
           <Table
-            dataSource={selectedStalls.map(stall => ({
-              ...stall,
-              key: stall.id,
-              price: stall.price || (stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height),
-              area: stall.dimensions.width * stall.dimensions.height,
-              dimensions: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
-              size: `${stall.dimensions.width}m × ${stall.dimensions.height}m`,
-              stallType: stall.stallType || { 
-                name: stall.typeName || stall.type || 'Standard' 
-              },
-              type: stall.typeName || stall.type || 'Standard'
-            }))}
+            dataSource={selectedStalls.map(stall => {
+              const area = calculateStallArea(stall.dimensions);
+              const dimensions = stall.dimensions as any; // Type assertion for L-shape properties
+              const dimensionText = dimensions.shapeType === 'l-shape' 
+                ? 'L-Shape' 
+                : `${stall.dimensions.width}m × ${stall.dimensions.height}m`;
+              
+              return {
+                ...stall,
+                key: stall.id,
+                price: stall.price || (stall.ratePerSqm * area),
+                area: area,
+                dimensions: dimensionText,
+                size: dimensionText,
+                stallType: stall.stallType || { 
+                  name: stall.typeName || stall.type || 'Standard' 
+                },
+                type: stall.typeName || stall.type || 'Standard'
+              };
+            })}
             pagination={false}
             size="middle"
             rowClassName={() => 'stall-table-row'}
@@ -248,7 +275,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 title: 'Stall',
                 dataIndex: 'number',
                 key: 'number',
-                render: (number, record: any) => (
+                render: (number: any, record: any) => (
                   <span style={{ fontWeight: 600, fontSize: '15px' }}>
                     Stall {number || record.stallNumber}
                   </span>
@@ -258,7 +285,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 title: 'Hall',
                 dataIndex: 'hallName',
                 key: 'hallName',
-                render: (hallName, record: any) => (
+                render: (hallName: any, record: any) => (
                   <Tag color="blue" style={{ borderRadius: '4px' }}>
                     {hallName || `Hall ${record.hallId}`}
                   </Tag>
@@ -269,7 +296,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 dataIndex: 'stallType',
                 key: 'stallType',
                 align: 'center',
-                render: (_, record: any) => {
+                render: (_: any, record: any) => {
                   const typeName = record.stallType?.name || record.type || 'Standard';
                   return (
                     <Tag color="purple" style={{ borderRadius: '4px', padding: '2px 8px' }}>
@@ -283,7 +310,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 dataIndex: 'dimensions',
                 key: 'dimensions',
                 align: 'center',
-                render: (dims, record: any) => (
+                render: (dims: any, record: any) => (
                   <Space direction="vertical" size={0}>
                     <span style={{ fontWeight: 500 }}>{dims}</span>
                     <span style={{ color: '#888', fontSize: '13px' }}>{record.area} sqm</span>
@@ -295,7 +322,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 dataIndex: 'ratePerSqm',
                 key: 'ratePerSqm',
                 align: 'right',
-                render: (rate, record: any) => (
+                render: (rate: any, record: any) => (
                   <span style={{ color: '#555' }}>
                     ₹{(record.ratePerSqm || 0).toLocaleString('en-IN')}/sqm
                   </span>
@@ -306,7 +333,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 dataIndex: 'price',
                 key: 'price',
                 align: 'right',
-                render: (price) => (
+                render: (price: any) => (
                   <span style={{ 
                     fontWeight: 600, 
                     color: '#1890ff',
@@ -326,7 +353,7 @@ const StallDetailsStep: React.FC<StepProps> = ({
                 key: 'action',
                 width: 70,
                 align: 'center' as 'center',
-                render: (_, record: any) => (
+                render: (_: any, record: any) => (
                   <Tooltip title="Remove from selection">
                     <Button 
                       type="text" 

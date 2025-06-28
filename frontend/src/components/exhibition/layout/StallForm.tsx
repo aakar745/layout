@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, InputNumber, Modal, Button, Space, Select, Divider, Typography, message } from 'antd';
+import { Form, Input, InputNumber, Modal, Button, Space, Select, Divider, Typography, message, Row, Col, Card } from 'antd';
 import { DeleteOutlined, ShopOutlined } from '@ant-design/icons';
 import { Stall, Hall, Exhibition } from '../../../services/exhibition';
 import stallService, { StallType } from '../../../services/stall';
+import { calculateStallArea } from '../../../utils/stallUtils';
 
 const { Title } = Typography;
 
@@ -28,6 +29,8 @@ const StallForm: React.FC<StallFormProps> = ({
   const [form] = Form.useForm();
   const [stallTypes, setStallTypes] = useState<StallType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [shapeType, setShapeType] = useState<'rectangle' | 'l-shape'>('rectangle');
+  const [previewArea, setPreviewArea] = useState<number>(0);
 
   // Function to find next available position for a new stall
   const findNextAvailablePosition = (
@@ -104,29 +107,81 @@ const StallForm: React.FC<StallFormProps> = ({
 
   // Update form values when stall or hall changes
   useEffect(() => {
-    if (stall) {
+    if (stall && visible) {
       console.log('Setting form values for stall:', stall); // Added logging
+      
       // When editing existing stall
+      const currentShapeType = stall.dimensions.shapeType || 'rectangle';
+      setShapeType(currentShapeType);
+      
+      // Handle stallTypeId - it might be an object or string
+      let stallTypeIdValue: string;
+      if (typeof stall.stallTypeId === 'string') {
+        stallTypeIdValue = stall.stallTypeId;
+      } else if (stall.stallTypeId && typeof stall.stallTypeId === 'object') {
+        stallTypeIdValue = (stall.stallTypeId as any)._id || (stall.stallTypeId as any).id;
+      } else {
+        stallTypeIdValue = '';
+      }
+      
       const formValues = {
         number: stall.number,
-        stallTypeId: stall.stallTypeId,
+        stallTypeId: stallTypeIdValue,
+        shapeType: currentShapeType,
         width: stall.dimensions.width,
         height: stall.dimensions.height,
+        // L-shape values - handle both new corner-based and old orientation values
+        rect1Width: stall.dimensions.lShape?.rect1Width || 0,
+        rect1Height: stall.dimensions.lShape?.rect1Height || 0,
+        rect2Width: stall.dimensions.lShape?.rect2Width || 0,
+        rect2Height: stall.dimensions.lShape?.rect2Height || 0,
+        orientation: stall.dimensions.lShape?.orientation || 'bottom-left',
         ratePerSqm: stall.ratePerSqm,
         status: stall.status
       };
       console.log('Form values to set:', formValues); // Added logging
-      form.setFieldsValue(formValues);
-    } else if (hall && !form.getFieldValue('status')) {
+      
+      // Use setTimeout to ensure form is rendered before setting values
+      setTimeout(() => {
+        form.setFieldsValue(formValues);
+        // Ensure shape type state is properly set after form values
+        setShapeType(currentShapeType);
+      }, 0);
+      
+      // Calculate initial area
+      setPreviewArea(calculateStallArea(stall.dimensions));
+    } else if (hall && visible && !stall) {
       // Only set defaults for new stalls
+      const defaultWidth = Math.min(20, hall.dimensions.width / 4);
+      const defaultHeight = Math.min(20, hall.dimensions.height / 4);
+      
       form.setFieldsValue({
+        shapeType: 'rectangle',
         status: 'available',
-        width: Math.min(20, hall.dimensions.width / 4),
-        height: Math.min(20, hall.dimensions.height / 4),
+        width: defaultWidth,
+        height: defaultHeight,
+        // L-shape defaults
+        rect1Width: Math.floor(defaultWidth * 0.6),
+        rect1Height: defaultHeight,
+        rect2Width: Math.floor(defaultWidth * 0.4),
+        rect2Height: Math.floor(defaultHeight * 0.6),
+        orientation: 'bottom-left',
         ratePerSqm: 0
       });
+      
+      setShapeType('rectangle');
+      setPreviewArea(defaultWidth * defaultHeight);
     }
-  }, [stall, hall, form]);
+  }, [stall, hall, form, visible]);
+
+  // Clean up form when modal is closed
+  useEffect(() => {
+    if (!visible) {
+      form.resetFields();
+      setShapeType('rectangle');
+      setPreviewArea(0);
+    }
+  }, [visible, form]);
 
   // Fetch stall types when form is opened
   useEffect(() => {
@@ -167,8 +222,31 @@ const StallForm: React.FC<StallFormProps> = ({
     }
   };
 
+  // Handle shape type change
+  const handleShapeTypeChange = (newShapeType: 'rectangle' | 'l-shape') => {
+    setShapeType(newShapeType);
+    updatePreviewArea();
+  };
+
+  // Update area preview when dimensions change
+  const updatePreviewArea = () => {
+    const values = form.getFieldsValue();
+    const currentShapeType = values.shapeType || 'rectangle';
+    
+    if (currentShapeType === 'rectangle') {
+      const area = (values.width || 0) * (values.height || 0);
+      setPreviewArea(area);
+    } else if (currentShapeType === 'l-shape') {
+      const rect1Area = (values.rect1Width || 0) * (values.rect1Height || 0);
+      const rect2Area = (values.rect2Width || 0) * (values.rect2Height || 0);
+      setPreviewArea(rect1Area + rect2Area);
+    }
+  };
+
   const handleCancel = () => {
     form.resetFields();
+    setShapeType('rectangle');
+    setPreviewArea(0);
     onCancel();
   };
 
@@ -200,6 +278,8 @@ const StallForm: React.FC<StallFormProps> = ({
         hall.dimensions.height
       );
 
+      const currentShapeType = values.shapeType || 'rectangle';
+      
       const stallData: Stall = {
         id: stall?.id,
         _id: stall?._id,
@@ -208,8 +288,18 @@ const StallForm: React.FC<StallFormProps> = ({
         dimensions: {
           x: stallPosition.x,
           y: stallPosition.y,
-          width: values.width,
-          height: values.height
+          width: currentShapeType === 'rectangle' ? values.width : Math.max(values.rect1Width, values.rect2Width),
+          height: currentShapeType === 'rectangle' ? values.height : Math.max(values.rect1Height, values.rect2Height),
+          shapeType: currentShapeType,
+          ...(currentShapeType === 'l-shape' && {
+            lShape: {
+              rect1Width: values.rect1Width,
+              rect1Height: values.rect1Height,
+              rect2Width: values.rect2Width,
+              rect2Height: values.rect2Height,
+              orientation: values.orientation
+            }
+          })
         },
         ratePerSqm: values.ratePerSqm,
         status: values.status,
@@ -310,50 +400,242 @@ const StallForm: React.FC<StallFormProps> = ({
           </Form.Item>
 
           <Divider orientation="left" plain style={{ margin: '24px 0' }}>
-            Dimensions
+            Shape & Dimensions
           </Divider>
 
-          <Space style={{ width: '100%', gap: '16px' }}>
-            <Form.Item
-              name="width"
-              label="Width (meters)"
-              rules={[
-                { required: true, message: 'Please enter width' },
-                { type: 'number', min: 1, message: 'Width must be at least 1 meter' },
-                { type: 'number', max: hall?.dimensions.width || 100, message: 'Width cannot exceed hall width' }
-              ]}
-              style={{ flex: 1 }}
+          <Form.Item
+            name="shapeType"
+            label="Stall Shape"
+            rules={[{ required: true, message: 'Please select shape type' }]}
+          >
+            <Select
+              placeholder="Select stall shape"
+              size="large"
+              onChange={handleShapeTypeChange}
             >
-              <InputNumber
-                min={1}
-                max={hall?.dimensions.width || 100}
-                style={{ width: '100%' }}
-                size="large"
-                placeholder="Width"
-                addonAfter="m"
-              />
-            </Form.Item>
+              <Select.Option value="rectangle">
+                <Space>
+                  <span>📐</span>
+                  Rectangle
+                </Space>
+              </Select.Option>
+              <Select.Option value="l-shape">
+                <Space>
+                  <span>📐</span>
+                  L-Shape
+                </Space>
+              </Select.Option>
+            </Select>
+          </Form.Item>
 
-            <Form.Item
-              name="height"
-              label="Height (meters)"
-              rules={[
-                { required: true, message: 'Please enter height' },
-                { type: 'number', min: 1, message: 'Height must be at least 1 meter' },
-                { type: 'number', max: hall?.dimensions.height || 100, message: 'Height cannot exceed hall height' }
-              ]}
-              style={{ flex: 1 }}
-            >
-              <InputNumber
-                min={1}
-                max={hall?.dimensions.height || 100}
-                style={{ width: '100%' }}
-                size="large"
-                placeholder="Height"
-                addonAfter="m"
-              />
-            </Form.Item>
-          </Space>
+          {shapeType === 'rectangle' && (
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="width"
+                  label="Width (meters)"
+                  rules={[
+                    { required: true, message: 'Please enter width' },
+                    { type: 'number', min: 1, message: 'Width must be at least 1 meter' },
+                    { type: 'number', max: hall?.dimensions.width || 100, message: 'Width cannot exceed hall width' }
+                  ]}
+                >
+                  <InputNumber
+                    min={1}
+                    max={hall?.dimensions.width || 100}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="Width"
+                    addonAfter="m"
+                    onChange={updatePreviewArea}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="height"
+                  label="Height (meters)"
+                  rules={[
+                    { required: true, message: 'Please enter height' },
+                    { type: 'number', min: 1, message: 'Height must be at least 1 meter' },
+                    { type: 'number', max: hall?.dimensions.height || 100, message: 'Height cannot exceed hall height' }
+                  ]}
+                >
+                  <InputNumber
+                    min={1}
+                    max={hall?.dimensions.height || 100}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="Height"
+                    addonAfter="m"
+                    onChange={updatePreviewArea}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
+
+          {shapeType === 'l-shape' && (
+            <>
+              <Card 
+                size="small" 
+                title="Rectangle 1 Dimensions" 
+                style={{ marginBottom: '16px' }}
+              >
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="rect1Width"
+                      label="Width (meters)"
+                      rules={[
+                        { required: true, message: 'Please enter width' },
+                        { type: 'number', min: 1, message: 'Width must be at least 1 meter' }
+                      ]}
+                    >
+                      <InputNumber
+                        min={1}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Width"
+                        addonAfter="m"
+                        onChange={updatePreviewArea}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="rect1Height"
+                      label="Height (meters)"
+                      rules={[
+                        { required: true, message: 'Please enter height' },
+                        { type: 'number', min: 1, message: 'Height must be at least 1 meter' }
+                      ]}
+                    >
+                      <InputNumber
+                        min={1}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Height"
+                        addonAfter="m"
+                        onChange={updatePreviewArea}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </Card>
+
+              <Card 
+                size="small" 
+                title="Rectangle 2 Dimensions" 
+                style={{ marginBottom: '16px' }}
+              >
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="rect2Width"
+                      label="Width (meters)"
+                      rules={[
+                        { required: true, message: 'Please enter width' },
+                        { type: 'number', min: 1, message: 'Width must be at least 1 meter' }
+                      ]}
+                    >
+                      <InputNumber
+                        min={1}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Width"
+                        addonAfter="m"
+                        onChange={updatePreviewArea}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="rect2Height"
+                      label="Height (meters)"
+                      rules={[
+                        { required: true, message: 'Please enter height' },
+                        { type: 'number', min: 1, message: 'Height must be at least 1 meter' }
+                      ]}
+                    >
+                      <InputNumber
+                        min={1}
+                        style={{ width: '100%' }}
+                        size="large"
+                        placeholder="Height"
+                        addonAfter="m"
+                        onChange={updatePreviewArea}
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item
+                  name="orientation"
+                  label="L-Shape Corner Placement"
+                  rules={[{ required: true, message: 'Please select corner placement' }]}
+                >
+                  <Select
+                    placeholder="Select corner placement"
+                    size="large"
+                  >
+                    <Select.Option value="top-left">
+                      <Space>
+                        <span>┌</span>
+                        Top-Left Corner
+                      </Space>
+                    </Select.Option>
+                    <Select.Option value="top-right">
+                      <Space>
+                        <span>┐</span>
+                        Top-Right Corner
+                      </Space>
+                    </Select.Option>
+                    <Select.Option value="bottom-left">
+                      <Space>
+                        <span>└</span>
+                        Bottom-Left Corner
+                      </Space>
+                    </Select.Option>
+                    <Select.Option value="bottom-right">
+                      <Space>
+                        <span>┘</span>
+                        Bottom-Right Corner
+                      </Space>
+                    </Select.Option>
+                  </Select>
+                </Form.Item>
+              </Card>
+            </>
+          )}
+
+          {/* Area Preview */}
+          <Card 
+            size="small" 
+            style={{ 
+              background: '#f6ffed', 
+              border: '1px solid #b7eb8f',
+              marginBottom: '16px'
+            }}
+          >
+            <Row justify="space-between" align="middle">
+              <Col>
+                <Space>
+                  <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
+                    📐 Total Area:
+                  </span>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#389e0d' }}>
+                    {previewArea.toFixed(2)} sqm
+                  </span>
+                </Space>
+              </Col>
+              <Col>
+                <span style={{ color: '#73d13d' }}>
+                  Real-time calculation
+                </span>
+              </Col>
+            </Row>
+          </Card>
 
           <Divider orientation="left" plain style={{ margin: '24px 0' }}>
             Details

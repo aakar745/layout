@@ -5,6 +5,25 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import api from '../../services/api';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 interface Stall {
   _id: string;
   number: string;
@@ -152,7 +171,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
 
   const stallData = booking.stallIds.map((stall: Stall, index: number) => {
     const typedStall = stall as StallWithType;
-    const area = stall.dimensions.width * stall.dimensions.height;
+    const area = calculateStallArea(stall.dimensions);
     const amount = area * stall.ratePerSqm;
     
     return {
@@ -160,7 +179,9 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ booking }) => {
       sn: index + 1,
       stallNo: stall.number,
       stallType: typedStall.stallTypeId?.name || 'Standard',
-      dimensions: `${stall.dimensions.width}m x ${stall.dimensions.height}m`,
+      dimensions: (stall.dimensions as any).shapeType === 'l-shape' 
+        ? 'L-Shape' 
+        : `${stall.dimensions.width}m x ${stall.dimensions.height}m`,
       area: area.toFixed(0),
       rate: stall.ratePerSqm.toFixed(0),
       amount: amount

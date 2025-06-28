@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from '
 import { Group, Rect, Text, Circle, Label, Tag } from 'react-konva';
 import { Stall as StallType } from '../../../services/exhibition';
 import Konva from 'konva';
+import StallRenderer from '../layout/StallRenderer';
+import { calculateStallArea } from '../../../utils/stallUtils';
 
 // Extend the StallType to include optional properties
 interface ExtendedStallType extends StallType {
@@ -203,17 +205,22 @@ const Stall: React.FC<StallProps> = ({
     }).format(price);
   };
   
-  const price = stall.ratePerSqm * dimensions.width * dimensions.height;
+  const area = calculateStallArea(dimensions);
+  const price = stall.ratePerSqm * area;
 
   // Always reset rotation to 0 regardless of what's passed in
   const stallRotation = 0;
   
   // Optimize tooltip content with memoization
   const tooltipText = useMemo(() => {
+    const shapeInfo = (dimensions as any).shapeType === 'l-shape' 
+      ? `L-Shape (${area.toFixed(1)} sqm)`
+      : `${dimensions.width}×${dimensions.height}m`;
+    
     return stall.status !== 'available' && stall.companyName 
-      ? `${stallType} - ${dimensions.width}×${dimensions.height}m - ${stall.companyName}`
-      : `${stallType} - ${dimensions.width}×${dimensions.height}m`;
-  }, [stallType, dimensions.width, dimensions.height, stall.status, stall.companyName]);
+      ? `${stallType} - ${shapeInfo} - ${stall.companyName}`
+      : `${stallType} - ${shapeInfo}`;
+  }, [stallType, dimensions, area, stall.status, stall.companyName]);
 
   return (
     <Group
@@ -235,9 +242,8 @@ const Stall: React.FC<StallProps> = ({
       listening={isDragging ? false : (!isMobile || stall.status === 'available')} // Disable listening during drag
       transformsEnabled={isDragging ? 'position' : (isMobile ? 'position' : 'all')} // Simplify transforms during drag
     >
-      <Rect
-        width={dimensions.width}
-        height={dimensions.height}
+      <StallRenderer
+        dimensions={dimensions}
         fill={isStallSelected ? "rgba(24, 144, 255, 0.1)" : getStatusFillColor(stall.status)}
         stroke={isStallSelected ? "#1890ff" : getStatusColor(stall.status)}
         strokeWidth={isStallSelected ? 2 / scale : 1 / scale}

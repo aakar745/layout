@@ -1,5 +1,24 @@
 import { Stall, Exhibition } from '../../../../services/exhibition';
 
+// Inline utility function to calculate stall area
+const calculateStallArea = (dimensions: any) => {
+  if (!dimensions) return 0;
+  
+  const shapeType = dimensions.shapeType || 'rectangle';
+  
+  if (shapeType === 'rectangle') {
+    return dimensions.width * dimensions.height;
+  }
+  
+  if (shapeType === 'l-shape' && dimensions.lShape) {
+    const { rect1Width, rect1Height, rect2Width, rect2Height } = dimensions.lShape;
+    return (rect1Width * rect1Height) + (rect2Width * rect2Height);
+  }
+  
+  // Fallback to rectangle
+  return dimensions.width * dimensions.height;
+};
+
 export interface Tax {
   name: string;
   rate: number;
@@ -24,10 +43,11 @@ export interface AmountCalculation {
 
 /**
  * Calculates the base amount for a stall
- * Base amount = Rate per square meter × Width × Height
+ * Base amount = Rate per square meter × Actual Area (supports L-shapes)
  */
 export const calculateBaseAmount = (stall: Stall): number => {
-  return Math.round(stall.ratePerSqm * stall.dimensions.width * stall.dimensions.height * 100) / 100;
+  const area = calculateStallArea(stall.dimensions);
+  return Math.round(stall.ratePerSqm * area * 100) / 100;
 };
 
 /**

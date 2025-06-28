@@ -52,8 +52,9 @@ export const generateLetterContent = async (
     const stalls = await Stall.find({ _id: { $in: booking.stallIds } });
     const stallNumbers = stalls.map(stall => stall.number).join(', ');
 
-    // Calculate total stall area (width * height for each stall)
-    const totalArea = stalls.reduce((sum, stall) => sum + (stall.dimensions.width * stall.dimensions.height), 0);
+    // Calculate total stall area (supports both rectangular and L-shape stalls)  
+    const { calculateStallArea } = await import('../utils/stallUtils');
+    const totalArea = stalls.reduce((sum, stall) => sum + calculateStallArea(stall.dimensions), 0);
     
     // Format payment status
     const paymentStatus = booking.paymentStatus === 'paid' ? 'PAID IN FULL' : 

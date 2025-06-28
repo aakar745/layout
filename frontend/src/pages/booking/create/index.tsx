@@ -34,6 +34,7 @@ import {
   calculateBasicAmenitiesQuantities,
   AmountCalculation 
 } from './utils/calculations';
+import { calculateStallArea } from '../../../utils/stallUtils';
 
 const { Title, Text } = Typography;
 
@@ -116,7 +117,7 @@ const CreateBooking: React.FC = () => {
 
     // Calculate total area
     const totalArea = selected.reduce(
-      (sum, stall) => sum + (stall.dimensions.width * stall.dimensions.height),
+      (sum, stall) => sum + calculateStallArea(stall.dimensions),
       0
     );
     setTotalStallArea(totalArea);
@@ -423,10 +424,16 @@ const CreateBooking: React.FC = () => {
                       loading={stallsLoading}
                       onChange={handleStallChange}
                       style={{ borderRadius: '8px' }}
-                      options={stalls.map(stall => ({
-                        label: `Stall ${stall.number} (${stall.dimensions.width}m × ${stall.dimensions.height}m = ${(stall.dimensions.width * stall.dimensions.height).toFixed(2)} sqm) - ₹${stall.ratePerSqm.toLocaleString()}/sq.m`,
-                        value: stall._id || stall.id
-                      }))}
+                      options={stalls.map(stall => {
+                        const area = calculateStallArea(stall.dimensions);
+                        const shapeInfo = stall.dimensions.shapeType === 'l-shape' 
+                          ? `L-Shape = ${area.toFixed(2)} sqm`
+                          : `${stall.dimensions.width}m × ${stall.dimensions.height}m = ${area.toFixed(2)} sqm`;
+                        return {
+                          label: `Stall ${stall.number} (${shapeInfo}) - ₹${stall.ratePerSqm.toLocaleString()}/sq.m`,
+                          value: stall._id || stall.id
+                        };
+                      })}
                     />
                   </Form.Item>
                 </Col>

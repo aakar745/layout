@@ -10,6 +10,14 @@ export interface IStall extends Document {
     y: number;
     width: number;
     height: number;
+    shapeType?: 'rectangle' | 'l-shape';
+    lShape?: {
+      rect1Width: number;
+      rect1Height: number;
+      rect2Width: number;
+      rect2Height: number;
+      orientation: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'horizontal' | 'vertical';
+    };
   };
   ratePerSqm: number;
   status: 'available' | 'reserved' | 'booked';
@@ -55,6 +63,22 @@ const stallSchema = new Schema({
       type: Number,
       required: true,
     },
+    shapeType: {
+      type: String,
+      enum: ['rectangle', 'l-shape'],
+      default: 'rectangle'
+    },
+    lShape: {
+      rect1Width: Number,
+      rect1Height: Number,
+      rect2Width: Number,
+      rect2Height: Number,
+      orientation: {
+        type: String,
+        enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'horizontal', 'vertical'],
+        default: 'bottom-left'
+      }
+    }
   },
   ratePerSqm: {
     type: Number,
