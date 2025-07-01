@@ -19,13 +19,14 @@ interface StallProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onClick?: () => void;
-  onChange?: (stall: StallType) => void;
+  onChange?: (stall: ExtendedStallType) => void;
   hallWidth?: number;
   hallHeight?: number;
   hallX?: number;
   hallY?: number;
   scale?: number;
   isDragging?: boolean;
+  isLargeDataset?: boolean; // New prop for performance optimization
 }
 
 const Stall: React.FC<StallProps> = ({
@@ -38,7 +39,8 @@ const Stall: React.FC<StallProps> = ({
   hallX = 0,
   hallY = 0,
   scale = 1,
-  isDragging = false
+  isDragging = false,
+  isLargeDataset = false
 }) => {
   const shapeRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -47,6 +49,8 @@ const Stall: React.FC<StallProps> = ({
   
   // Detect mobile for optimizations
   useEffect(() => {
+    if (isLargeDataset) return; // Skip unnecessary effects for large datasets
+    
     setIsMobile(window.innerWidth < 768);
     
     const handleResize = () => {
@@ -55,10 +59,12 @@ const Stall: React.FC<StallProps> = ({
     
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [isLargeDataset]);
   
-  // Optimize tooltip visibility with debouncing
+  // Optimize tooltip visibility with debouncing - disabled for large datasets
   useEffect(() => {
+    if (isLargeDataset) return;
+    
     if (isHovered && !isDragging) {
       // Show tooltip immediately when hovered (but not during dragging)
       setTooltipVisible(true);
@@ -74,10 +80,12 @@ const Stall: React.FC<StallProps> = ({
         return () => clearTimeout(timer);
       }
     }
-  }, [isHovered, isDragging]);
+  }, [isHovered, isDragging, isLargeDataset]);
 
-  // Optimize top layer management
+  // Optimize top layer management - disabled for large datasets
   useEffect(() => {
+    if (isLargeDataset) return;
+    
     if (isHovered && shapeRef.current && !isDragging) {
       // Skip during dragging for better performance
       // On mobile, only move to top if actually selected
@@ -88,7 +96,7 @@ const Stall: React.FC<StallProps> = ({
         shapeRef.current.moveToTop();
       }
     }
-  }, [isHovered, isSelected, isMobile, isDragging]);
+  }, [isHovered, isSelected, isMobile, isDragging, isLargeDataset]);
 
   // Use either the prop or the stall object's isSelected property
   const isStallSelected = isSelected || stall.isSelected;
@@ -176,15 +184,17 @@ const Stall: React.FC<StallProps> = ({
     }
   }, [onSelect, isDragging]);
   
-  // Optimize hover behavior especially for mobile
+  // Optimize hover behavior especially for mobile - simplified for large datasets
   const handleMouseEnter = useCallback(() => {
+    if (isLargeDataset) return; // Disable hover for large datasets
     if ((isMobile && !isStallSelected) || isDragging) return;
     setIsHovered(true);
-  }, [isMobile, isStallSelected, isDragging]);
+  }, [isMobile, isStallSelected, isDragging, isLargeDataset]);
   
   const handleMouseLeave = useCallback(() => {
+    if (isLargeDataset) return; // Disable hover for large datasets
     setIsHovered(false);
-  }, []);
+  }, [isLargeDataset]);
 
   const defaultDimensions = {
     x: 0,
@@ -215,7 +225,7 @@ const Stall: React.FC<StallProps> = ({
   const tooltipText = useMemo(() => {
     const shapeInfo = (dimensions as any).shapeType === 'l-shape' 
       ? `L-Shape (${area.toFixed(1)} sqm)`
-      : `${dimensions.width}×${dimensions.height}m`;
+      : `${dimensions.width}m x ${dimensions.height}m`;
     
     return stall.status !== 'available' && stall.companyName 
       ? `${stallType} - ${shapeInfo} - ${stall.companyName}`
@@ -247,31 +257,32 @@ const Stall: React.FC<StallProps> = ({
         fill={isStallSelected ? "rgba(24, 144, 255, 0.1)" : getStatusFillColor(stall.status)}
         stroke={isStallSelected ? "#1890ff" : getStatusColor(stall.status)}
         strokeWidth={isStallSelected ? 2 / scale : 1 / scale}
-        shadowColor="rgba(0,0,0,0.1)"
-        shadowBlur={isDragging ? 0 : (isMobile ? 2 : 3)} // Disable shadows during dragging for better performance
+        shadowColor={isLargeDataset ? "transparent" : "rgba(0,0,0,0.1)"}
+        shadowBlur={isLargeDataset ? 0 : (isDragging ? 0 : (isMobile ? 2 : 3))} // Disable shadows for large datasets
         shadowOffset={{ x: 1, y: 1 }}
-        shadowOpacity={isDragging ? 0 : 0.3} // Disable shadows during dragging
+        shadowOpacity={isLargeDataset ? 0 : (isDragging ? 0 : 0.3)} // Disable shadows for large datasets
         rotation={stallRotation}
-        perfectDrawEnabled={!isDragging} // Disable perfect drawing during dragging
+        perfectDrawEnabled={!isDragging && !isLargeDataset} // Disable perfect drawing for large datasets
         transformsEnabled={isDragging ? 'position' : 'all'} // Simplify transforms during drag
-        cornerRadius={0.05} // Slight corner rounding for better appearance
+        cornerRadius={isLargeDataset ? 0 : 0.05} // Remove corner radius for large datasets
       />
       <Text
         text={stall.number}
-        fontSize={Math.min(dimensions.width, dimensions.height) * 0.25}
+        fontSize={Math.min(dimensions.width, dimensions.height) * (isLargeDataset ? 0.2 : 0.25)} // Smaller text for large datasets
         fill="#000000"
         width={dimensions.width}
         height={dimensions.height}
         align="center"
         verticalAlign="middle"
         transformsEnabled="position"
-        perfectDrawEnabled={!isDragging} // Disable perfect drawing during dragging
-        fontStyle="bold" // Make text more readable
+        perfectDrawEnabled={!isDragging && !isLargeDataset} // Disable perfect drawing for large datasets
+        fontStyle={isLargeDataset ? "normal" : "bold"} // Normal weight for large datasets
         listening={false} // Text doesn't need to listen for events
+        visible={!isLargeDataset || dimensions.width > 2} // Hide text for small stalls in large datasets
       />
       
-      {/* Only show selection indicator when not dragging */}
-      {isStallSelected && !isDragging && (
+      {/* Only show selection indicator when not dragging and not in large dataset mode */}
+      {isStallSelected && !isDragging && !isLargeDataset && (
         <Circle
           x={dimensions.width - 2}
           y={2}
@@ -284,39 +295,34 @@ const Stall: React.FC<StallProps> = ({
         />
       )}
 
-      {/* Only show tooltip when not dragging */}
-      {tooltipVisible && !isDragging && (
+      {/* Only show tooltip when not dragging and not in large dataset mode */}
+      {tooltipVisible && !isDragging && !isLargeDataset && (
         <Label
           x={dimensions.width / 2}
-          y={0}
-          opacity={1}
-          listening={false} // Label doesn't need to listen for events
+          y={-5 / scale} // Scale the vertical offset
+          opacity={0.9}
+          listening={false}
         >
           <Tag
-            fill="rgba(0, 0, 0, 1.0)"
-            cornerRadius={0.5}
+            fill="#333"
+            cornerRadius={3 / scale} // Scale the corner radius
             pointerDirection="down"
-            pointerWidth={4}
-            pointerHeight={2}
-            lineJoin="round"
-            y={-7}
-            listening={false} // Tag doesn't need to listen for events
+            pointerWidth={6 / scale} // Scale the pointer width
+            pointerHeight={4 / scale} // Scale the pointer height
+            shadowColor="rgba(0,0,0,0.3)"
+            shadowBlur={2 / scale} // Scale the shadow blur
+            shadowOffset={{ x: 1 / scale, y: 1 / scale }} // Scale shadow offset
+            shadowOpacity={0.8}
           />
           <Text
             text={tooltipText}
-            fontSize={1.2}
-            fill="#ffffff"
+            fontFamily="Arial"
+            fontSize={Math.max(16 / scale, Math.min(22 / scale, (dimensions.width * 0.25) / scale))} // Further increased font size
+            padding={12 / scale} // Further increased padding
+            fill="white"
             align="center"
-            padding={2}
-            y={-7}
-            offsetY={0}
-            width={Math.max(
-              tooltipText.length * 0.7,
-              25
-            )}
-            height={3}
-            verticalAlign="middle"
-            listening={false} // Text doesn't need to listen for events
+            width={Math.max(100 / scale, (tooltipText.length * 10) / scale)} // Further increased width
+            listening={false}
           />
         </Label>
       )}

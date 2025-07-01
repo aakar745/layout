@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, Button, Space, App } from 'antd';
-import { PlusOutlined, RollbackOutlined, CloseOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { Card, Button, Space, App, Tag } from 'antd';
+import { PlusOutlined, RollbackOutlined, CloseOutlined, ArrowLeftOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../../store/store';
@@ -149,7 +149,11 @@ const StallManager: React.FC = () => {
       const fetchAllStalls = async () => {
         try {
           const allStallsPromises = halls.map(hall => 
-            dispatch(fetchStalls({ exhibitionId, hallId: hall.id })).unwrap()
+            dispatch(fetchStalls({ 
+              exhibitionId, 
+              hallId: hall.id, 
+              limit: 1000 // Ensure we get all stalls for each hall
+            })).unwrap()
           );
           await Promise.all(allStallsPromises);
         } catch (error) {
@@ -316,7 +320,11 @@ const StallManager: React.FC = () => {
 
       setIsStallFormVisible(false);
       // Use the same hall ID that's used in the useEffect for fetching stalls
-      dispatch(fetchStalls({ exhibitionId, hallId: fetchHallId }));
+      dispatch(fetchStalls({ 
+        exhibitionId, 
+        hallId: fetchHallId, 
+        limit: 1000 // Ensure we get all stalls
+      }));
     } catch (error: any) {
       console.error('Error saving stall:', error);
       message.error(error.response?.data?.message || 'Failed to save stall');
@@ -354,7 +362,8 @@ const StallManager: React.FC = () => {
       // The Redux slice will now preserve stalls from other halls
       await dispatch(fetchStalls({ 
         exhibitionId, 
-        hallId 
+        hallId,
+        limit: 1000 // Ensure we get all stalls
       })).unwrap();
       
       message.success('Stall deleted successfully');
@@ -392,7 +401,11 @@ const StallManager: React.FC = () => {
         id: stallId, // Ensure the ID is included in the update
         hallId // Include the hall ID in the update
       });
-      dispatch(fetchStalls({ exhibitionId, hallId: fetchHallId }));
+      dispatch(fetchStalls({ 
+        exhibitionId, 
+        hallId: fetchHallId, 
+        limit: 1000 // Ensure we get all stalls
+      }));
     } catch (error: any) {
       console.error('Stall update error:', error);
       message.error(error.response?.data?.message || 'Failed to update stall position');
@@ -412,7 +425,16 @@ const StallManager: React.FC = () => {
         </div>
 
         <Card
-          title="Stall Manager"
+          title={
+            <Space>
+              <span>Stall Manager</span>
+              {stalls.length > 100 && (
+                <Tag color="orange" icon={<InfoCircleOutlined />}>
+                  Performance Mode: {stalls.length} stalls (viewport culling active)
+                </Tag>
+              )}
+            </Space>
+          }
           extra={
             <Space>
               <Button
@@ -434,6 +456,27 @@ const StallManager: React.FC = () => {
           style={{ flex: 1 }}
           bodyStyle={{ height: 'calc(100% - 57px)' }}
         >
+          {stalls.length > 500 && (
+            <div style={{ 
+              padding: '12px', 
+              background: '#fff7e6', 
+              border: '1px solid #ffd591', 
+              borderRadius: '6px', 
+              marginBottom: '16px',
+              fontSize: '14px'
+            }}>
+              <Space>
+                <InfoCircleOutlined style={{ color: '#fa8c16' }} />
+                <div>
+                  <strong>Large Dataset Optimization Active</strong><br />
+                  <span style={{ color: '#666' }}>
+                    {stalls.length} stalls detected. Advanced performance optimizations are enabled including 
+                    viewport culling and simplified rendering. Use zoom and pan to navigate efficiently.
+                  </span>
+                </div>
+              </Space>
+            </div>
+          )}
           <div
             ref={canvasContainerRef}
             style={{
@@ -467,6 +510,7 @@ const StallManager: React.FC = () => {
                     hallHeight={selectedHall.dimensions.height}
                     hallX={selectedHall.dimensions.x}
                     hallY={selectedHall.dimensions.y}
+                    isLargeDataset={stalls.length > 100}
                   />
                 ))}
               </Canvas>

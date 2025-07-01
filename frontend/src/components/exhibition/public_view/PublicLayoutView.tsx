@@ -635,8 +635,8 @@ const PublicLayoutView: React.FC = () => {
                       color: '#1890ff'
                     }} />
                     <span>
-                      {new Date(layout.exhibition.startDate).toLocaleDateString()} - 
-                      {new Date(layout.exhibition.endDate).toLocaleDateString()}
+                      {new Date(layout.exhibition.startDate).toLocaleDateString('en-GB')} to {''}
+                      {new Date(layout.exhibition.endDate).toLocaleDateString('en-GB')}
                     </span>
                   </p>
                   <p style={{ 

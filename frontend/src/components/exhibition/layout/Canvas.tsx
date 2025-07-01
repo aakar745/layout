@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Stage, Layer, FastLayer } from 'react-konva';
 import { Button, Space } from 'antd';
 import { ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
@@ -94,6 +94,87 @@ const Canvas: React.FC<CanvasProps> = ({
     };
   }, []);
 
+  // Calculate which elements are visible in the current viewport
+  const getVisibleBounds = useCallback(() => {
+    if (!stageRef.current) return null;
+    
+    const stage = stageRef.current;
+    const transform = stage.getAbsoluteTransform().copy().invert();
+    
+    // Get stage bounds in world coordinates
+    const topLeft = transform.point({ x: 0, y: 0 });
+    const bottomRight = transform.point({ 
+      x: stage.width(), 
+      y: stage.height() 
+    });
+    
+    // Add padding for smooth scrolling
+    const padding = Math.max(exhibitionWidth, exhibitionHeight) * 0.1;
+    
+    return {
+      left: topLeft.x - padding,
+      top: topLeft.y - padding,
+      right: bottomRight.x + padding,
+      bottom: bottomRight.y + padding
+    };
+  }, [exhibitionWidth, exhibitionHeight]);
+
+  // Check if an element is visible in the viewport
+  const isElementVisible = useCallback((x: number, y: number, width: number, height: number) => {
+    const bounds = getVisibleBounds();
+    if (!bounds) return true; // Render all if bounds can't be calculated
+    
+    return !(
+      x + width < bounds.left ||
+      x > bounds.right ||
+      y + height < bounds.top ||
+      y > bounds.bottom
+    );
+  }, [getVisibleBounds]);
+
+  // Memoize visible stalls calculation
+  const visibleStalls = useMemo(() => {
+    if (!stalls || stalls.length === 0) return stalls;
+    
+    // For stall manager mode with many stalls, use viewport culling
+    if (isStallMode && stalls.length > 50) {
+      return stalls.filter(stall => {
+        const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
+        if (!hall) return false;
+        
+        const x = hall.dimensions.x + stall.dimensions.x;
+        const y = hall.dimensions.y + stall.dimensions.y;
+        
+        return isElementVisible(x, y, stall.dimensions.width, stall.dimensions.height);
+      });
+    }
+    
+    return stalls;
+  }, [stalls, halls, isStallMode, isElementVisible]);
+
+  // Optimize rendering for large datasets
+  const shouldOptimizeForLargeDataset = stalls?.length > 100;
+
+  // Update viewport visibility on transform changes
+  const [, forceUpdate] = useState({});
+  const updateViewport = useCallback(() => {
+    if (shouldOptimizeForLargeDataset) {
+      forceUpdate({});
+    }
+  }, [shouldOptimizeForLargeDataset]);
+
+  // Debounced viewport update
+  const debouncedUpdateViewport = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(updateViewport, 100);
+      };
+    })(),
+    [updateViewport]
+  );
+
   const handleWheel = useCallback((e: any) => {
     e.evt.preventDefault();
     if (!stageRef.current) return;
@@ -118,7 +199,10 @@ const Canvas: React.FC<CanvasProps> = ({
 
     setScale(limitedScale);
     setPosition(newPos);
-  }, [scale]);
+    
+    // Update viewport for culling
+    debouncedUpdateViewport();
+  }, [scale, debouncedUpdateViewport]);
 
   const handleZoomIn = useCallback(() => {
     if (!stageRef.current) return;
@@ -140,7 +224,10 @@ const Canvas: React.FC<CanvasProps> = ({
     
     setScale(newScale);
     setPosition(newPos);
-  }, [scale, position]);
+    
+    // Update viewport for culling
+    debouncedUpdateViewport();
+  }, [scale, position, debouncedUpdateViewport]);
 
   const handleZoomOut = useCallback(() => {
     if (!stageRef.current) return;
@@ -162,7 +249,10 @@ const Canvas: React.FC<CanvasProps> = ({
     
     setScale(newScale);
     setPosition(newPos);
-  }, [scale, position]);
+    
+    // Update viewport for culling
+    debouncedUpdateViewport();
+  }, [scale, position, debouncedUpdateViewport]);
 
   const optimizeForDragging = useCallback((enable: boolean) => {
     if (enable) {
@@ -306,8 +396,11 @@ const Canvas: React.FC<CanvasProps> = ({
       }, 50);
       
       setIsDragging(false);
+      
+      // Update viewport for culling after drag ends
+      debouncedUpdateViewport();
     }
-  }, [isPublicView, optimizeForDragging]);
+  }, [isPublicView, optimizeForDragging, debouncedUpdateViewport]);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -539,10 +632,15 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
-        perfectDrawEnabled={!isDragging && !isPublicView}
+        perfectDrawEnabled={!isDragging && !isPublicView && !shouldOptimizeForLargeDataset}
         hitGraphEnabled={!isDragging}
-        pixelRatio={isDragging ? (isMobile ? 0.8 : 1) : Math.min(1.5, window.devicePixelRatio || 1)}
+        pixelRatio={
+          shouldOptimizeForLargeDataset 
+            ? (isDragging ? 0.5 : 0.8) // Lower quality for large datasets
+            : (isDragging ? (isMobile ? 0.8 : 1) : Math.min(1.5, window.devicePixelRatio || 1))
+        }
         dragDistance={isPublicView ? (isMobile ? 5 : 3) : 0}
+        listening={!shouldOptimizeForLargeDataset || !isDragging} // Reduce event listening for performance
       >
         {isPublicView && (
           <FastLayer 
@@ -555,7 +653,9 @@ const Canvas: React.FC<CanvasProps> = ({
 
         <Layer 
           ref={layerRef}
-          imageSmoothingEnabled={!isDragging || !isPublicView}
+          imageSmoothingEnabled={!isDragging && !shouldOptimizeForLargeDataset}
+          perfectDrawEnabled={!isDragging && !shouldOptimizeForLargeDataset}
+          hitGraphEnabled={!isDragging}
         >
           {!isPublicView && (
             <ExhibitionSpace
@@ -585,7 +685,7 @@ const Canvas: React.FC<CanvasProps> = ({
             />
           ))}
           
-          {stalls.map((stall) => {
+          {visibleStalls.map((stall) => {
             const stallId = stall._id || stall.id;
             const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
             

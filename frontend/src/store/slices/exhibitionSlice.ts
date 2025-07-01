@@ -162,7 +162,7 @@ export const fetchStalls = createAsyncThunk(
     exhibitionId, 
     hallId, 
     page = 1, 
-    limit = 10, 
+    limit = 1000,
     search, 
     status, 
     sortBy = 'number', 
@@ -180,7 +180,7 @@ export const fetchStalls = createAsyncThunk(
     sortOrder?: string;
     minPrice?: number;
     maxPrice?: number;
-  }, { rejectWithValue }) => {
+  }, { rejectWithValue, getState }) => {
     try {
       if (!exhibitionId) {
         throw new Error('Exhibition ID is required');
@@ -195,7 +195,12 @@ export const fetchStalls = createAsyncThunk(
         minPrice,
         maxPrice
       });
-      return response.data;
+      
+      // Return both the response data and the hallId for proper state management
+      return {
+        ...response.data,
+        hallId
+      };
     } catch (error: any) {
       return rejectWithValue(error.message);
     }
@@ -415,6 +420,7 @@ const exhibitionSlice = createSlice({
         const isNewFormat = payload && typeof payload === 'object' && 'stalls' in payload;
         const stallsData = isNewFormat ? payload.stalls : payload;
         const paginationData = isNewFormat ? payload.pagination : null;
+        const hallId = payload.hallId;
         
         // Process stalls with proper type handling
         const processedStalls = (Array.isArray(stallsData) ? stallsData : []).map((stall: any) => ({
@@ -432,8 +438,19 @@ const exhibitionSlice = createSlice({
           }
         }));
 
-        // Update stalls
-        state.stalls = processedStalls;
+        if (hallId) {
+          // If fetching for a specific hall, merge with existing stalls from other halls
+          const existingStallsFromOtherHalls = state.stalls.filter(stall => {
+            const stallHallId = typeof stall.hallId === 'string' ? stall.hallId : String(stall.hallId || '');
+            return stallHallId !== hallId;
+          });
+          
+          // Combine stalls: existing stalls from other halls + new stalls from current hall
+          state.stalls = [...existingStallsFromOtherHalls, ...processedStalls];
+        } else {
+          // If fetching all stalls (no specific hall), replace entirely
+          state.stalls = processedStalls;
+        }
         
         // Update pagination if available
         if (paginationData) {

@@ -428,9 +428,9 @@ const CreateBooking: React.FC = () => {
                         const area = calculateStallArea(stall.dimensions);
                         const shapeInfo = stall.dimensions.shapeType === 'l-shape' 
                           ? `L-Shape = ${area.toFixed(2)} sqm`
-                          : `${stall.dimensions.width}m × ${stall.dimensions.height}m = ${area.toFixed(2)} sqm`;
+                          : `${stall.dimensions.width}m x ${stall.dimensions.height}m = ${area.toFixed(2)} sqm`;
                         return {
-                          label: `Stall ${stall.number} (${shapeInfo}) - ₹${stall.ratePerSqm.toLocaleString()}/sq.m`,
+                          label: `${stall.number} (${shapeInfo}) - ₹${stall.ratePerSqm.toLocaleString()}/sq.m`,
                           value: stall._id || stall.id
                         };
                       })}

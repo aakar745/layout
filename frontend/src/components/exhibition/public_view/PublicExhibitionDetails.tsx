@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Card, Button, Space, Layout, Spin, Result, Typography, Row, Col, 
-  Divider, Tag, Statistic, Avatar, Badge, Tooltip, Breadcrumb
+  Divider, Tag, Statistic, Avatar, Badge, Tooltip, Breadcrumb, Progress
 } from 'antd';
 import { 
   CalendarOutlined, EnvironmentOutlined, InfoCircleOutlined,
   ClockCircleOutlined, ArrowLeftOutlined, LayoutOutlined, 
-  TeamOutlined, ShopOutlined, HomeOutlined
+  TeamOutlined, ShopOutlined, HomeOutlined, ShareAltOutlined,
+  StarOutlined, CalendarOutlined as CalendarAddOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import publicExhibitionService, { PublicExhibition } from '../../../services/publicExhibition';
@@ -117,6 +118,12 @@ const PublicExhibitionDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bgImage, setBgImage] = useState<string>('https://images.unsplash.com/photo-1567419099214-0dd03b43e8de?q=80&w=1932&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+  const [stallStats, setStallStats] = useState({
+    total: 0,
+    available: 0,
+    booked: 0,
+    percentage: 0
+  });
 
   useEffect(() => {
     const fetchExhibition = async () => {
@@ -127,20 +134,37 @@ const PublicExhibitionDetails: React.FC = () => {
         }
         setLoading(true);
         setError(null);
-        const response = await publicExhibitionService.getExhibition(id);
-        setExhibition(response.data);
+        
+        // Fetch both exhibition details and layout data for stall statistics
+        const [exhibitionResponse, layoutResponse] = await Promise.all([
+          publicExhibitionService.getExhibition(id),
+          publicExhibitionService.getLayout(id).catch(() => null) // Layout might not exist
+        ]);
+        
+        setExhibition(exhibitionResponse.data);
+        
+        // Calculate stall statistics from layout data
+        if (layoutResponse?.data?.layout) {
+          const allStalls = layoutResponse.data.layout.flatMap(hall => hall.stalls || []);
+          const total = allStalls.length;
+          const available = allStalls.filter(stall => stall.status === 'available').length;
+          const booked = allStalls.filter(stall => stall.status === 'booked').length;
+          const percentage = total > 0 ? Math.round((available / total) * 100) : 0;
+          
+          setStallStats({ total, available, booked, percentage });
+        }
         
         // Set background image if available
-        if ((response.data as any).headerBackground) {
-          const imageUrl = getOptimizedImageUrl((response.data as any).headerBackground);
+        if ((exhibitionResponse.data as any).headerBackground) {
+          const imageUrl = getOptimizedImageUrl((exhibitionResponse.data as any).headerBackground);
           setBgImage(imageUrl);
           
           // Preload background image
           const imgElement = new (window as any).Image();
           imgElement.src = imageUrl;
-        } else if (response.data.headerLogo) {
+        } else if (exhibitionResponse.data.headerLogo) {
           // If no header image is available, we can try to use the logo
-          const logoUrl = getOptimizedImageUrl(response.data.headerLogo);
+          const logoUrl = getOptimizedImageUrl(exhibitionResponse.data.headerLogo);
           // Just preload the logo, but don't set it as background
           const imgElement = new (window as any).Image();
           imgElement.src = logoUrl;
@@ -155,6 +179,39 @@ const PublicExhibitionDetails: React.FC = () => {
 
     fetchExhibition();
   }, [id]);
+
+  // Share functionality
+  const handleShare = async () => {
+    const shareData = {
+      title: exhibition?.name || 'Exhibition',
+      text: exhibition?.description || 'Check out this exhibition',
+      url: window.location.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        // Fallback to copying URL
+        navigator.clipboard.writeText(window.location.href);
+      }
+    } else {
+      // Fallback to copying URL
+      navigator.clipboard.writeText(window.location.href);
+    }
+  };
+
+  // Add to calendar functionality
+  const handleAddToCalendar = () => {
+    if (!exhibition) return;
+    
+    const startDate = new Date(exhibition.startDate);
+    const endDate = new Date(exhibition.endDate);
+    
+    const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(exhibition.name)}&dates=${startDate.toISOString().replace(/[-:]/g, '').split('.')[0]}Z/${endDate.toISOString().replace(/[-:]/g, '').split('.')[0]}Z&details=${encodeURIComponent(exhibition.description)}&location=${encodeURIComponent(exhibition.venue || '')}`;
+    
+    window.open(googleCalendarUrl, '_blank');
+  };
 
   if (loading) {
     return (
@@ -282,6 +339,25 @@ const PublicExhibitionDetails: React.FC = () => {
                     Exhibitor Access
                   </Button>
                 )}
+                
+                {/* New action buttons */}
+                <Button
+                  size="large"
+                  icon={<ShareAltOutlined />}
+                  onClick={handleShare}
+                  className="action-button share-button"
+                >
+                  Share
+                </Button>
+                
+                <Button
+                  size="large"
+                  icon={<CalendarAddOutlined />}
+                  onClick={handleAddToCalendar}
+                  className="action-button calendar-button"
+                >
+                  Add to Calendar
+                </Button>
               </div>
             </div>
           </div>
@@ -290,19 +366,19 @@ const PublicExhibitionDetails: React.FC = () => {
         {/* Quick Stats Section */}
         <div className="stats-container">
           <Row gutter={[16, 16]} className="stats-row">
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <div className="stat-card">
                 <div className="stat-icon duration-icon">
                   <CalendarOutlined />
                 </div>
                 <div className="stat-content">
-                  <div className="stat-value">{Math.ceil((new Date(exhibition.endDate).getTime() - new Date(exhibition.startDate).getTime()) / (1000 * 60 * 60 * 24))}</div>
+                  <div className="stat-value">{Math.ceil((new Date(exhibition.endDate).getTime() - new Date(exhibition.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1}</div>
                   <div className="stat-label">Days Duration</div>
                 </div>
               </div>
             </Col>
             
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <div className="stat-card">
                 <div className="stat-icon countdown-icon">
                   <ClockCircleOutlined />
@@ -314,7 +390,7 @@ const PublicExhibitionDetails: React.FC = () => {
               </div>
             </Col>
             
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <div className="stat-card">
                 <div className="stat-icon status-icon" style={{ backgroundColor: color + '20', color: color }}>
                   <InfoCircleOutlined />
@@ -322,6 +398,27 @@ const PublicExhibitionDetails: React.FC = () => {
                 <div className="stat-content">
                   <div className="stat-value status-value" style={{ color }}>{status}</div>
                   <div className="stat-label">Status</div>
+                </div>
+              </div>
+            </Col>
+            
+            {/* New stall availability stat */}
+            <Col xs={24} sm={6}>
+              <div className="stat-card">
+                <div className="stat-icon availability-icon">
+                  <ShopOutlined />
+                </div>
+                <div className="stat-content">
+                  <div className="stat-value">{stallStats.available}</div>
+                  <div className="stat-label">Available Stalls</div>
+                  {stallStats.total > 0 && (
+                    <Progress 
+                      percent={stallStats.percentage} 
+                      size="small" 
+                      strokeColor="#52c41a"
+                      style={{ marginTop: 4 }}
+                    />
+                  )}
                 </div>
               </div>
             </Col>
@@ -411,6 +508,24 @@ const PublicExhibitionDetails: React.FC = () => {
                         <div className="info-content">
                           <Text type="secondary" className="info-label">Venue</Text>
                           <div className="info-value">{exhibition.venue}</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* New stall information */}
+                    {stallStats.total > 0 && (
+                      <div className="info-item">
+                        <div className="info-icon stall-info-icon">
+                          <ShopOutlined />
+                        </div>
+                        <div className="info-content">
+                          <Text type="secondary" className="info-label">Stall Availability</Text>
+                          <div className="info-value">
+                            {stallStats.available} of {stallStats.total} available
+                          </div>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {stallStats.booked} already booked
+                          </Text>
                         </div>
                       </div>
                     )}
@@ -556,6 +671,32 @@ const PublicExhibitionDetails: React.FC = () => {
           transform: translateY(-2px);
         }
         
+        .share-button {
+          border-color: rgba(255, 255, 255, 0.3);
+          color: white;
+          background: transparent;
+        }
+        
+        .share-button:hover {
+          border-color: white;
+          color: white;
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateY(-2px);
+        }
+        
+        .calendar-button {
+          border-color: rgba(255, 255, 255, 0.3);
+          color: white;
+          background: transparent;
+        }
+        
+        .calendar-button:hover {
+          border-color: white;
+          color: white;
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateY(-2px);
+        }
+        
         /* Stats Section */
         .stats-container {
           max-width: 1280px;
@@ -606,6 +747,11 @@ const PublicExhibitionDetails: React.FC = () => {
         .countdown-icon {
           background-color: #f7257520;
           color: #f72575;
+        }
+        
+        .availability-icon {
+          background-color: #52c41a20;
+          color: #52c41a;
         }
         
         .stat-content {
@@ -820,6 +966,11 @@ const PublicExhibitionDetails: React.FC = () => {
         .venue-icon {
           background-color: #0ea5e920;
           color: #0ea5e9;
+        }
+        
+        .stall-info-icon {
+          background-color: #52c41a20;
+          color: #52c41a;
         }
         
         .info-content {
