@@ -35,19 +35,19 @@ export const sendOTPViaWhatsApp = async (
 
     console.log(`[INFO] Sending WhatsApp OTP to: ${formattedPhone}`);
 
-    // Prepare JSON payload for OTP template (APPROVED VERSION)
+    // Prepare JSON payload for OTP template (NEW APPROVED VERSION)
     const templatePayload = {
       message: "OTP verification for exhibitor registration",
       brodcast_service: "whatsapp_credits",
       broadcast_name: `exhibitor_otp_${Date.now()}`,
-      template_id: "exhibitor_otp_verification", // ✅ APPROVED TEMPLATE
+      template_id: "aakarnew27", // ✅ NEW APPROVED TEMPLATE
       schedule_date: new Date().toISOString().split('T')[0],
       schedule_time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
       contacts: formattedPhone,
-      // Template parameters for approved template
-      attribute2: companyName || 'Exhibitor',        // {{1}} - Company name
-      attribute3: otp,                               // {{2}} - OTP code
-      attribute4: expiryMinutes.toString()           // {{3}} - Expiry minutes
+      // Template parameters for approved template (text-only, no header, no buttons)
+      // Template body: "{{1}}is your verification code."
+      // API maps attribute2 to {{1}}, attribute3 to {{2}}, etc.
+      attribute2: otp  // {{1}} - OTP code only
     };
 
     console.log(`[DEBUG] WhatsApp OTP template payload:`, templatePayload);

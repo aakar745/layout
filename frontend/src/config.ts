@@ -1,7 +1,7 @@
 // API URL based on environment
 const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 export const apiUrl = isProduction 
-  ? 'https://aakardata.in/api'
+  ? 'https://aakarbooking.com/api'
   : 'http://localhost:5000/api';
 
 // TinyMCE API Key - This is a default key for quick testing only!

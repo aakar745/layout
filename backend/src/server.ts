@@ -61,10 +61,10 @@ app.use(cors({
       'http://localhost:5173',
       'http://localhost:3000',
       'http://127.0.0.1:5173',
-      'https://aakardata.in',
-      'https://www.aakardata.in',
-      'http://aakardata.in',
-      'http://www.aakardata.in'
+      'https://aakarbooking.com',
+      'https://www.aakarbooking.com',
+      'http://aakarbooking.com',
+      'http://www.aakarbooking.com'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
@@ -87,10 +87,10 @@ app.use((req, res, next) => {
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
-    'https://aakardata.in',
-    'https://www.aakardata.in',
-    'http://aakardata.in',
-    'http://www.aakardata.in'
+    'https://aakarbooking.com',
+    'https://www.aakarbooking.com',
+    'http://aakarbooking.com',
+    'http://www.aakarbooking.com'
   ];
   
   if (origin && allowedOrigins.includes(origin)) {
@@ -132,10 +132,10 @@ app.use('/api/uploads', protectStatic, (req, res, next) => {
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
-    'https://aakardata.in',
-    'https://www.aakardata.in',
-    'http://aakardata.in',
-    'http://www.aakardata.in'
+    'https://aakarbooking.com',
+    'https://www.aakarbooking.com',
+    'http://aakarbooking.com',
+    'http://www.aakarbooking.com'
   ];
   
   if (origin && allowedOrigins.includes(origin)) {
@@ -158,10 +158,10 @@ app.use('/api/public/uploads', (req, res, next) => {
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
-    'https://aakardata.in',
-    'https://www.aakardata.in',
-    'http://aakardata.in',
-    'http://www.aakardata.in'
+    'https://aakarbooking.com',
+    'https://www.aakarbooking.com',
+    'http://aakarbooking.com',
+    'http://www.aakarbooking.com'
   ];
   
   if (origin && allowedOrigins.includes(origin)) {
