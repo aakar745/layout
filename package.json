@@ -1,0 +1,39 @@
+{
+  "name": "exhibition-management-system",
+  "version": "1.0.0",
+  "description": "Exhibition Management System",
+  "scripts": {
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "start": "cd backend && npm run start",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "exhibition",
+    "management",
+    "booking",
+    "stalls"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/moment": "^2.11.29",
+    "@types/xlsx": "^0.0.35",
+    "file-saver": "^2.0.5",
+    "moment": "^2.30.1",
+    "xlsx": "^0.18.5"
+  }
+}
