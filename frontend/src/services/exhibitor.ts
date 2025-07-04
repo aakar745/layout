@@ -110,7 +110,8 @@ export interface ExhibitorRegistrationData {
 }
 
 export interface ExhibitorLoginData {
-  email: string;
+  email?: string;
+  phone?: string;
   password: string;
 }
 
@@ -118,8 +119,10 @@ export interface ExhibitorLoginData {
  * OTP verification data interface
  */
 export interface OTPVerificationData {
-  email: string;
+  email?: string;
+  phone?: string;
   otp: string;
+  verificationType?: 'email' | 'whatsapp';
 }
 
 /**
@@ -139,6 +142,14 @@ export interface PasswordResetData {
 }
 
 /**
+ * WhatsApp OTP request data
+ */
+export interface WhatsAppOTPRequestData {
+  phone: string;
+  companyName: string;
+}
+
+/**
  * Exhibitor Service
  * 
  * Provides API methods for exhibitor-related operations
@@ -152,10 +163,19 @@ const exhibitorService = {
   sendRegistrationOTP: async (email: string) => {
     return await publicApi.post('/exhibitors/send-otp', { email });
   },
+
+  /**
+   * Send OTP to WhatsApp for registration verification
+   * @param data Phone number and company name for WhatsApp OTP
+   * @returns API response
+   */
+  sendWhatsAppOTP: async (data: WhatsAppOTPRequestData) => {
+    return await publicApi.post('/exhibitors/send-whatsapp-otp', data);
+  },
   
   /**
-   * Verify OTP for registration
-   * @param data Email and OTP for verification
+   * Verify OTP for registration (supports both email and WhatsApp)
+   * @param data Email/Phone and OTP for verification
    * @returns API response with verification status
    */
   verifyOTP: async (data: OTPVerificationData) => {

@@ -1,0 +1,611 @@
+.service-charges-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 64px);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 0 8px;
+}
+
+.page-header h2 {
+  margin: 0;
+  color: #1d1d1d;
+  font-weight: 600;
+}
+
+.stats-row {
+  margin-bottom: 24px;
+}
+
+.stats-row .ant-card {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.stats-row .ant-statistic-title {
+  color: #8c8c8c;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.stats-row .ant-statistic-content {
+  color: #1d1d1d;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.service-charges-page .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+.service-charges-page .ant-table {
+  background: #fff;
+}
+
+.service-charges-page .ant-table-thead > tr > th {
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  color: #262626;
+  font-weight: 600;
+}
+
+.service-charges-page .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 16px;
+}
+
+.service-charges-page .ant-table-tbody > tr:hover > td {
+  background: #fafafa;
+}
+
+.service-charges-page .ant-tag {
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.service-charges-page .ant-btn {
+  border-radius: 6px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.service-charges-page .ant-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+}
+
+.service-charges-page .ant-btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+}
+
+.service-charge-details {
+  padding: 16px 0;
+}
+
+.service-charge-details p {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.service-charge-details strong {
+  color: #262626;
+  font-weight: 600;
+  display: inline-block;
+  min-width: 120px;
+}
+
+.filter-drawer .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.filter-drawer .ant-form-item-label > label {
+  font-weight: 600;
+  color: #262626;
+}
+
+.service-charges-page .ant-modal {
+  border-radius: 8px;
+}
+
+.service-charges-page .ant-modal-header {
+  border-radius: 8px 8px 0 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.service-charges-page .ant-modal-title {
+  font-weight: 600;
+  color: #262626;
+}
+
+.service-charges-page .ant-modal-body {
+  padding: 24px;
+}
+
+.service-charges-page .ant-modal-footer {
+  border-top: 1px solid #f0f0f0;
+  padding: 16px 24px;
+  border-radius: 0 0 8px 8px;
+}
+
+.service-charges-page .ant-drawer-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.service-charges-page .ant-drawer-title {
+  font-weight: 600;
+  color: #262626;
+}
+
+.service-charges-page .ant-drawer-body {
+  padding: 24px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .service-charges-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .stats-row {
+    margin-bottom: 16px;
+  }
+  
+  .stats-row .ant-col {
+    margin-bottom: 16px;
+  }
+  
+  .service-charges-page .ant-table {
+    font-size: 12px;
+  }
+  
+  .service-charges-page .ant-table-thead > tr > th,
+  .service-charges-page .ant-table-tbody > tr > td {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .service-charges-page {
+    padding: 12px;
+  }
+  
+  .page-header h2 {
+    font-size: 20px;
+  }
+  
+  .service-charges-page .ant-btn {
+    font-size: 12px;
+    height: 32px;
+    padding: 4px 12px;
+  }
+  
+  .service-charges-page .ant-modal {
+    margin: 0;
+    max-width: 100%;
+  }
+  
+  .service-charges-page .ant-drawer {
+    width: 100% !important;
+  }
+}
+
+/* Custom status colors */
+.service-charges-page .ant-tag.ant-tag-green {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+  color: #52c41a;
+}
+
+.service-charges-page .ant-tag.ant-tag-orange {
+  background: #fff7e6;
+  border-color: #ffd591;
+  color: #fa8c16;
+}
+
+.service-charges-page .ant-tag.ant-tag-red {
+  background: #fff2f0;
+  border-color: #ffb3b3;
+  color: #ff4d4f;
+}
+
+.service-charges-page .ant-tag.ant-tag-purple {
+  background: #f9f0ff;
+  border-color: #d3adf7;
+  color: #722ed1;
+}
+
+/* Table actions */
+.service-charges-page .ant-dropdown-trigger {
+  background: #fafafa;
+  border: 1px solid #d9d9d9;
+  color: #595959;
+}
+
+.service-charges-page .ant-dropdown-trigger:hover {
+  background: #f0f0f0;
+  border-color: #40a9ff;
+  color: #1890ff;
+}
+
+/* Form styling */
+.service-charges-page .ant-form-item-label > label {
+  font-weight: 600;
+  color: #262626;
+}
+
+.service-charges-page .ant-input,
+.service-charges-page .ant-select-selector,
+.service-charges-page .ant-picker {
+  border-radius: 6px;
+}
+
+.service-charges-page .ant-input:focus,
+.service-charges-page .ant-select-focused .ant-select-selector,
+.service-charges-page .ant-picker-focused {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* Tabs styling */
+.service-charges-page .ant-tabs-tab {
+  padding: 12px 0;
+  margin-right: 32px;
+  font-weight: 500;
+}
+
+.service-charges-page .ant-tabs-tab-active {
+  font-weight: 600;
+}
+
+.service-charges-page .ant-tabs-ink-bar {
+  background: #1890ff;
+}
+
+/* Loading state */
+.service-charges-page .ant-spin-container {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.service-charges-page .ant-spin-dot {
+  color: #1890ff;
+}
+
+/* Empty state */
+.service-charges-page .ant-empty {
+  padding: 40px 0;
+}
+
+.service-charges-page .ant-empty-description {
+  color: #8c8c8c;
+}
+
+/* Pagination styling */
+.service-charges-page .ant-pagination {
+  margin-top: 16px;
+  text-align: right;
+}
+
+.service-charges-page .ant-pagination-item {
+  border-radius: 4px;
+}
+
+.service-charges-page .ant-pagination-item-active {
+  background: #1890ff;
+  border-color: #1890ff;
+}
+
+.service-charges-page .ant-pagination-item-active a {
+  color: #fff;
+}
+
+/* Success and error states */
+.service-charges-page .success-text {
+  color: #52c41a;
+  font-weight: 500;
+}
+
+.service-charges-page .error-text {
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+.service-charges-page .warning-text {
+  color: #fa8c16;
+  font-weight: 500;
+}
+
+/* Public Service Charge Form Styles */
+.public-service-charge-form {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-container {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.header-card {
+  margin-bottom: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.header-card .ant-card-body {
+  padding: 32px;
+}
+
+.steps-card {
+  margin-bottom: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.steps-card .ant-steps {
+  padding: 24px 32px;
+}
+
+.step-card {
+  margin-bottom: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.step-card .ant-card-head {
+  border-radius: 12px 12px 0 0;
+  background: #fafafa;
+}
+
+.step-card .ant-card-body {
+  padding: 32px;
+}
+
+.actions-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.actions-card .ant-card-body {
+  padding: 24px 32px;
+}
+
+.payment-summary {
+  margin-bottom: 24px;
+}
+
+.payment-total {
+  text-align: center;
+  padding: 24px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin: 24px 0;
+}
+
+.payment-total .ant-typography {
+  margin: 0;
+  color: #1890ff;
+}
+
+.success-card {
+  text-align: center;
+}
+
+.success-card .success-details {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.success-card .ant-card-body {
+  padding: 48px 32px;
+}
+
+/* Form styling */
+.public-service-charge-form .ant-form-item-label > label {
+  font-weight: 600;
+  color: #262626;
+}
+
+.public-service-charge-form .ant-input,
+.public-service-charge-form .ant-select-selector,
+.public-service-charge-form .ant-input-affix-wrapper {
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s;
+}
+
+.public-service-charge-form .ant-input:focus,
+.public-service-charge-form .ant-select-focused .ant-select-selector,
+.public-service-charge-form .ant-input-affix-wrapper:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.public-service-charge-form .ant-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  height: 40px;
+  min-width: 120px;
+}
+
+.public-service-charge-form .ant-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.public-service-charge-form .ant-btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  transform: translateY(-1px);
+}
+
+.public-service-charge-form .ant-steps-item-finish .ant-steps-icon {
+  background-color: #52c41a;
+  border-color: #52c41a;
+}
+
+.public-service-charge-form .ant-steps-item-process .ant-steps-icon {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+/* Responsive design for public form */
+@media (max-width: 768px) {
+  .public-service-charge-form {
+    padding: 16px;
+  }
+  
+  .form-container {
+    max-width: 100%;
+  }
+  
+  .header-card .ant-card-body,
+  .step-card .ant-card-body {
+    padding: 24px 16px;
+  }
+  
+  .steps-card .ant-steps {
+    padding: 16px;
+  }
+  
+  .actions-card .ant-card-body {
+    padding: 16px;
+  }
+  
+  .payment-total {
+    padding: 16px;
+  }
+  
+  .success-card .ant-card-body {
+    padding: 32px 16px;
+  }
+}
+
+@media (max-width: 576px) {
+  .public-service-charge-form {
+    padding: 12px;
+  }
+  
+  .header-card .ant-card-body {
+    padding: 16px 12px;
+  }
+  
+  .step-card .ant-card-body {
+    padding: 16px 12px;
+  }
+  
+  .actions-card .ant-card-body {
+    padding: 12px;
+  }
+  
+  .steps-card .ant-steps {
+    padding: 12px;
+  }
+  
+  .payment-total {
+    padding: 12px;
+  }
+  
+  .payment-total .ant-typography {
+    font-size: 20px;
+  }
+}
+
+/* Custom Select Dropdown Styling */
+.service-charges-page .ant-select-dropdown {
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.service-charges-page .ant-select-item {
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: all 0.2s ease;
+}
+
+.service-charges-page .ant-select-item:hover {
+  background-color: #f0f7ff !important;
+  border-radius: 6px;
+}
+
+.service-charges-page .ant-select-item-option-selected {
+  background-color: #e6f7ff !important;
+  border-radius: 6px;
+}
+
+.service-charges-page .ant-select-item-option-active {
+  background-color: #f0f7ff !important;
+}
+
+/* Exhibition Card Styling */
+.exhibition-info-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.exhibition-info-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Service Type Cards */
+.service-charges-page .ant-table-row:hover {
+  background-color: #fafafa;
+  cursor: pointer;
+}
+
+/* Settings Page Specific */
+.service-charges-settings {
+  min-height: calc(100vh - 120px);
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 24px;
+}
+
+/* Form Styling */
+.service-charges-page .ant-form-item-label > label {
+  font-weight: 600;
+  color: #262626;
+}
+
+.service-charges-page .ant-card-head-title {
+  font-weight: 600;
+  color: #1d1d1d;
+}
+
+/* Responsive improvements */
+@media (max-width: 992px) {
+  .service-charges-page .ant-col {
+    margin-bottom: 16px;
+  }
+} 

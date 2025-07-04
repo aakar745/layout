@@ -9,19 +9,22 @@ import {
   Steps,
   Row,
   Col,
-  Typography
+  Typography,
+  Radio,
+  Space
 } from 'antd';
 import { 
   UserOutlined, 
   MailOutlined,
   PhoneOutlined,
   HomeOutlined,
-  LockOutlined
+  LockOutlined,
+  MessageOutlined
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../../store/store';
 import { hideLoginModal, showLoginModal } from '../../store/slices/exhibitorAuthSlice';
-import exhibitorService, { ExhibitorLoginData, ExhibitorRegistrationData, OTPVerificationData } from '../../services/exhibitor';
+import exhibitorService, { ExhibitorLoginData, ExhibitorRegistrationData, OTPVerificationData, WhatsAppOTPRequestData } from '../../services/exhibitor';
 import { message } from 'antd';
 
 const { Step } = Steps;
@@ -56,20 +59,41 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
   
   // Registration states
   const [registerStep, setRegisterStep] = useState<number>(0);
+  const [verificationMethod, setVerificationMethod] = useState<'email' | 'whatsapp'>('email');
   const [emailForOTP, setEmailForOTP] = useState<string>('');
+  const [phoneForOTP, setPhoneForOTP] = useState<string>('');
   const [otpSent, setOtpSent] = useState<boolean>(false);
   const [otpVerified, setOtpVerified] = useState<boolean>(false);
   const [otpResendTimer, setOtpResendTimer] = useState<number>(0);
-  const [step1Data, setStep1Data] = useState<{companyName: string; contactPerson: string}>({ companyName: '', contactPerson: '' });
+  const [step1Data, setStep1Data] = useState<{companyName: string; contactPerson: string; email: string; phone: string}>({ 
+    companyName: '', 
+    contactPerson: '', 
+    email: '', 
+    phone: '' 
+  });
   const otpTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // State for login method selection
+  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
+
   // Login form submission
-  const handleLoginSubmit = async (values: ExhibitorLoginData) => {
+  const handleLoginSubmit = async (values: any) => {
     try {
       setError(null);
       setLoading(true);
       
-      const response = await exhibitorService.login(values);
+      // Prepare login data based on selected method
+      const loginData: any = {
+        password: values.password
+      };
+      
+      if (loginMethod === 'email') {
+        loginData.email = values.loginIdentifier;
+      } else {
+        loginData.phone = values.loginIdentifier;
+      }
+      
+      const response = await exhibitorService.login(loginData);
       const { exhibitor, token } = response.data;
       
       if (!exhibitor || !token) {
@@ -108,27 +132,40 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
     }
   };
 
-  // Function to handle sending OTP
+  // Function to handle sending OTP (both email and WhatsApp)
   const handleSendOTP = async () => {
     try {
-      // Validate email field
-      const values = await registerForm.validateFields(['email', 'companyName', 'contactPerson']);
+      // Validate required fields
+      const values = await registerForm.validateFields(['email', 'phone', 'companyName', 'contactPerson']);
       
       setLoading(true);
       setError(null);
-      setEmailForOTP(values.email);
       
       // Save Step 1 data to state for use in final registration
       setStep1Data({
         companyName: values.companyName,
-        contactPerson: values.contactPerson
+        contactPerson: values.contactPerson,
+        email: values.email,
+        phone: values.phone
       });
       
-      // Call API to send OTP
-      await exhibitorService.sendRegistrationOTP(values.email);
+      // Send OTP based on selected method
+      if (verificationMethod === 'email') {
+        setEmailForOTP(values.email);
+        await exhibitorService.sendRegistrationOTP(values.email);
+        message.success('OTP sent to your email address');
+      } else {
+        // WhatsApp OTP
+        setPhoneForOTP(values.phone);
+        const whatsappData: WhatsAppOTPRequestData = {
+          phone: values.phone,
+          companyName: values.companyName
+        };
+        await exhibitorService.sendWhatsAppOTP(whatsappData);
+        message.success('OTP sent to your WhatsApp number');
+      }
       
       setOtpSent(true);
-      message.success('OTP sent to your email address');
       
       // Start resend timer (60 seconds)
       setOtpResendTimer(60);
@@ -175,10 +212,19 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
       setLoading(true);
       setError(null);
       
-      // Call API to resend OTP
-      await exhibitorService.sendRegistrationOTP(emailForOTP);
-      
-      message.success('New OTP sent to your email address');
+      // Resend OTP based on selected method
+      if (verificationMethod === 'email') {
+        await exhibitorService.sendRegistrationOTP(emailForOTP);
+        message.success('New OTP sent to your email address');
+      } else {
+        // WhatsApp OTP
+        const whatsappData: WhatsAppOTPRequestData = {
+          phone: phoneForOTP,
+          companyName: step1Data.companyName
+        };
+        await exhibitorService.sendWhatsAppOTP(whatsappData);
+        message.success('New OTP sent to your WhatsApp number');
+      }
       
       // Reset and start timer
       setOtpResendTimer(60);
@@ -200,14 +246,21 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
       
       // Call API to verify OTP
       const verificationData: OTPVerificationData = {
-        email: emailForOTP,
-        otp: values.otp
+        otp: values.otp,
+        verificationType: verificationMethod
       };
+      
+      // Add appropriate identifier based on verification method
+      if (verificationMethod === 'email') {
+        verificationData.email = emailForOTP;
+      } else {
+        verificationData.phone = phoneForOTP;
+      }
       
       await exhibitorService.verifyOTP(verificationData);
       
       setOtpVerified(true);
-      message.success('Email verified successfully');
+      message.success(`${verificationMethod === 'email' ? 'Email' : 'Phone number'} verified successfully`);
       
       // Clear OTP timer
       if (otpTimerRef.current) {
@@ -230,9 +283,11 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
     setOtpSent(false);
     setOtpVerified(false);
     setEmailForOTP('');
+    setPhoneForOTP('');
+    setVerificationMethod('email');
     setOtpResendTimer(0);
     setRegisterStep(0);
-    setStep1Data({ companyName: '', contactPerson: '' });
+    setStep1Data({ companyName: '', contactPerson: '', email: '', phone: '' });
     
     if (otpTimerRef.current) {
       clearInterval(otpTimerRef.current);
@@ -247,19 +302,20 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
       setError(null);
       setLoading(true);
       
-      // Make sure email is verified
+      // Make sure verification is completed
       if (!otpVerified) {
-        setError('Email verification required');
+        setError(`${verificationMethod === 'email' ? 'Email' : 'Phone number'} verification required`);
         return;
       }
       
-      // Remove confirmPassword before sending to API and use the verified email
+      // Remove confirmPassword before sending to API and use the verified data
       const { confirmPassword, ...registrationData } = values as any;
       
       // Use the stored step 1 data from state
       const completeRegistrationData = {
         ...registrationData,
-        email: emailForOTP,
+        email: step1Data.email,
+        phone: step1Data.phone,
         companyName: step1Data.companyName,
         contactPerson: step1Data.contactPerson
       };
@@ -359,16 +415,37 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
           onFinish={handleLoginSubmit}
           layout="vertical"
         >
+          <Form.Item label="Login Method">
+            <Radio.Group 
+              value={loginMethod} 
+              onChange={(e) => setLoginMethod(e.target.value)}
+              disabled={loading}
+            >
+              <Radio value="email">
+                <Space>
+                  <MailOutlined />
+                  Email
+                </Space>
+              </Radio>
+              <Radio value="phone">
+                <Space>
+                  <PhoneOutlined />
+                  Phone
+                </Space>
+              </Radio>
+            </Radio.Group>
+          </Form.Item>
+
           <Form.Item
-            name="email"
+            name="loginIdentifier"
             rules={[
-              { required: true, message: 'Please input your email!' },
-              { type: 'email', message: 'Please enter a valid email address!' }
+              { required: true, message: `Please input your ${loginMethod}!` },
+              ...(loginMethod === 'email' ? [{ type: 'email' as const, message: 'Please enter a valid email address!' }] : [])
             ]}
           >
             <Input 
-              prefix={<MailOutlined />} 
-              placeholder="Email" 
+              prefix={loginMethod === 'email' ? <MailOutlined /> : <PhoneOutlined />} 
+              placeholder={loginMethod === 'email' ? 'Email' : 'Phone Number'} 
               size="large"
               disabled={loading}
             />
@@ -434,7 +511,7 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
       >
         <Steps current={registerStep} style={{ marginBottom: 24 }}>
           <Step title="Basic Info" />
-          <Step title="Verify Email" />
+          <Step title={`Verify ${verificationMethod === 'email' ? 'Email' : 'WhatsApp'}`} />
           <Step title="Complete" />
         </Steps>
         
@@ -450,8 +527,8 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
         {registerStep === 0 && (
           <>
             <Alert
-              message="Email Verification Required"
-              description="We'll send a one-time password (OTP) to verify your email before completing registration."
+              message="Verification Required"
+              description="We'll send a one-time password (OTP) to verify your contact information before completing registration."
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
@@ -501,6 +578,41 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
                 />
               </Form.Item>
               
+              <Form.Item
+                name="phone"
+                rules={[{ required: true, message: 'Please input your phone number!' }]}
+              >
+                <Input 
+                  prefix={<PhoneOutlined />} 
+                  placeholder="Phone Number" 
+                  size="large"
+                  disabled={loading}
+                />
+              </Form.Item>
+              
+              <Form.Item label="Verification Method">
+                <Radio.Group 
+                  value={verificationMethod} 
+                  onChange={(e) => setVerificationMethod(e.target.value)}
+                  disabled={loading}
+                >
+                  <Space direction="vertical">
+                    <Radio value="email">
+                      <Space>
+                        <MailOutlined />
+                        Verify via Email
+                      </Space>
+                    </Radio>
+                    <Radio value="whatsapp">
+                      <Space>
+                        <MessageOutlined />
+                        Verify via WhatsApp
+                      </Space>
+                    </Radio>
+                  </Space>
+                </Radio.Group>
+              </Form.Item>
+              
               <Form.Item>
                 <Button 
                   type="primary" 
@@ -509,7 +621,7 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
                   size="large"
                   loading={loading}
                 >
-                  Continue & Verify Email
+                  Continue & Send OTP
                 </Button>
               </Form.Item>
             </Form>
@@ -531,8 +643,10 @@ const ExhibitorAuthModals: React.FC<ExhibitorAuthModalsProps> = ({
         {registerStep === 1 && (
           <>
             <Alert
-              message="Email Verification"
-              description={`We've sent a verification code to ${emailForOTP}. Please enter it below to continue.`}
+              message={`${verificationMethod === 'email' ? 'Email' : 'WhatsApp'} Verification`}
+              description={verificationMethod === 'email' 
+                ? `We've sent a verification code to ${emailForOTP}. Please enter it below to continue.`
+                : `We've sent a verification code to your WhatsApp number ${phoneForOTP}. Please enter it below to continue.`}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}

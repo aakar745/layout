@@ -157,6 +157,20 @@ export interface IExhibition extends Document {
       };
     };
   };
+
+  // Service Charge Configuration
+  serviceChargeConfig?: {
+    isEnabled: boolean;
+    title: string;
+    description: string;
+    serviceTypes: Array<{
+      name: string;
+      amount: number;
+      description: string;
+      isActive: boolean;
+    }>;
+    razorpayKeyId?: string; // Exhibition-specific Razorpay key if needed
+  };
 }
 
 const exhibitionSchema = new Schema({
@@ -555,6 +569,50 @@ const exhibitionSchema = new Schema({
           max: 30
         }
       }
+    }
+  },
+
+  // Service Charge Configuration
+  serviceChargeConfig: {
+    isEnabled: {
+      type: Boolean,
+      default: false
+    },
+    title: {
+      type: String,
+      trim: true,
+      default: 'Service Charges'
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: 'Pay service charges for stall positioning and setup'
+    },
+    serviceTypes: [{
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+        maxlength: 100
+      },
+      amount: {
+        type: Number,
+        required: true,
+        min: 0
+      },
+      description: {
+        type: String,
+        trim: true,
+        maxlength: 200
+      },
+      isActive: {
+        type: Boolean,
+        default: true
+      }
+    }],
+    razorpayKeyId: {
+      type: String,
+      trim: true
     }
   }
 }, {

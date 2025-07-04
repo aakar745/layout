@@ -18,6 +18,7 @@ import {
   FileTextOutlined,
   GiftOutlined,
   MailOutlined,
+  CreditCardOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -267,6 +268,26 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/invoices'),
     },
     {
+      key: 'service-charges',
+      icon: <CreditCardOutlined />,
+      label: 'Service Charges',
+      requiredPermission: 'view_service_charges',
+      children: [
+        {
+          key: 'service-charges',
+          label: 'Manage Charges',
+          requiredPermission: 'view_service_charges',
+          onClick: () => navigate('/service-charges'),
+        },
+        {
+          key: 'service-charges/settings',
+          label: 'Settings',
+          requiredPermission: 'manage_service_charges',
+          onClick: () => navigate('/service-charges/settings'),
+        },
+      ],
+    },
+    {
       key: 'exhibitors',
       icon: <TeamOutlined />,
       label: 'Exhibitors',
@@ -366,6 +387,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'amenities': 'view_amenities',
       'letters': 'view_letters',
       'invoices': 'view_invoices',
+      'service-charges': 'view_service_charges',
+      'service-charges/settings': 'manage_service_charges',
       'exhibitors': 'view_exhibitors',
       'activity': 'view_activities',
       'analytics': 'analytics_view',

@@ -44,6 +44,9 @@ const AmenitiesPage = lazy(() => import('./pages/amenities/index'));
 const LettersPage = lazy(() => import('./pages/letters/index'));
 const ActivityPage = lazy(() => import('./pages/activity/index'));
 const AnalyticsPage = lazy(() => import('./pages/analytics'));
+const ServiceChargesPage = lazy(() => import('./pages/service-charges/index'));
+const ServiceChargeSettings = lazy(() => import('./pages/service-charges/settings'));
+const ServiceChargeForm = lazy(() => import('./pages/service-charges/public'));
 
 // Preload critical routes to avoid loading delays
 const preloadCriticalRoutes = () => {
@@ -99,6 +102,9 @@ function App() {
               <Route path="/exhibitions" element={<PublicExhibitionList />} />
               <Route path="/exhibitions/:id" element={<PublicExhibitionDetails />} />
               <Route path="/exhibitions/:id/layout" element={<PublicLayoutView />} />
+              
+              {/* Public Service Charge Route */}
+              <Route path="/exhibitions/:exhibitionId/service-charge" element={<ServiceChargeForm />} />
               
               {/* Exhibitor Routes */}
               <Route
@@ -442,6 +448,28 @@ function App() {
                   </PrivateRoute>
                 }
               />
+              
+                             {/* Service Charges Routes */}
+               <Route
+                 path="/service-charges"
+                 element={
+                   <PrivateRoute>
+                     <MainLayout>
+                       <ServiceChargesPage />
+                     </MainLayout>
+                   </PrivateRoute>
+                 }
+               />
+               <Route
+                 path="/service-charges/settings"
+                 element={
+                   <PrivateRoute>
+                     <MainLayout>
+                       <ServiceChargeSettings />
+                     </MainLayout>
+                   </PrivateRoute>
+                 }
+               />
               
               {/* Redirect any unmatched routes to the home page */}
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -22,7 +22,7 @@ const testData = {
   ]
 };
 
-const testPhoneNumber = process.env.TEST_PHONE_NUMBER || "9558422743";
+const testPhoneNumber = process.env.TEST_PHONE_NUMBER || "9924874086";
 
 console.log('🔐 WhatsApp OTP API Test Started...\n');
 

@@ -165,14 +165,14 @@ export const sendWhatsAppOTP = async (req: Request, res: Response) => {
  */
 export const verifyOTP = async (req: Request, res: Response) => {
   try {
-    const { email, phone, otp } = req.body;
+    const { email, phone, otp, verificationType } = req.body;
     
     // Support both email and phone verification
     const identifier = email || phone;
-    const verificationType = email ? 'email' : 'phone';
+    const verificationMethod = verificationType || (email ? 'email' : 'phone');
     
     if (!identifier || !otp) {
-      return res.status(400).json({ message: `${verificationType === 'email' ? 'Email' : 'Phone number'} and OTP are required` });
+      return res.status(400).json({ message: `${verificationMethod === 'email' ? 'Email' : 'Phone number'} and OTP are required` });
     }
     
     // Clean phone number if provided
@@ -199,9 +199,10 @@ export const verifyOTP = async (req: Request, res: Response) => {
     delete otpStorage[cleanIdentifier];
     
     res.status(200).json({ 
-      message: `${verificationType === 'email' ? 'Email' : 'Phone number'} verified successfully`,
-      verified: true,
-      verificationType
+      message: `${verificationMethod === 'email' ? 'Email' : 'Phone number'} verified successfully`,
+      success: true,
+      verificationType: verificationMethod,
+      identifier: cleanIdentifier
     });
   } catch (error) {
     console.error('Error verifying OTP:', error);
@@ -466,18 +467,22 @@ export const register = async (req: Request, res: Response) => {
  */
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, password } = req.body;
+    const loginIdentifier = email || phone;
 
     // Validate input
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Please provide email and password' });
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ message: 'Please provide email/phone and password' });
     }
 
+    // Build query to find exhibitor by email or phone
+    const query = email ? { email } : { phone: phone.replace(/[\s+\-]/g, '') };
+    
     // Find exhibitor and include password for verification
-    const exhibitor = await Exhibitor.findOne({ email }).select('+password');
+    const exhibitor = await Exhibitor.findOne(query).select('+password');
     
     if (!exhibitor) {
-      return res.status(401).json({ message: 'Email is not registered. Please register first.' });
+      return res.status(401).json({ message: `${email ? 'Email' : 'Phone number'} is not registered. Please register first.` });
     }
 
     // Check if exhibitor is active
