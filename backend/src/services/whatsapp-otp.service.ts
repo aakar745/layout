@@ -22,11 +22,20 @@ const validateOTP = (otp: string): boolean => {
 };
 
 /**
- * Format phone number for WhatsApp API
+ * Format phone number for WhatsApp API (with +91 prefix)
  */
 const formatPhoneNumber = (phoneNumber: string): string => {
   const cleanPhone = phoneNumber.replace(/[\s+\-]/g, '');
-  const formattedPhone = cleanPhone.startsWith('91') ? cleanPhone.substring(2) : cleanPhone;
+  let formattedPhone = cleanPhone;
+  
+  // Add 91 prefix if not present
+  if (!formattedPhone.startsWith('91')) {
+    // For 10-digit numbers, add 91 prefix
+    if (formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
+    }
+  }
+  
   console.log(`[PHONE] Formatted: ${phoneNumber} → ${formattedPhone}`);
   return formattedPhone;
 };

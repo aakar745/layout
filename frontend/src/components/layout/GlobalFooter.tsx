@@ -177,7 +177,7 @@ const GlobalFooter: React.FC = () => {
             <FooterLink to="/exhibitions">Exhibitions</FooterLink>
             <FooterLink to="/about">About Us</FooterLink>
             <FooterLink to="/contact">Contact Us</FooterLink>
-            <FooterLink to="/pricing-policy">Pricing Policy</FooterLink>
+            {/* <FooterLink to="/pricing-policy">Pricing Policy</FooterLink> */}
             <FooterLink to="/terms">Terms & Conditions</FooterLink>
           </Col>
           
