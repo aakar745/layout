@@ -28,6 +28,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getPublicExhibitionUrl } from '../../utils/url';
 import './ServiceCharges.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -36,6 +37,7 @@ const { TextArea } = Input;
 
 interface Exhibition {
   _id: string;
+  slug?: string;
   name: string;
   venue: string;
   startDate: string;
@@ -602,7 +604,7 @@ const ServiceChargeSettings: React.FC = () => {
                     <Text strong>Public Form URL:</Text>
                   </Paragraph>
                   <Paragraph copyable>
-                    {`${window.location.origin}/exhibitions/${selectedExhibition._id}/service-charge`}
+                    {`${window.location.origin}${getPublicExhibitionUrl(selectedExhibition, 'service-charge')}`}
                   </Paragraph>
                   <Paragraph type="secondary">
                     This URL can be shared with vendors to access the service charge payment form directly.

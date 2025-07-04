@@ -7,10 +7,13 @@ import {
   CalendarOutlined, EnvironmentOutlined, InfoCircleOutlined,
   ClockCircleOutlined, ArrowLeftOutlined, LayoutOutlined, 
   TeamOutlined, ShopOutlined, HomeOutlined, ShareAltOutlined,
-  StarOutlined, CalendarOutlined as CalendarAddOutlined
+  StarOutlined, CalendarOutlined as CalendarAddOutlined,
+  CreditCardOutlined, MoneyCollectOutlined, ArrowRightOutlined,
+  ToolOutlined, CustomerServiceOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import publicExhibitionService, { PublicExhibition } from '../../../services/publicExhibition';
+import publicServiceChargeService, { ServiceChargeConfig, ServiceType, PublicServiceChargeData } from '../../../services/publicServiceCharge';
 import GlobalHeader from '../../../components/layout/GlobalHeader';
 import { getExhibitionUrl } from '../../../utils/url';
 import api from '../../../services/api';
@@ -124,6 +127,8 @@ const PublicExhibitionDetails: React.FC = () => {
     booked: 0,
     percentage: 0
   });
+  const [serviceCharges, setServiceCharges] = useState<ServiceChargeConfig | null>(null);
+  const [serviceChargesLoading, setServiceChargesLoading] = useState(false);
 
   useEffect(() => {
     const fetchExhibition = async () => {
@@ -135,11 +140,24 @@ const PublicExhibitionDetails: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        // Fetch both exhibition details and layout data for stall statistics
+        // Fetch exhibition details, layout data for stall statistics, and service charges
         const [exhibitionResponse, layoutResponse] = await Promise.all([
           publicExhibitionService.getExhibition(id),
           publicExhibitionService.getLayout(id).catch(() => null) // Layout might not exist
         ]);
+        
+        // Fetch service charges separately (don't let it fail the main request)
+        try {
+          setServiceChargesLoading(true);
+          const serviceChargeResponse = await publicServiceChargeService.getServiceChargeConfig(id);
+          setServiceCharges(serviceChargeResponse.data.data.config);
+        } catch (error) {
+          // Service charges might not be enabled or configured
+          console.log('Service charges not available for this exhibition');
+          setServiceCharges(null);
+        } finally {
+          setServiceChargesLoading(false);
+        }
         
         setExhibition(exhibitionResponse.data);
         
@@ -446,6 +464,71 @@ const PublicExhibitionDetails: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Service Charges Section */}
+        {serviceCharges && serviceCharges.isEnabled && (
+          <div className="charges-section">
+            <div className="charges-container">
+              <div className="charges-header">
+                <div className="charges-icon">
+                  <CreditCardOutlined />
+                </div>
+                <div className="charges-title-section">
+                  <Title level={3} className="charges-title">
+                    {serviceCharges.title || 'Service Charges'}
+                  </Title>
+                  <Text type="secondary" className="charges-description">
+                    {serviceCharges.description || 'Additional services available for this exhibition'}
+                  </Text>
+                </div>
+              </div>
+              
+              {serviceCharges.serviceTypes && serviceCharges.serviceTypes.length > 0 && (
+                <div className="services-grid">
+                  {serviceCharges.serviceTypes.map((service, index) => (
+                      <div key={index} className="service-card">
+                        <div className="service-content">
+                          <div className="service-header">
+                            <div className="service-icon">
+                              <ToolOutlined />
+                            </div>
+                            <div className="service-info">
+                              <Title level={4} className="service-name">
+                                {service.type}
+                              </Title>
+                              <Text type="secondary" className="service-description">
+                                {service.description}
+                              </Text>
+                            </div>
+                          </div>
+                          <div className="service-price">
+                            <Text className="price-amount">Rs. {service.amount.toLocaleString()}</Text>
+                            <Text type="secondary" className="price-label">per service</Text>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+              
+              <div className="charges-actions">
+                <Button 
+                  type="primary" 
+                  size="large" 
+                  icon={<CreditCardOutlined />}
+                  onClick={() => navigate(`/exhibitions/${id}/service-charge`)}
+                  className="pay-charges-button"
+                >
+                  Pay Service Charges
+                  <ArrowRightOutlined />
+                </Button>
+                <Text type="secondary" className="secure-payment-text">
+                  Secure payment powered by Razorpay
+                </Text>
+              </div>
             </div>
           </div>
         )}
@@ -856,6 +939,191 @@ const PublicExhibitionDetails: React.FC = () => {
           object-fit: contain;
         }
         
+        /* Service Charges Section */
+        .charges-section {
+          max-width: 1280px;
+          margin: 0 auto 40px;
+          padding: 0 24px;
+        }
+        
+        .charges-container {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 20px;
+          padding: 40px;
+          color: white;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .charges-container::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="1" fill="white" opacity="0.1"/><circle cx="25" cy="25" r="0.5" fill="white" opacity="0.05"/><circle cx="75" cy="75" r="0.8" fill="white" opacity="0.08"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+          pointer-events: none;
+        }
+        
+        .charges-header {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 32px;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .charges-icon {
+          width: 60px;
+          height: 60px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          color: white;
+          backdrop-filter: blur(10px);
+        }
+        
+        .charges-title-section {
+          flex: 1;
+        }
+        
+        .charges-title {
+          color: white !important;
+          margin: 0 !important;
+          font-size: 28px !important;
+          font-weight: 700 !important;
+        }
+        
+        .charges-description {
+          color: rgba(255, 255, 255, 0.8) !important;
+          font-size: 16px !important;
+          margin-top: 8px;
+        }
+        
+        .services-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 20px;
+          margin-bottom: 32px;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .service-card {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 16px;
+          padding: 24px;
+          backdrop-filter: blur(10px);
+          transition: all 0.3s ease;
+        }
+        
+        .service-card:hover {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+          transform: translateY(-2px);
+        }
+        
+        .service-content {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        
+        .service-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        
+        .service-icon {
+          width: 40px;
+          height: 40px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          color: white;
+          flex-shrink: 0;
+        }
+        
+        .service-info {
+          flex: 1;
+        }
+        
+        .service-name {
+          color: white !important;
+          margin: 0 !important;
+          font-size: 18px !important;
+          font-weight: 600 !important;
+        }
+        
+        .service-description {
+          color: rgba(255, 255, 255, 0.8) !important;
+          font-size: 14px !important;
+          margin-top: 4px;
+          line-height: 1.5;
+        }
+        
+        .service-price {
+          text-align: right;
+        }
+        
+        .price-amount {
+          color: white !important;
+          font-size: 24px !important;
+          font-weight: 700 !important;
+          display: block;
+        }
+        
+        .price-label {
+          color: rgba(255, 255, 255, 0.7) !important;
+          font-size: 12px !important;
+        }
+        
+        .charges-actions {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .pay-charges-button {
+          background: white !important;
+          border-color: white !important;
+          color: #667eea !important;
+          font-weight: 600 !important;
+          height: 50px !important;
+          padding: 0 32px !important;
+          border-radius: 12px !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 8px !important;
+          transition: all 0.3s ease !important;
+        }
+        
+        .pay-charges-button:hover {
+          background: rgba(255, 255, 255, 0.95) !important;
+          border-color: rgba(255, 255, 255, 0.95) !important;
+          color: #667eea !important;
+          transform: translateY(-2px) !important;
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        .secure-payment-text {
+          color: rgba(255, 255, 255, 0.7) !important;
+          font-size: 13px !important;
+        }
+        
         /* Details Section */
         .exhibition-details-container {
           max-width: 1280px;
@@ -1038,6 +1306,25 @@ const PublicExhibitionDetails: React.FC = () => {
           
           .sponsor-logo {
             width: 150px;
+          }
+          
+          .charges-container {
+            padding: 32px 24px;
+          }
+          
+          .charges-header {
+            flex-direction: column;
+            text-align: center;
+            gap: 16px;
+          }
+          
+          .services-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          
+          .service-card {
+            padding: 20px;
           }
           
           .stats-container {

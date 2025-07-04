@@ -13,10 +13,21 @@ export const getExhibitionServiceChargeConfig = async (req: Request, res: Respon
   try {
     const { exhibitionId } = req.params;
 
-    const exhibition = await Exhibition.findOne({ 
-      _id: exhibitionId,
-      isActive: true
-    }).select('name venue startDate endDate serviceChargeConfig');
+    // Support both slug and ID lookups for user-friendly URLs
+    let exhibition;
+    if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
+      // It's a valid ObjectId, search by _id
+      exhibition = await Exhibition.findOne({ 
+        _id: exhibitionId,
+        isActive: true
+      }).select('name venue startDate endDate serviceChargeConfig slug');
+    } else {
+      // It's likely a slug, search by slug
+      exhibition = await Exhibition.findOne({ 
+        slug: exhibitionId,
+        isActive: true
+      }).select('name venue startDate endDate serviceChargeConfig slug');
+    }
 
     if (!exhibition) {
       return res.status(404).json({ 
@@ -41,6 +52,7 @@ export const getExhibitionServiceChargeConfig = async (req: Request, res: Respon
       success: true,
       data: {
         _id: exhibition._id,
+        slug: exhibition.slug, // Include slug for frontend URL generation
         name: exhibition.name,
         venue: exhibition.venue,
         startDate: exhibition.startDate,
@@ -90,11 +102,21 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Find exhibition
-    const exhibition = await Exhibition.findOne({ 
-      _id: exhibitionId,
-      isActive: true
-    });
+    // Find exhibition - support both slug and ID lookups
+    let exhibition;
+    if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
+      // It's a valid ObjectId, search by _id
+      exhibition = await Exhibition.findOne({ 
+        _id: exhibitionId,
+        isActive: true
+      });
+    } else {
+      // It's likely a slug, search by slug
+      exhibition = await Exhibition.findOne({ 
+        slug: exhibitionId,
+        isActive: true
+      });
+    }
 
     if (!exhibition) {
       return res.status(404).json({ 

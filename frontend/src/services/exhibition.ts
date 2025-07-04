@@ -3,6 +3,7 @@ import api from './api';
 export interface Exhibition {
   _id?: string;
   id: string;
+  slug?: string;
 
   // Basic Information
   // Core details about the exhibition including name, description,

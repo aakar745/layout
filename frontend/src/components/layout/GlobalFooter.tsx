@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Layout, Row, Col, Typography, Space, Divider, Input, Button, Form } from 'antd';
+import { Layout, Row, Col, Typography, Space, Divider } from 'antd';
 import { Link } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { 
   MailOutlined, 
   PhoneOutlined, 
-  EnvironmentOutlined, 
-  SendOutlined,
+  EnvironmentOutlined,
   FacebookOutlined,
-  TwitterOutlined,
-  InstagramOutlined,
+  YoutubeOutlined,
   LinkedinOutlined
 } from '@ant-design/icons';
 import api from '../../services/api';
@@ -59,6 +57,12 @@ const LogoImage = styled.img`
   width: 100%;
   max-width: 160px;
   margin-bottom: 16px;
+  filter: brightness(0) invert(1);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    opacity: 0.8;
+  }
 `;
 
 const FooterLink = styled(Link)`
@@ -96,31 +100,7 @@ const SocialIcon = styled.a`
   }
 `;
 
-const NewsletterInput = styled(Input)`
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  
-  &::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-  }
-  
-  &:focus {
-    border-color: #4158D0;
-    box-shadow: 0 0 0 2px rgba(65, 88, 208, 0.2);
-  }
-`;
 
-const SubscribeButton = styled(Button)`
-  background: linear-gradient(90deg, #4158D0, #C850C0);
-  border: none;
-  
-  &:hover {
-    opacity: 0.9;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-`;
 
 const CopyrightText = styled(Text)`
   display: block;
@@ -175,19 +155,17 @@ const GlobalFooter: React.FC = () => {
               </Link>
             </LogoContainer>
             <Paragraph style={{ color: 'rgba(255, 255, 255, 0.7)', marginBottom: 24 }}>
-              The premier platform for exhibition stall booking. Connect exhibitors with event organizers and simplify the booking process.
+              Aakar is about Knowledge, Ideas, Evaluations and Implementation in creating world class exhibitions - 
+              a marketplace where we bring together end users, traders & manufacturers under one roof.
             </Paragraph>
             <Space>
-              <SocialIcon href="#" target="_blank" rel="noopener noreferrer">
+              <SocialIcon href="https://www.facebook.com/ExhibitionOrganisor" target="_blank" rel="noopener noreferrer">
                 <FacebookOutlined />
               </SocialIcon>
-              <SocialIcon href="#" target="_blank" rel="noopener noreferrer">
-                <TwitterOutlined />
+              <SocialIcon href="https://www.youtube.com/@aakarexhibitionofficial" target="_blank" rel="noopener noreferrer">
+                <YoutubeOutlined />
               </SocialIcon>
-              <SocialIcon href="#" target="_blank" rel="noopener noreferrer">
-                <InstagramOutlined />
-              </SocialIcon>
-              <SocialIcon href="#" target="_blank" rel="noopener noreferrer">
+              <SocialIcon href="https://in.linkedin.com/company/aakar-exhibition-expo-pvt-ltd" target="_blank" rel="noopener noreferrer">
                 <LinkedinOutlined />
               </SocialIcon>
             </Space>
@@ -199,18 +177,15 @@ const GlobalFooter: React.FC = () => {
             <FooterLink to="/exhibitions">Exhibitions</FooterLink>
             <FooterLink to="/about">About Us</FooterLink>
             <FooterLink to="/contact">Contact Us</FooterLink>
-            <FooterLink to="/privacy-policy">Privacy Policy</FooterLink>
+            <FooterLink to="/pricing-policy">Pricing Policy</FooterLink>
             <FooterLink to="/terms">Terms & Conditions</FooterLink>
           </Col>
           
-          {/* For Exhibitors */}
+          {/* Legal */}
           <Col xs={24} sm={12} md={5} lg={5}>
-            <FooterTitle level={4}>For Exhibitors</FooterTitle>
-            <FooterLink to="/exhibitor/login">Login</FooterLink>
-            <FooterLink to="/exhibitor/register">Register</FooterLink>
-            <FooterLink to="/exhibitor/dashboard">Dashboard</FooterLink>
-            <FooterLink to="/exhibitor/bookings">My Bookings</FooterLink>
-            <FooterLink to="/faq">FAQ</FooterLink>
+            <FooterTitle level={4}>Legal</FooterTitle>
+            <FooterLink to="/privacy-policy">Privacy Policy</FooterLink>
+            <FooterLink to="/cancellation-refund">Cancellation/Refund</FooterLink>
           </Col>
           
           {/* Contact Info */}
@@ -218,29 +193,16 @@ const GlobalFooter: React.FC = () => {
             <FooterTitle level={4}>Contact Us</FooterTitle>
             <ContactItem>
               <ContactIcon><EnvironmentOutlined /></ContactIcon>
-              <div>123 Exhibition Street, New Delhi, India</div>
+              <div>B-2, Wall Street 2, opp. Orient Club, Ellisbridge, Ahmedabad, Gujarat 380006</div>
             </ContactItem>
             <ContactItem>
               <ContactIcon><PhoneOutlined /></ContactIcon>
-              <div>+91 98765 43210</div>
+              <div>7016727956</div>
             </ContactItem>
             <ContactItem>
               <ContactIcon><MailOutlined /></ContactIcon>
-              <div>info@exhibitionmanager.com</div>
+              <div>support@aakarexhibition.com</div>
             </ContactItem>
-            
-            {/* Newsletter */}
-            <div style={{ marginTop: 24 }}>
-              <FooterTitle level={4}>Newsletter</FooterTitle>
-              <Form>
-                <Space.Compact style={{ width: '100%' }}>
-                  <NewsletterInput placeholder="Your email address" />
-                  <SubscribeButton type="primary" icon={<SendOutlined />}>
-                    Subscribe
-                  </SubscribeButton>
-                </Space.Compact>
-              </Form>
-            </div>
           </Col>
         </Row>
         

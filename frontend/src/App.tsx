@@ -48,6 +48,14 @@ const ServiceChargesPage = lazy(() => import('./pages/service-charges/index'));
 const ServiceChargeSettings = lazy(() => import('./pages/service-charges/settings'));
 const ServiceChargeForm = lazy(() => import('./pages/service-charges/public'));
 
+// Static Pages
+const AboutUs = lazy(() => import('./pages/static/AboutUs'));
+const ContactUs = lazy(() => import('./pages/static/ContactUs'));
+const PricingPolicy = lazy(() => import('./pages/static/PricingPolicy'));
+const TermsConditions = lazy(() => import('./pages/static/TermsConditions'));
+const PrivacyPolicy = lazy(() => import('./pages/static/PrivacyPolicy'));
+const CancellationRefund = lazy(() => import('./pages/static/CancellationRefund'));
+
 // Preload critical routes to avoid loading delays
 const preloadCriticalRoutes = () => {
   // Dashboard is commonly visited, so preload it
@@ -105,6 +113,14 @@ function App() {
               
               {/* Public Service Charge Route */}
               <Route path="/exhibitions/:exhibitionId/service-charge" element={<ServiceChargeForm />} />
+              
+              {/* Static Pages */}
+              <Route path="/about" element={<AboutUs />} />
+              <Route path="/contact" element={<ContactUs />} />
+              <Route path="/pricing-policy" element={<PricingPolicy />} />
+              <Route path="/terms" element={<TermsConditions />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/cancellation-refund" element={<CancellationRefund />} />
               
               {/* Exhibitor Routes */}
               <Route
