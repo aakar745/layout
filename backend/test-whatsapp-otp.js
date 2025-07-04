@@ -22,7 +22,7 @@ const testData = {
   ]
 };
 
-const testPhoneNumber = process.env.TEST_PHONE_NUMBER || "9924874086";
+const testPhoneNumber = process.env.TEST_PHONE_NUMBER || "9558422743";
 
 console.log('🔐 WhatsApp OTP API Test Started...\n');
 
@@ -36,7 +36,17 @@ function validateOTP(otp) {
 // Function to format phone number for API
 function formatPhoneNumber(phoneNumber) {
   const cleanPhone = phoneNumber.replace(/[\s+\-]/g, '');
-  const formattedPhone = cleanPhone.startsWith('91') ? cleanPhone.substring(2) : cleanPhone;
+  
+  // Ensure number has 91 prefix
+  let formattedPhone;
+  if (cleanPhone.startsWith('91')) {
+    formattedPhone = cleanPhone; // Already has 91 prefix
+  } else if (cleanPhone.length === 10) {
+    formattedPhone = '91' + cleanPhone; // Add 91 prefix to 10-digit number
+  } else {
+    formattedPhone = cleanPhone; // Use as-is if unknown format
+  }
+  
   console.log(`📱 Phone number formatted: ${phoneNumber} → ${formattedPhone}`);
   return formattedPhone;
 }
@@ -201,7 +211,7 @@ async function testWhatsAppOTP(otpCode = testData.otpCode, phoneNumber = testPho
       if (responseStr.includes('phone') || responseStr.includes('number')) {
         console.log('\n📱 ⚠️  This appears to be a phone number related error!');
         console.log('Possible solutions:');
-        console.log('1. Check phone number format (10 digits without +91)');
+        console.log('1. Check phone number format (12 digits with 91 prefix)');
         console.log('2. Verify phone number is WhatsApp enabled');
         console.log('3. Try with different test phone number');
       }

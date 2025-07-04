@@ -124,7 +124,7 @@ const CancellationRefund: React.FC = () => {
               />
               <Step 
                 title="Refund Processing"
-                description="Approved refunds will be processed within 5-7 business days to your original payment method"
+                description="Approved refunds will be Credited within 5-7 business days to your original payment method"
                 icon={<DollarOutlined />}
               />
               <Step 
