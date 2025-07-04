@@ -194,7 +194,7 @@ const About: React.FC = () => {
                 Our Mission
               </Title>
               <Paragraph style={{ fontSize: '16px', lineHeight: '1.8', color: '#666', textAlign: 'center' }}>
-                Aakar is about Knowledge, Ideas, Evaluations and Implementation in creating world class exhibitions - 
+                Aakar Exhibition is about Knowledge, Ideas, Evaluations and Implementation in creating world class exhibitions - 
                 a marketplace where we bring together end users, traders & manufacturers under one roof to do business and get inspiration.
               </Paragraph>
               <Paragraph style={{ fontSize: '16px', lineHeight: '1.8', color: '#666', textAlign: 'center' }}>
