@@ -169,7 +169,13 @@ export interface IExhibition extends Document {
       description: string;
       isActive: boolean;
     }>;
+    // Payment Gateway Configuration
+    paymentGateway: 'razorpay' | 'phonepe'; // Active payment gateway
     razorpayKeyId?: string; // Exhibition-specific Razorpay key if needed
+    phonePeConfig?: {
+      clientId: string;
+      env: 'SANDBOX' | 'PRODUCTION';
+    };
   };
 }
 
@@ -610,9 +616,26 @@ const exhibitionSchema = new Schema({
         default: true
       }
     }],
+    // Payment Gateway Configuration
+    paymentGateway: {
+      type: String,
+      enum: ['razorpay', 'phonepe'],
+      default: 'phonepe'
+    },
     razorpayKeyId: {
       type: String,
       trim: true
+    },
+    phonePeConfig: {
+      clientId: {
+        type: String,
+        trim: true
+      },
+      env: {
+        type: String,
+        enum: ['SANDBOX', 'PRODUCTION'],
+        default: 'SANDBOX'
+      }
     }
   }
 }, {

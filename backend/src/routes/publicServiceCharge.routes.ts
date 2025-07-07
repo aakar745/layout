@@ -3,6 +3,8 @@ import {
   getExhibitionServiceChargeConfig,
   createServiceChargeOrder,
   verifyPayment,
+  handlePhonePeCallback,
+  verifyPhonePePayment,
   getServiceChargeStatus,
   downloadReceipt,
   getServiceChargeByOrderId,
@@ -27,10 +29,24 @@ router.post('/create-order', createServiceChargeOrder);
 
 /**
  * @route   POST /api/public/service-charge/verify-payment
- * @desc    Verify payment and complete the service charge
+ * @desc    Verify payment and complete the service charge (Razorpay)
  * @access  Public
  */
 router.post('/verify-payment', verifyPayment);
+
+/**
+ * @route   POST /api/public/service-charge/phonepe-callback
+ * @desc    Handle PhonePe payment callback
+ * @access  Public
+ */
+router.post('/phonepe-callback', handlePhonePeCallback);
+
+/**
+ * @route   POST /api/public/service-charge/verify-phonepe-payment
+ * @desc    Verify PhonePe payment status
+ * @access  Public
+ */
+router.post('/verify-phonepe-payment', verifyPhonePePayment);
 
 /**
  * @route   POST /api/public/service-charge/payment-failure

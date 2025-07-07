@@ -1,0 +1,21 @@
+# PhonePe Development Mode Configuration
+# Use this configuration for testing while your real credentials are being activated
+
+# Replace these values in your .env file:
+PHONEPE_CLIENT_ID=phonepe_test_development_mode
+PHONEPE_CLIENT_SECRET=test_secret
+PHONEPE_CLIENT_VERSION=1
+PHONEPE_ENV=SANDBOX
+
+# Instructions:
+# 1. Copy these values to your main .env file
+# 2. Restart your backend server: npm run dev
+# 3. Test the service charge payment flow
+# 4. Payments will be simulated (no real money involved)
+# 5. Switch back to real credentials once PhonePe activates them
+
+# What happens in development mode:
+# - No real API calls to PhonePe
+# - Payment flow is simulated
+# - All features work normally
+# - Safe for testing and development 

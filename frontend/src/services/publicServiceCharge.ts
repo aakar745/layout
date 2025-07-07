@@ -11,7 +11,12 @@ export interface ServiceChargeConfig {
   title: string;
   description: string;
   serviceTypes: ServiceType[];
+  paymentGateway: 'razorpay' | 'phonepe';
   razorpayKeyId: string;
+  phonePeConfig: {
+    clientId: string;
+    env: 'SANDBOX' | 'PRODUCTION';
+  };
 }
 
 export interface PublicServiceChargeData {

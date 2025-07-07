@@ -17,10 +17,19 @@ export interface IServiceCharge extends Document {
   amount: number;
   description?: string;
   
+  // Payment Gateway Integration
+  paymentGateway: 'razorpay' | 'phonepe';
+  
   // Razorpay Integration
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  
+  // PhonePe Integration
+  phonePeOrderId?: string;
+  phonePeTransactionId?: string;
+  phonePeMerchantTransactionId?: string;
+  
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   paidAt?: Date;
   
@@ -106,6 +115,13 @@ const serviceChargeSchema = new Schema({
     maxlength: [500, 'Description cannot exceed 500 characters']
   },
   
+  // Payment Gateway Integration
+  paymentGateway: {
+    type: String,
+    enum: ['razorpay', 'phonepe'],
+    required: true
+  },
+  
   // Razorpay Integration
   razorpayOrderId: {
     type: String,
@@ -119,6 +135,21 @@ const serviceChargeSchema = new Schema({
     type: String,
     trim: true
   },
+  
+  // PhonePe Integration
+  phonePeOrderId: {
+    type: String,
+    trim: true
+  },
+  phonePeTransactionId: {
+    type: String,
+    trim: true
+  },
+  phonePeMerchantTransactionId: {
+    type: String,
+    trim: true
+  },
+  
   paymentStatus: {
     type: String,
     enum: ['pending', 'paid', 'failed', 'refunded'],
@@ -165,6 +196,7 @@ serviceChargeSchema.index({ status: 1 });
 serviceChargeSchema.index({ createdAt: -1 });
 serviceChargeSchema.index({ vendorEmail: 1 });
 serviceChargeSchema.index({ razorpayOrderId: 1 });
+serviceChargeSchema.index({ phonePeMerchantTransactionId: 1 });
 
 // Compound indexes for common query combinations
 serviceChargeSchema.index({ exhibitionId: 1, paymentStatus: 1 });

@@ -54,7 +54,12 @@ interface ExhibitionConfig {
     title: string;
     description: string;
     serviceTypes: ServiceType[];
+    paymentGateway: 'razorpay' | 'phonepe';
     razorpayKeyId: string;
+    phonePeConfig: {
+      clientId: string;
+      env: 'SANDBOX' | 'PRODUCTION';
+    };
   };
 }
 
@@ -150,7 +155,7 @@ const PublicServiceChargeForm: React.FC = () => {
     try {
       setSubmitting(true);
       
-      // Create Razorpay order
+      // Create payment order
       const orderResponse = await fetch('/api/public/service-charge/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,47 +172,69 @@ const PublicServiceChargeForm: React.FC = () => {
         throw new Error(orderData.message || 'Failed to create order');
       }
 
-      // Check if we're in development mode (mock Razorpay key)
-      const isDevelopmentMode = exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+      const paymentGateway = orderData.data.paymentGateway;
       
-      if (isDevelopmentMode) {
-        // Development mode - simulate payment success
-        message.info('Development Mode: Simulating payment...');
-        setTimeout(async () => {
-          const mockResponse = {
-            razorpay_order_id: orderData.data.orderId,
-            razorpay_payment_id: `pay_dev_${Date.now()}`,
-            razorpay_signature: `sig_dev_${Date.now()}`
-          };
-          await verifyPayment(mockResponse, orderData.data.serviceChargeId);
-        }, 2000); // 2 second delay to simulate payment processing
-      } else {
-        // Production mode - initialize Razorpay payment
-        const options = {
-          key: exhibition?.config.razorpayKeyId,
-          amount: orderData.data.amount * 100, // Convert to paise
-          currency: 'INR',
-          name: exhibition?.name,
-          description: `Service Charge - ${formData.serviceType}`,
-          order_id: orderData.data.orderId,
-          prefill: {
-            name: formData.vendorName,
-            email: formData.vendorEmail,
-            contact: formData.vendorPhone,
-          },
-          handler: async (response: any) => {
-            await verifyPayment(response, orderData.data.serviceChargeId);
-          },
-          modal: {
-            ondismiss: () => {
-              setSubmitting(false);
-              message.warning('Payment cancelled');
-            }
+      if (paymentGateway === 'phonepe') {
+        // PhonePe payment flow
+        const isDevelopmentMode = exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode';
+        
+        if (isDevelopmentMode) {
+          // Development mode - simulate payment success
+          message.info('Development Mode: Simulating PhonePe payment...');
+          setTimeout(async () => {
+            await verifyPhonePePayment(orderData.data.orderId);
+          }, 2000); // 2 second delay to simulate payment processing
+        } else {
+          // Production mode - redirect to PhonePe payment page
+          if (orderData.data.redirectUrl) {
+            window.location.href = orderData.data.redirectUrl;
+          } else {
+            throw new Error('PhonePe payment URL not received');
           }
-        };
+        }
+      } else {
+        // Razorpay payment flow
+        const isDevelopmentMode = exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+        
+        if (isDevelopmentMode) {
+          // Development mode - simulate payment success
+          message.info('Development Mode: Simulating Razorpay payment...');
+          setTimeout(async () => {
+            const mockResponse = {
+              razorpay_order_id: orderData.data.orderId,
+              razorpay_payment_id: `pay_dev_${Date.now()}`,
+              razorpay_signature: `sig_dev_${Date.now()}`
+            };
+            await verifyRazorpayPayment(mockResponse, orderData.data.serviceChargeId);
+          }, 2000); // 2 second delay to simulate payment processing
+        } else {
+          // Production mode - initialize Razorpay payment
+          const options = {
+            key: exhibition?.config.razorpayKeyId,
+            amount: orderData.data.amount * 100, // Convert to paise
+            currency: 'INR',
+            name: exhibition?.name,
+            description: `Service Charge - ${formData.serviceType}`,
+            order_id: orderData.data.orderId,
+            prefill: {
+              name: formData.vendorName,
+              email: formData.vendorEmail,
+              contact: formData.vendorPhone,
+            },
+            handler: async (response: any) => {
+              await verifyRazorpayPayment(response, orderData.data.serviceChargeId);
+            },
+            modal: {
+              ondismiss: () => {
+                setSubmitting(false);
+                message.warning('Payment cancelled');
+              }
+            }
+          };
 
-        const razorpay = new window.Razorpay(options);
-        razorpay.open();
+          const razorpay = new window.Razorpay(options);
+          razorpay.open();
+        }
       }
       
     } catch (error: any) {
@@ -216,7 +243,7 @@ const PublicServiceChargeForm: React.FC = () => {
     }
   };
 
-  const verifyPayment = async (paymentResponse: any, serviceChargeId: string) => {
+  const verifyRazorpayPayment = async (paymentResponse: any, serviceChargeId: string) => {
     try {
       const verifyResponse = await fetch('/api/public/service-charge/verify-payment', {
         method: 'POST',
@@ -226,6 +253,33 @@ const PublicServiceChargeForm: React.FC = () => {
           razorpay_payment_id: paymentResponse.razorpay_payment_id,
           razorpay_order_id: paymentResponse.razorpay_order_id,
           razorpay_signature: paymentResponse.razorpay_signature,
+        })
+      });
+
+      const verifyData = await verifyResponse.json();
+      
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.message || 'Payment verification failed');
+      }
+
+      setPaymentResult(verifyData.data);
+      setCurrentStep(2);
+      message.success('Payment successful!');
+      
+    } catch (error: any) {
+      message.error(error.message || 'Payment verification failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const verifyPhonePePayment = async (merchantTransactionId: string) => {
+    try {
+      const verifyResponse = await fetch('/api/public/service-charge/verify-phonepe-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantTransactionId
         })
       });
 
@@ -381,24 +435,36 @@ const PublicServiceChargeForm: React.FC = () => {
             </Title>
           </div>
           
-          {exhibition?.config.razorpayKeyId === 'rzp_test_development_mode' ? (
-            <Alert
-              message="Development Mode"
-              description="This is running in development mode. Payment will be simulated - no actual payment will be processed."
-              type="warning"
-              icon={<InfoCircleOutlined />}
-              style={{ marginBottom: 16 }}
-              showIcon
-            />
-          ) : (
-            <Alert
-              message="Secure Payment"
-              description="Your payment is processed securely through Razorpay. You will receive a receipt via email after successful payment."
-              type="info"
-              icon={<BankOutlined />}
-              style={{ marginBottom: 16 }}
-            />
-          )}
+          {(() => {
+            const isDevelopmentMode = exhibition?.config.paymentGateway === 'phonepe' 
+              ? exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode'
+              : exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+            
+            const paymentGateway = exhibition?.config.paymentGateway || 'phonepe';
+            
+            if (isDevelopmentMode) {
+              return (
+                <Alert
+                  message="Development Mode"
+                  description={`This is running in development mode. ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} payment will be simulated - no actual payment will be processed.`}
+                  type="warning"
+                  icon={<InfoCircleOutlined />}
+                  style={{ marginBottom: 16 }}
+                  showIcon
+                />
+              );
+            } else {
+              return (
+                <Alert
+                  message="Secure Payment"
+                  description={`Your payment is processed securely through ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'}. You will receive a receipt via email after successful payment.`}
+                  type="info"
+                  icon={<BankOutlined />}
+                  style={{ marginBottom: 16 }}
+                />
+              );
+            }
+          })()}
         </div>
       </Card>
     );
@@ -564,10 +630,18 @@ const PublicServiceChargeForm: React.FC = () => {
                 loading={submitting}
                 icon={<CreditCardOutlined />}
               >
-                {exhibition?.config.razorpayKeyId === 'rzp_test_development_mode' 
-                  ? `Simulate Payment ₹${getSelectedServiceAmount().toLocaleString('en-IN')}`
-                  : `Pay ₹${getSelectedServiceAmount().toLocaleString('en-IN')}`
-                }
+                {(() => {
+                  const isDevelopmentMode = exhibition?.config.paymentGateway === 'phonepe' 
+                    ? exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode'
+                    : exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+                  
+                  const paymentGateway = exhibition?.config.paymentGateway || 'phonepe';
+                  const amount = getSelectedServiceAmount().toLocaleString('en-IN');
+                  
+                  return isDevelopmentMode 
+                    ? `Simulate ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} Payment Rs. ${amount}`
+                    : `Pay via ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} Rs. ${amount}`;
+                })()}
               </Button>
             )}
               </div>
