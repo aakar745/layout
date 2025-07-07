@@ -103,25 +103,50 @@ const PublicServiceChargeForm: React.FC = () => {
   });
   const [paymentResult, setPaymentResult] = useState<any>(null);
 
-  // Check if we're on payment success page
-  const isPaymentSuccessPage = location.pathname === '/service-charge/payment-success';
+  // Check if we're on payment result page (handles all PhonePe outcomes)
+  const isPaymentResultPage = location.pathname === '/service-charge/payment-result';
+  const isPaymentSuccessPage = location.pathname === '/service-charge/payment-success'; // Keep for Razorpay
   
   useEffect(() => {
-    if (isPaymentSuccessPage) {
-      // Handle payment success redirect
-      handlePaymentSuccessRedirect();
+    if (isPaymentResultPage || isPaymentSuccessPage) {
+      // Handle payment redirect
+      handlePaymentRedirect();
     } else if (exhibitionId) {
       fetchExhibitionConfig();
       loadRazorpayScript();
     }
-  }, [exhibitionId, isPaymentSuccessPage]);
+  }, [exhibitionId, isPaymentResultPage, isPaymentSuccessPage]);
 
-  const handlePaymentSuccessRedirect = async () => {
+  const handlePaymentRedirect = async () => {
     try {
       const urlParams = new URLSearchParams(location.search);
       const serviceChargeId = urlParams.get('serviceChargeId');
+      const gateway = urlParams.get('gateway');
+      
+      // Extract PhonePe specific parameters from URL
+      const phonePeTransactionId = urlParams.get('transactionId'); // PhonePe sends this
+      const phonePeCode = urlParams.get('code'); // PhonePe payment result code
+      const phoneProvidReferenceId = urlParams.get('providerReferenceId'); // PhonePe reference ID
+      
+      console.log('[Payment Redirect] Starting payment verification:', {
+        serviceChargeId,
+        gateway,
+        phonePeTransactionId,
+        phonePeCode,
+        phoneProvidReferenceId,
+        currentPath: location.pathname,
+        fullUrl: location.pathname + location.search,
+        allUrlParams: Object.fromEntries(urlParams.entries())
+      });
+      
+      // Log all URL parameters for debugging
+      console.log('[Payment Redirect] All URL parameters received:');
+      for (const [key, value] of urlParams.entries()) {
+        console.log(`  ${key}: ${value}`);
+      }
       
       if (!serviceChargeId) {
+        console.error('[Payment Redirect] Missing service charge ID');
         message.error('Payment verification failed: Missing service charge ID');
         navigate('/');
         return;
@@ -129,41 +154,206 @@ const PublicServiceChargeForm: React.FC = () => {
 
       setLoading(true);
       
-      // Get service charge details to verify payment
-      const response = await fetch(`/api/public/service-charge/status/${serviceChargeId}`);
-      const data = await response.json();
+      // First get service charge details to find merchant transaction ID
+      console.log('[Payment Redirect] Fetching service charge status...');
+      const statusResponse = await fetch(`/api/public/service-charge/status/${serviceChargeId}`);
+      const statusData = await statusResponse.json();
       
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to verify payment status');
+      if (!statusResponse.ok) {
+        console.error('[Payment Redirect] Status fetch failed:', statusData);
+        throw new Error(statusData.message || 'Failed to get service charge details');
       }
 
-      if (data.data.status === 'paid') {
-        // Payment successful - show success step
-        setPaymentResult(data.data);
-        setCurrentStep(2);
-        
-        // Load exhibition details for context
-        if (data.data.exhibitionId) {
-          const exhibitionResponse = await fetch(`/api/public/service-charge/config/${data.data.exhibitionId}`);
+      const serviceCharge = statusData.data;
+      console.log('[Payment Redirect] Service charge details:', {
+        id: serviceCharge.id,
+        paymentStatus: serviceCharge.paymentStatus,
+        status: serviceCharge.status,
+        phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+        razorpayOrderId: serviceCharge.razorpayOrderId
+      });
+      
+      // Debug: Log the entire serviceCharge object to see what we're actually getting
+      console.log('[Payment Redirect] Full service charge object:', serviceCharge);
+      console.log('[Payment Redirect] Service charge keys:', Object.keys(serviceCharge));
+      console.log('[Payment Redirect] phonePeMerchantTransactionId value:', serviceCharge.phonePeMerchantTransactionId);
+      console.log('[Payment Redirect] phonePeMerchantTransactionId type:', typeof serviceCharge.phonePeMerchantTransactionId);
+      
+      // Ensure we have exhibition config loaded for proper rendering
+      if (!exhibition && serviceCharge.exhibition) {
+        console.log('[Payment Redirect] Loading exhibition config for payment result page');
+        try {
+          const exhibitionResponse = await fetch(`/api/public/service-charge/config/${serviceCharge.exhibition._id}`);
           if (exhibitionResponse.ok) {
             const exhibitionData = await exhibitionResponse.json();
             setExhibition(exhibitionData.data);
           }
+        } catch (configError) {
+          console.warn('[Payment Redirect] Failed to load exhibition config:', configError);
+          // Continue without full config - we'll use basic info from service charge
         }
+      }
+      
+      // Check if payment is already verified
+      if (serviceCharge.paymentStatus === 'paid') {
+        console.log('[Payment Redirect] Payment already verified, showing success');
+        // Payment already verified - show success step
+        setPaymentResult(serviceCharge);
+        setCurrentStep(2);
         
         message.success('Payment verified successfully!');
+        return;
+      }
+
+      // Handle PhonePe payment verification
+      if (gateway === 'phonepe') {
+        console.log('[Payment Redirect] Processing PhonePe payment verification');
+        
+        // Use merchant transaction ID from database or fallback to URL parameter
+        let merchantTransactionId = serviceCharge.phonePeMerchantTransactionId;
+        
+        console.log('[Payment Redirect] Merchant Transaction ID from database:', {
+          value: merchantTransactionId,
+          type: typeof merchantTransactionId,
+          isUndefined: merchantTransactionId === undefined,
+          isNull: merchantTransactionId === null,
+          isEmpty: merchantTransactionId === '',
+          isFalsy: !merchantTransactionId
+        });
+        
+        if (!merchantTransactionId && phonePeTransactionId) {
+          console.log('[Payment Redirect] Using PhonePe transaction ID from URL as fallback:', phonePeTransactionId);
+          merchantTransactionId = phonePeTransactionId;
+        }
+        
+        // Also try receipt number as fallback (since that's what we use as merchant transaction ID)
+        if (!merchantTransactionId && serviceCharge.receiptNumber) {
+          console.log('[Payment Redirect] Using receipt number as merchant transaction ID fallback:', serviceCharge.receiptNumber);
+          merchantTransactionId = serviceCharge.receiptNumber;
+        }
+        
+        if (!merchantTransactionId) {
+          console.error('[Payment Redirect] Missing PhonePe merchant transaction ID in all sources:');
+          console.error('[Payment Redirect] - Database phonePeMerchantTransactionId:', serviceCharge.phonePeMerchantTransactionId);
+          console.error('[Payment Redirect] - Database receiptNumber:', serviceCharge.receiptNumber);
+          console.error('[Payment Redirect] - URL phonePeTransactionId:', phonePeTransactionId);
+          console.error('[Payment Redirect] - Available URL parameters:', Object.fromEntries(urlParams.entries()));
+          message.error('Payment verification failed: Missing PhonePe transaction details');
+          setCurrentStep(1); // Go back to payment form instead of home
+          return;
+        }
+        
+        console.log('[Payment Redirect] Verifying PhonePe payment for merchant ID:', merchantTransactionId);
+        console.log('[Payment Redirect] PhonePe URL parameters:', { phonePeCode, phoneProvidReferenceId });
+        
+        // Show loading message for PhonePe verification
+        message.loading('Verifying payment with PhonePe...', 0);
+        
+        try {
+          const verifyResponse = await fetch('/api/public/service-charge/verify-phonepe-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              merchantTransactionId: merchantTransactionId
+            })
+          });
+
+          const verifyData = await verifyResponse.json();
+          message.destroy(); // Clear loading message
+          
+          console.log('[Payment Verification] PhonePe verification response:', {
+            ok: verifyResponse.ok,
+            status: verifyResponse.status,
+            success: verifyData.success,
+            state: verifyData.data?.state,
+            code: verifyData.data?.code,
+            message: verifyData.message
+          });
+          
+          if (verifyResponse.ok && verifyData.success) {
+            // Payment verified successfully
+            console.log('[Payment Verification] Payment verified successfully');
+            setPaymentResult(verifyData.data);
+            setCurrentStep(2);
+            
+            // Load exhibition details for context if not already loaded
+            if (!exhibition && serviceCharge.exhibition) {
+              try {
+                const exhibitionResponse = await fetch(`/api/public/service-charge/config/${serviceCharge.exhibition._id}`);
+                if (exhibitionResponse.ok) {
+                  const exhibitionData = await exhibitionResponse.json();
+                  setExhibition(exhibitionData.data);
+                }
+              } catch (configError) {
+                console.warn('[Payment Verification] Failed to load exhibition config:', configError);
+              }
+            }
+            
+            message.success('Payment completed successfully!');
+            return;
+          } else {
+            // Verification failed or still pending
+            const state = verifyData.data?.state;
+            const code = verifyData.data?.code;
+            console.log('[Payment Verification] Payment verification not successful:', { state, code, verifyData });
+            
+            if (state === 'FAILED' || code === 'PAYMENT_ERROR') {
+              message.error('Payment failed. Please try again.');
+              setCurrentStep(1); // Go back to payment form
+              return;
+            } else if (state === 'PENDING' || code === 'PAYMENT_PENDING') {
+              // Payment still pending - show pending message and retry
+              message.warning('Payment is being processed. Please wait...');
+              setTimeout(() => {
+                handlePaymentRedirect();
+              }, 5000); // Retry after 5 seconds
+              return;
+            } else {
+              // Unknown state or error
+              console.error('[Payment Verification] Unknown payment state or error:', verifyData);
+              message.error(verifyData.message || 'Payment verification failed');
+              setCurrentStep(1); // Go back to payment form
+              return;
+            }
+          }
+        } catch (verifyError) {
+          console.error('[Payment Verification] Error during PhonePe verification:', verifyError);
+          message.destroy(); // Clear loading message
+          message.error('Payment verification failed due to network error');
+          setCurrentStep(1); // Go back to payment form
+          return;
+        }
+      } else if (!gateway || gateway === 'razorpay') {
+        console.log('[Payment Redirect] Processing Razorpay payment verification');
+        
+        // Handle Razorpay verification (existing logic)
+        if (serviceCharge.razorpayOrderId) {
+          // This should have been handled by the Razorpay callback already
+          message.warning('Payment verification in progress...');
+          setTimeout(() => {
+            handlePaymentRedirect();
+          }, 3000);
+        } else {
+          console.error('[Payment Redirect] Missing Razorpay order details');
+          message.error('Payment verification failed: Missing Razorpay transaction details');
+          setCurrentStep(1); // Go back to payment form instead of home
+        }
       } else {
-        // Payment not completed yet
-        message.warning('Payment verification in progress. Please wait...');
-        // Retry verification after a delay
-        setTimeout(() => {
-          handlePaymentSuccessRedirect();
-        }, 3000);
+        // Unknown gateway
+        console.error('[Payment Redirect] Unknown payment gateway:', gateway);
+        message.error(`Unknown payment gateway: ${gateway}`);
+        setCurrentStep(1); // Go back to payment form instead of home
       }
     } catch (error: any) {
-      console.error('Payment verification error:', error);
+      console.error('[Payment Redirect] Payment verification error:', error);
       message.error(error.message || 'Payment verification failed');
-      navigate('/');
+      
+      // Check if we have exhibition data to stay on the form
+      if (exhibitionId) {
+        setCurrentStep(1); // Go back to payment form instead of home
+      } else {
+        navigate('/'); // Only go to home if we can't stay on the form
+      }
     } finally {
       setLoading(false);
     }
@@ -236,7 +426,7 @@ const PublicServiceChargeForm: React.FC = () => {
       
       if (paymentGateway === 'phonepe') {
         // PhonePe payment flow
-        const isDevelopmentMode = exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode';
+        const isDevelopmentMode = exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode';
         
         if (isDevelopmentMode) {
           // Development mode - simulate payment success
@@ -254,7 +444,7 @@ const PublicServiceChargeForm: React.FC = () => {
         }
       } else {
         // Razorpay payment flow
-        const isDevelopmentMode = exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+        const isDevelopmentMode = exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
         
         if (isDevelopmentMode) {
           // Development mode - simulate payment success
@@ -270,7 +460,7 @@ const PublicServiceChargeForm: React.FC = () => {
         } else {
           // Production mode - initialize Razorpay payment
           const options = {
-            key: exhibition?.config.razorpayKeyId,
+            key: exhibition?.config?.razorpayKeyId,
             amount: orderData.data.amount * 100, // Convert to paise
             currency: 'INR',
             name: exhibition?.name,
@@ -361,7 +551,7 @@ const PublicServiceChargeForm: React.FC = () => {
   };
 
   const getSelectedServiceAmount = () => {
-    const serviceType = exhibition?.config.serviceTypes.find(s => s.type === formData.serviceType);
+    const serviceType = exhibition?.config?.serviceTypes?.find(s => s.type === formData.serviceType);
     return serviceType?.amount || 0;
   };
 
@@ -430,11 +620,11 @@ const PublicServiceChargeForm: React.FC = () => {
             rules={[{ required: true, message: 'Please select service type' }]}
           >
             <Select placeholder="Select service type">
-              {exhibition?.config.serviceTypes.map(service => (
+              {exhibition?.config?.serviceTypes?.map(service => (
                 <Option key={service.type} value={service.type}>
                   {service.type} - ₹{service.amount.toLocaleString('en-IN')}
                 </Option>
-              ))}
+              )) || []}
             </Select>
           </Form.Item>
         </Col>
@@ -460,7 +650,7 @@ const PublicServiceChargeForm: React.FC = () => {
   );
 
   const renderPaymentStep = () => {
-    const selectedService = exhibition?.config.serviceTypes.find(s => s.type === formData.serviceType);
+    const selectedService = exhibition?.config?.serviceTypes?.find(s => s.type === formData.serviceType);
     
     return (
       <Card title="Payment Details" className="step-card">
@@ -496,11 +686,11 @@ const PublicServiceChargeForm: React.FC = () => {
           </div>
           
           {(() => {
-            const isDevelopmentMode = exhibition?.config.paymentGateway === 'phonepe' 
-              ? exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode'
-              : exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
+            const isDevelopmentMode = exhibition?.config?.paymentGateway === 'phonepe' 
+              ? exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode'
+              : exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
             
-            const paymentGateway = exhibition?.config.paymentGateway || 'phonepe';
+            const paymentGateway = exhibition?.config?.paymentGateway || 'phonepe';
             
             if (isDevelopmentMode) {
               return (
@@ -645,8 +835,8 @@ const PublicServiceChargeForm: React.FC = () => {
           <div className="form-container">
             <Card className="header-card">
               <div style={{ textAlign: 'center' }}>
-                <Title level={2}>{exhibition?.config.title || 'Service Charge Payment'}</Title>
-                <Paragraph>{exhibition?.config.description || 'Complete your service charge payment'}</Paragraph>
+                            <Title level={2}>{exhibition?.config?.title || 'Service Charge Payment'}</Title>
+            <Paragraph>{exhibition?.config?.description || 'Complete your service charge payment'}</Paragraph>
                 {exhibition && (
                   <Space>
                     <InfoCircleOutlined />
@@ -693,11 +883,11 @@ const PublicServiceChargeForm: React.FC = () => {
                 icon={<CreditCardOutlined />}
               >
                 {(() => {
-                  const isDevelopmentMode = exhibition?.config.paymentGateway === 'phonepe' 
-                    ? exhibition?.config.phonePeConfig.clientId === 'phonepe_test_development_mode'
-                    : exhibition?.config.razorpayKeyId === 'rzp_test_development_mode';
-                  
-                  const paymentGateway = exhibition?.config.paymentGateway || 'phonepe';
+                              const isDevelopmentMode = exhibition?.config?.paymentGateway === 'phonepe'
+              ? exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode'
+              : exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
+            
+            const paymentGateway = exhibition?.config?.paymentGateway || 'phonepe';
                   const amount = getSelectedServiceAmount().toLocaleString('en-IN');
                   
                   return isDevelopmentMode 

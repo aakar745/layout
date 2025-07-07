@@ -177,8 +177,15 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
     try {
       if (paymentGateway === 'phonepe') {
         // Create PhonePe order
-        const redirectUrl = `${process.env.FRONTEND_URL}/service-charge/payment-success?serviceChargeId=${serviceCharge._id}`;
+        // PhonePe redirects to the same URL for all states, we need to handle different outcomes
+        const redirectUrl = `${process.env.FRONTEND_URL}/service-charge/payment-result?serviceChargeId=${serviceCharge._id}&gateway=phonepe`;
         const callbackUrl = `${process.env.BACKEND_URL}/api/public/service-charge/phonepe-callback`;
+        
+        console.log('[Public Service Charge] Creating PhonePe order with URLs:', {
+          redirectUrl,
+          callbackUrl,
+          receiptNumber: serviceCharge.receiptNumber
+        });
         
         const phonePeOrder = await phonePeService.createOrder({
           amount,
@@ -192,13 +199,24 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
         if (phonePeOrder.data?.merchantTransactionId) {
           serviceCharge.phonePeOrderId = phonePeOrder.data.merchantTransactionId;
         }
+        
+        console.log('[Public Service Charge] Saving PhonePe merchant transaction ID:', {
+          serviceChargeId: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber,
+          phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+          phonePeOrderId: serviceCharge.phonePeOrderId
+        });
+        
         await serviceCharge.save();
+        
+        console.log('[Public Service Charge] PhonePe merchant transaction ID saved successfully');
 
         console.log('[Public Service Charge] PhonePe order created successfully:', {
           serviceChargeId: serviceCharge._id,
           receiptNumber: serviceCharge.receiptNumber,
           merchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
-          amount
+          amount,
+          redirectUrl: phonePeOrder.data?.instrumentResponse?.redirectInfo?.url
         });
 
         return res.status(200).json({
@@ -423,7 +441,8 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
 
     console.log('[PhonePe Callback] Received callback:', {
       authorization,
-      body: responseBody
+      body: req.body,
+      headers: req.headers
     });
 
     // In development mode, simulate successful callback
@@ -435,56 +454,109 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       });
     }
 
-    // Verify callback
-    const callbackResult = phonePeService.verifyCallback(
-      process.env.PHONEPE_CALLBACK_USERNAME || '',
-      process.env.PHONEPE_CALLBACK_PASSWORD || '',
-      authorization as string,
-      responseBody
-    );
+    // Verify callback using PhonePe SDK
+    try {
+      const callbackResult = phonePeService.verifyCallback(
+        process.env.PHONEPE_CALLBACK_USERNAME || '',
+        process.env.PHONEPE_CALLBACK_PASSWORD || '',
+        authorization as string,
+        responseBody
+      );
 
-    if (callbackResult.success) {
-      const { orderId, state, transactionId } = callbackResult.payload;
+      console.log('[PhonePe Callback] Callback verification result:', callbackResult);
 
-      // Find service charge by merchant transaction ID
-      const serviceCharge = await ServiceCharge.findOne({
-        phonePeMerchantTransactionId: orderId
-      });
+      if (callbackResult.success) {
+        const { orderId, state, transactionId } = callbackResult.payload;
 
-      if (serviceCharge) {
-        // Update service charge based on payment state
-        if (state === 'COMPLETED') {
-          serviceCharge.paymentStatus = 'paid';
-          serviceCharge.status = 'paid';
-          serviceCharge.phonePeTransactionId = transactionId;
-          serviceCharge.paidAt = new Date();
-          await serviceCharge.save();
+        // Find service charge by merchant transaction ID
+        const serviceCharge = await ServiceCharge.findOne({
+          phonePeMerchantTransactionId: orderId
+        }).populate('exhibitionId');
 
-          console.log('[PhonePe Callback] Payment completed successfully:', {
+        if (serviceCharge) {
+          console.log('[PhonePe Callback] Found service charge for callback:', {
             serviceChargeId: serviceCharge._id,
-            transactionId
+            currentStatus: serviceCharge.paymentStatus,
+            callbackState: state
           });
+
+          // Update service charge based on payment state
+          if (state === 'COMPLETED') {
+            serviceCharge.paymentStatus = 'paid';
+            serviceCharge.status = 'paid';
+            serviceCharge.phonePeTransactionId = transactionId;
+            serviceCharge.paidAt = new Date();
+            await serviceCharge.save();
+
+            console.log('[PhonePe Callback] Payment completed successfully via callback:', {
+              serviceChargeId: serviceCharge._id,
+              transactionId
+            });
+
+            // Generate receipt and send notifications in background
+            setImmediate(async () => {
+              try {
+                const exhibition = serviceCharge.exhibitionId as any;
+                
+                // Generate receipt
+                const receiptPath = await serviceChargeReceiptService.generateReceipt({
+                  serviceCharge,
+                  exhibition
+                });
+
+                serviceCharge.receiptPath = receiptPath;
+                serviceCharge.receiptGenerated = true;
+                await serviceCharge.save();
+
+                // Send notifications
+                await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
+                if (receiptPath) {
+                  await serviceChargeNotificationService.sendReceiptToVendor(
+                    serviceCharge,
+                    exhibition,
+                    receiptPath
+                  );
+                }
+              } catch (bgError) {
+                console.error('[PhonePe Callback] Background processing failed:', bgError);
+              }
+            });
+          } else if (state === 'FAILED') {
+            serviceCharge.paymentStatus = 'failed';
+            serviceCharge.status = 'cancelled';
+            await serviceCharge.save();
+
+            console.log('[PhonePe Callback] Payment failed via callback:', {
+              serviceChargeId: serviceCharge._id,
+              state
+            });
+          } else {
+            console.log('[PhonePe Callback] Payment state not final:', {
+              serviceChargeId: serviceCharge._id,
+              state
+            });
+          }
         } else {
-          serviceCharge.paymentStatus = 'failed';
-          serviceCharge.status = 'cancelled';
-          await serviceCharge.save();
-
-          console.log('[PhonePe Callback] Payment failed:', {
-            serviceChargeId: serviceCharge._id,
-            state
-          });
+          console.error('[PhonePe Callback] Service charge not found for order ID:', orderId);
         }
+      } else {
+        console.error('[PhonePe Callback] Callback verification failed');
       }
+    } catch (verifyError) {
+      console.error('[PhonePe Callback] Error verifying callback:', verifyError);
     }
 
+    // Always return success to PhonePe to avoid retries
     return res.status(200).json({
       success: true,
       message: 'Callback processed'
     });
   } catch (error) {
     console.error('[PhonePe Callback] Error processing callback:', error);
-    return res.status(500).json({
-      message: 'Error processing callback',
+    // Still return success to PhonePe to avoid retries
+    return res.status(200).json({
+      success: true,
+      message: 'Callback processed with errors',
       error: (error as Error).message
     });
   }
@@ -503,16 +575,43 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
       });
     }
 
-    // Find service charge by merchant transaction ID
-    const serviceCharge = await ServiceCharge.findOne({ 
+    console.log('[PhonePe Verification] Starting verification for:', merchantTransactionId);
+
+    // Find service charge by merchant transaction ID or receipt number (fallback)
+    let serviceCharge = await ServiceCharge.findOne({ 
       phonePeMerchantTransactionId: merchantTransactionId 
     });
 
+    // If not found by merchant transaction ID, try by receipt number as fallback
     if (!serviceCharge) {
+      console.log('[PhonePe Verification] Service charge not found by merchant transaction ID, trying receipt number fallback...');
+      serviceCharge = await ServiceCharge.findOne({ 
+        receiptNumber: merchantTransactionId 
+      });
+      
+      if (serviceCharge) {
+        console.log('[PhonePe Verification] Found service charge by receipt number, updating merchant transaction ID');
+        // Update the merchant transaction ID if found by receipt number
+        serviceCharge.phonePeMerchantTransactionId = merchantTransactionId;
+        await serviceCharge.save();
+      }
+    }
+
+    if (!serviceCharge) {
+      console.error('[PhonePe Verification] Service charge not found for merchant transaction ID:', merchantTransactionId);
       return res.status(404).json({ 
         message: 'Service charge order not found' 
       });
     }
+
+    console.log('[PhonePe Verification] Found service charge:', {
+      serviceChargeId: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+      currentPaymentStatus: serviceCharge.paymentStatus,
+      status: serviceCharge.status,
+      createdAt: serviceCharge.createdAt
+    });
 
     // Get exhibition details
     const exhibition = await Exhibition.findById(serviceCharge.exhibitionId);
@@ -523,19 +622,37 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
     }
 
     // Check payment status with PhonePe
+    console.log('[PhonePe Verification] Checking payment status with PhonePe...');
     const statusResponse = await phonePeService.getOrderStatus(merchantTransactionId);
+    
+    console.log('[PhonePe Verification] Status response:', {
+      success: statusResponse.success,
+      state: statusResponse.data?.state,
+      code: statusResponse.code,
+      message: statusResponse.message
+    });
 
     if (statusResponse.success && statusResponse.data?.state === 'COMPLETED') {
-      // Update service charge with payment details
+      // Payment completed successfully
+      console.log('[PhonePe Verification] Payment completed successfully, updating status...');
+      
       serviceCharge.phonePeTransactionId = statusResponse.data.transactionId;
       serviceCharge.paymentStatus = 'paid';
       serviceCharge.status = 'paid';
       serviceCharge.paidAt = new Date();
+      
+      console.log('[PhonePe Verification] Updating payment status to paid:', {
+        serviceChargeId: serviceCharge._id,
+        merchantTransactionId: merchantTransactionId,
+        transactionId: statusResponse.data.transactionId
+      });
+      
       await serviceCharge.save();
 
       // Generate receipt PDF
       let receiptPath: string | null = null;
       try {
+        console.log('[PhonePe Verification] Generating receipt...');
         receiptPath = await serviceChargeReceiptService.generateReceipt({
           serviceCharge,
           exhibition
@@ -554,6 +671,7 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
 
       // Send notifications
       try {
+        console.log('[PhonePe Verification] Sending notifications...');
         // Notify admin about new payment
         await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
 
@@ -587,29 +705,76 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
           amount: serviceCharge.amount,
           paidAt: serviceCharge.paidAt,
           receiptGenerated: serviceCharge.receiptGenerated,
-          receiptDownloadUrl: receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : null
+          receiptDownloadUrl: receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : null,
+          state: 'COMPLETED',
+          code: 'PAYMENT_SUCCESS'
         }
       });
-    } else {
-      // Payment failed or pending
-      if (statusResponse.data?.state === 'FAILED') {
-        serviceCharge.paymentStatus = 'failed';
-        serviceCharge.status = 'cancelled';
-        await serviceCharge.save();
+    } else if (statusResponse.data?.state === 'FAILED') {
+      // Payment failed
+      console.log('[PhonePe Verification] Payment failed, updating status...');
+      serviceCharge.paymentStatus = 'failed';
+      serviceCharge.status = 'cancelled';
+      await serviceCharge.save();
 
-        // Notify admin about payment failure
+      console.log('[PhonePe Verification] Payment failed:', {
+        serviceChargeId: serviceCharge._id,
+        merchantTransactionId: merchantTransactionId
+      });
+
+      // Notify admin about payment failure
+      try {
         await serviceChargeNotificationService.notifyPaymentFailure(
           serviceCharge,
           exhibition,
           'PhonePe payment failed'
         );
+      } catch (notificationError) {
+        console.error('[PhonePe Verification] Failed to send failure notification:', notificationError);
       }
 
       return res.status(400).json({
         success: false,
-        message: 'Payment verification failed',
+        message: 'Payment failed',
+        data: {
+          state: 'FAILED',
+          code: 'PAYMENT_ERROR',
+          serviceChargeId: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber
+        }
+      });
+    } else if (statusResponse.data?.state === 'PENDING') {
+      // Payment still pending
+      console.log('[PhonePe Verification] Payment still pending:', {
+        serviceChargeId: serviceCharge._id,
+        merchantTransactionId: merchantTransactionId
+      });
+
+      return res.status(202).json({
+        success: false,
+        message: 'Payment is still being processed',
+        data: {
+          state: 'PENDING',
+          code: 'PAYMENT_PENDING',
+          serviceChargeId: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber
+        }
+      });
+    } else {
+      // Unknown state or verification failed
+      console.error('[PhonePe Verification] Unknown payment state or verification failed:', {
+        success: statusResponse.success,
+        state: statusResponse.data?.state,
+        code: statusResponse.code,
+        message: statusResponse.message
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: statusResponse.message || 'Payment verification failed',
         data: {
           state: statusResponse.data?.state || 'UNKNOWN',
+          code: statusResponse.code || 'INTERNAL_SERVER_ERROR',
           serviceChargeId: serviceCharge._id,
           receiptNumber: serviceCharge.receiptNumber
         }
@@ -618,8 +783,13 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[PhonePe Verification] Error verifying payment:', error);
     return res.status(500).json({
+      success: false,
       message: 'Error verifying payment',
-      error: (error as Error).message
+      error: (error as Error).message,
+      data: {
+        state: 'ERROR',
+        code: 'INTERNAL_SERVER_ERROR'
+      }
     });
   }
 };
@@ -645,6 +815,16 @@ export const getServiceChargeStatus = async (req: Request, res: Response) => {
       });
     }
 
+    console.log('[Public Service Charge] Returning service charge status:', {
+      serviceChargeId: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+      phonePeOrderId: serviceCharge.phonePeOrderId,
+      razorpayOrderId: serviceCharge.razorpayOrderId,
+      paymentStatus: serviceCharge.paymentStatus,
+      status: serviceCharge.status
+    });
+
     return res.status(200).json({
       success: true,
       data: {
@@ -660,7 +840,13 @@ export const getServiceChargeStatus = async (req: Request, res: Response) => {
         createdAt: serviceCharge.createdAt,
         exhibition: serviceCharge.exhibitionId,
         receiptGenerated: serviceCharge.receiptGenerated,
-        receiptDownloadUrl: serviceCharge.receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : null
+        receiptDownloadUrl: serviceCharge.receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : null,
+        // Include payment gateway specific fields
+        phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+        phonePeOrderId: serviceCharge.phonePeOrderId,
+        phonePeTransactionId: serviceCharge.phonePeTransactionId,
+        razorpayOrderId: serviceCharge.razorpayOrderId,
+        razorpayPaymentId: serviceCharge.razorpayPaymentId
       }
     });
   } catch (error) {

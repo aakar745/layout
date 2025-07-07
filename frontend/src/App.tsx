@@ -114,6 +114,7 @@ function App() {
               {/* Public Service Charge Route */}
               <Route path="/exhibitions/:exhibitionId/service-charge" element={<ServiceChargeForm />} />
               <Route path="/service-charge/payment-success" element={<ServiceChargeForm />} />
+              <Route path="/service-charge/payment-result" element={<ServiceChargeForm />} />
               
               {/* Static Pages */}
               <Route path="/about" element={<AboutUs />} />
