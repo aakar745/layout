@@ -1,5 +1,4 @@
-import axios from 'axios';
-import crypto from 'crypto';
+import { StandardCheckoutClient, Env, StandardCheckoutPayRequest, OrderStatusResponse, CreateSdkOrderRequest } from 'pg-sdk-node';
 import { randomUUID } from 'crypto';
 
 export interface PhonePeOrderResponse {
@@ -55,19 +54,14 @@ export class PhonePeService {
   private clientSecret: string;
   private clientVersion: number;
   private env: 'SANDBOX' | 'PRODUCTION';
-  private baseUrl: string;
   private isDevelopmentMode: boolean;
+  private phonePeClient: any;
 
   constructor() {
     this.clientId = process.env.PHONEPE_CLIENT_ID || '';
     this.clientSecret = process.env.PHONEPE_CLIENT_SECRET || '';
     this.clientVersion = parseInt(process.env.PHONEPE_CLIENT_VERSION || '1');
     this.env = (process.env.PHONEPE_ENV as 'SANDBOX' | 'PRODUCTION') || 'SANDBOX';
-    
-    // Set base URL based on environment
-    this.baseUrl = this.env === 'PRODUCTION' 
-      ? 'https://api.phonepe.com/apis/hermes' 
-      : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
     
     // Development mode check - more explicit conditions
     this.isDevelopmentMode = this.clientId === 'phonepe_test_development_mode' || 
@@ -79,7 +73,6 @@ export class PhonePeService {
     // Enhanced logging for better debugging
     console.log('[PhonePe] Service Initialization:', {
       environment: this.env,
-      baseUrl: this.baseUrl,
       clientIdPresent: !!this.clientId,
       clientIdLength: this.clientId.length,
       clientSecretPresent: !!this.clientSecret,
@@ -95,31 +88,30 @@ export class PhonePeService {
         clientSecretEmpty: !this.clientSecret || this.clientSecret === '',
         isDevelopmentKey: this.clientId === 'phonepe_test_development_mode'
       });
+      this.phonePeClient = null; // No client needed for development mode
     } else {
       console.log(`[PhonePe] Initialized in ${this.env} mode with client ID: ${this.clientId.substring(0, 10)}...`);
       
-      // Additional validation for production mode
-      if (this.env === 'PRODUCTION' && this.baseUrl.includes('preprod')) {
-        console.warn('[PhonePe] WARNING: Environment is set to PRODUCTION but using sandbox URL!');
-      }
-      
-      if (this.clientId.length < 10) {
-        console.warn('[PhonePe] WARNING: Client ID seems too short for production use');
+      // Initialize official PhonePe SDK client
+      try {
+        const phonepeEnv = this.env === 'PRODUCTION' ? Env.PRODUCTION : Env.SANDBOX;
+        this.phonePeClient = StandardCheckoutClient.getInstance(
+          this.clientId,
+          this.clientSecret,
+          this.clientVersion,
+          phonepeEnv
+        );
+        console.log('[PhonePe] Official SDK client initialized successfully');
+      } catch (error) {
+        console.error('[PhonePe] Failed to initialize SDK client:', error);
+        this.isDevelopmentMode = true; // Fallback to development mode
+        console.log('[PhonePe] Falling back to development mode due to SDK initialization failure');
       }
     }
   }
 
   /**
-   * Generate X-VERIFY header for PhonePe API requests
-   */
-  private generateXVerifyHeader(payload: string, endpoint: string): string {
-    const data = payload + endpoint + this.clientSecret;
-    const hash = crypto.createHash('sha256').update(data).digest('hex');
-    return hash + '###' + this.clientVersion;
-  }
-
-  /**
-   * Create a payment order
+   * Create a payment order using official PhonePe SDK
    */
   async createOrder(params: CreateOrderParams): Promise<PhonePeOrderResponse> {
     console.log('[PhonePe] Creating order with params:', params);
@@ -147,96 +139,61 @@ export class PhonePeService {
       return mockResponse;
     }
 
-    // Production mode - make actual API call
-    const merchantTransactionId = params.receiptId;
-    const endpoint = '/pg/v1/pay';
-    let payloadBase64 = '';
-    let xVerifyHeader = '';
-    
+    // Production mode - use official SDK
     try {
-      const paymentPayload = {
-        merchantId: this.clientId,
-        merchantTransactionId: merchantTransactionId,
-        merchantUserId: `USER_${Date.now()}`,
-        amount: Math.round(params.amount * 100), // Convert to paise
-        redirectUrl: params.redirectUrl,
-        redirectMode: 'POST',
-        callbackUrl: params.callbackUrl,
-        mobileNumber: '',
-        paymentInstrument: {
-          type: 'PAY_PAGE'
-        }
-      };
+      console.log('[PhonePe] Using official SDK for order creation');
+      
+      const request = StandardCheckoutPayRequest.builder()
+        .merchantOrderId(params.receiptId)
+        .amount(Math.round(params.amount * 100)) // Convert to paise
+        .redirectUrl(params.redirectUrl)
+        .build();
 
-      const payloadString = JSON.stringify(paymentPayload);
-      payloadBase64 = Buffer.from(payloadString).toString('base64');
-      xVerifyHeader = this.generateXVerifyHeader(payloadBase64, endpoint);
-
-      const response = await axios.post(
-        `${this.baseUrl}${endpoint}`,
-        {
-          request: payloadBase64
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-VERIFY': xVerifyHeader
+      const response = await this.phonePeClient.pay(request);
+      
+      console.log('[PhonePe] SDK order created successfully:', response);
+      
+      // Transform SDK response to our interface format
+      const transformedResponse: PhonePeOrderResponse = {
+        success: true,
+        code: 'PAYMENT_INITIATED',
+        message: 'Payment initiated successfully',
+        data: {
+          merchantId: this.clientId,
+          merchantTransactionId: params.receiptId,
+          instrumentResponse: {
+            type: 'PAY_PAGE',
+            redirectInfo: {
+              url: response.redirectUrl,
+              method: 'GET'
+            }
           }
         }
-      );
-
-      console.log('[PhonePe] Order created successfully:', response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error('[PhonePe] Order creation failed:', error);
+      };
       
-      // Enhanced error handling for common PhonePe API errors
-      if (error.response?.data) {
-        const apiError = error.response.data;
-        console.error('[PhonePe] API Error Details:', apiError);
-        console.error('[PhonePe] Request Details:', {
-          url: `${this.baseUrl}${endpoint}`,
-          merchantId: this.clientId,
-          environment: this.env,
-          xVerifyHeaderLength: xVerifyHeader.length,
-          payloadSize: payloadBase64.length
-        });
-        
-        if (apiError.code === 'KEY_NOT_CONFIGURED') {
-          const errorMsg = `PhonePe configuration error: Merchant key not found.\n` +
-                          `Current Configuration:\n` +
-                          `- Merchant ID: ${this.clientId}\n` +
-                          `- Environment: ${this.env}\n` +
-                          `- Base URL: ${this.baseUrl}\n` +
-                          `- Client Secret Present: ${!!this.clientSecret}\n` +
-                          `\nPossible Solutions:\n` +
-                          `1. Verify your merchant ID is correct in PhonePe dashboard\n` +
-                          `2. Ensure your merchant account is activated for ${this.env} environment\n` +
-                          `3. Check if API keys are properly configured\n` +
-                          `4. Verify the client secret is correct\n` +
-                          `5. Contact PhonePe support if the issue persists`;
-          throw new Error(errorMsg);
-        } else if (apiError.code === 'INVALID_REQUEST') {
-          throw new Error(`PhonePe request error: ${apiError.message || 'Invalid request format'}\nPlease check your request payload and headers.`);
-        } else if (apiError.code === 'MERCHANT_NOT_FOUND') {
-          throw new Error(`PhonePe merchant error: Merchant ID '${this.clientId}' not found. Please verify your merchant ID is correct.`);
-        } else if (apiError.code === 'INVALID_MERCHANT') {
-          throw new Error(`PhonePe merchant error: Invalid merchant configuration. Please check your merchant setup in PhonePe dashboard.`);
-        } else {
-          throw new Error(`PhonePe API error: ${apiError.message || 'Unknown API error'} (Code: ${apiError.code || 'unknown'})`);
-        }
-      } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-        throw new Error(`PhonePe network error: Unable to connect to PhonePe servers. Please check your internet connection and try again.`);
-      } else if (error.code === 'ETIMEDOUT') {
-        throw new Error(`PhonePe timeout error: Request timed out. Please try again later.`);
+      return transformedResponse;
+    } catch (error: any) {
+      console.error('[PhonePe] SDK order creation failed:', error);
+      
+      // Enhanced error handling for PhonePe SDK errors
+      if (error.message?.includes('KEY_NOT_CONFIGURED')) {
+        throw new Error(`PhonePe configuration error: Merchant key not configured.\n` +
+                       `Current Configuration:\n` +
+                       `- Merchant ID: ${this.clientId}\n` +
+                       `- Environment: ${this.env}\n` +
+                       `\nSolutions:\n` +
+                       `1. Contact PhonePe Integration team for sandbox access\n` +
+                       `2. Verify merchant account is activated for ${this.env} environment\n` +
+                       `3. Check PhonePe Business Dashboard for key status\n` +
+                       `4. For testing, use development mode: PHONEPE_CLIENT_ID=phonepe_test_development_mode`);
       }
       
-      throw new Error(`Failed to create PhonePe order: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to create PhonePe order: ${error.message || 'Unknown SDK error'}`);
     }
   }
 
   /**
-   * Check order status
+   * Check order status using official SDK
    */
   async getOrderStatus(merchantTransactionId: string): Promise<PhonePeOrderStatusResponse> {
     try {
@@ -265,30 +222,38 @@ export class PhonePeService {
         return mockStatus;
       }
 
-      // Production mode - check actual status
-      const endpoint = `/pg/v1/status/${this.clientId}/${merchantTransactionId}`;
-      const xVerifyHeader = this.generateXVerifyHeader('', endpoint);
-
-      const response = await axios.get(
-        `${this.baseUrl}${endpoint}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-VERIFY': xVerifyHeader
+      // Production mode - use official SDK
+      const response: OrderStatusResponse = await this.phonePeClient.getOrderStatus(merchantTransactionId);
+      
+      console.log('[PhonePe] SDK order status retrieved successfully');
+      
+      // Transform SDK response to our interface format
+      const transformedResponse: PhonePeOrderStatusResponse = {
+        success: response.state === 'COMPLETED',
+        code: response.state === 'COMPLETED' ? 'PAYMENT_SUCCESS' : 'PAYMENT_PENDING',
+        message: response.state === 'COMPLETED' ? 'Payment completed successfully' : 'Payment pending',
+        data: {
+          merchantId: this.clientId,
+          merchantTransactionId: merchantTransactionId,
+          transactionId: merchantTransactionId,
+          amount: response.amount || 0,
+          state: response.state,
+          responseCode: response.state === 'COMPLETED' ? 'SUCCESS' : 'PENDING',
+          paymentInstrument: {
+            type: 'UPI'
           }
         }
-      );
-
-      console.log('[PhonePe] Order status retrieved successfully');
-      return response.data;
+      };
+      
+      return transformedResponse;
     } catch (error) {
-      console.error('[PhonePe] Order status check failed:', error);
-      throw new Error(`Failed to check PhonePe order status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('[PhonePe] SDK order status check failed:', error);
+      throw new Error(`Failed to check PhonePe order status: ${error instanceof Error ? error.message : 'Unknown SDK error'}`);
     }
   }
 
   /**
-   * Verify payment callback
+   * Verify payment callback using official SDK
    */
   verifyCallback(username: string, password: string, authorization: string, responseBody: string): any {
     try {
@@ -310,25 +275,23 @@ export class PhonePeService {
         return mockCallback;
       }
 
-      // Production mode - verify actual callback
-      const expectedAuth = crypto.createHash('sha256')
-        .update(username + password + responseBody)
-        .digest('hex');
+      // Production mode - use official SDK
+      const callbackResponse = this.phonePeClient.validateCallback(
+        username,
+        password,
+        authorization,
+        responseBody
+      );
       
-      if (authorization !== expectedAuth) {
-        throw new Error('Invalid callback signature');
-      }
-
-      const callbackData = JSON.parse(responseBody);
-      console.log('[PhonePe] Callback verified successfully');
+      console.log('[PhonePe] SDK callback verified successfully');
       
       return {
         success: true,
-        payload: callbackData.payload || callbackData
+        payload: callbackResponse.payload || callbackResponse
       };
     } catch (error) {
-      console.error('[PhonePe] Callback verification failed:', error);
-      throw new Error(`Failed to verify PhonePe callback: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('[PhonePe] SDK callback verification failed:', error);
+      throw new Error(`Failed to verify PhonePe callback: ${error instanceof Error ? error.message : 'Unknown SDK error'}`);
     }
   }
 

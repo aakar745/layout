@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Form, 
   Input, 
@@ -84,6 +84,7 @@ declare global {
 const PublicServiceChargeForm: React.FC = () => {
   const { exhibitionId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form] = Form.useForm();
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -102,12 +103,71 @@ const PublicServiceChargeForm: React.FC = () => {
   });
   const [paymentResult, setPaymentResult] = useState<any>(null);
 
+  // Check if we're on payment success page
+  const isPaymentSuccessPage = location.pathname === '/service-charge/payment-success';
+  
   useEffect(() => {
-    if (exhibitionId) {
+    if (isPaymentSuccessPage) {
+      // Handle payment success redirect
+      handlePaymentSuccessRedirect();
+    } else if (exhibitionId) {
       fetchExhibitionConfig();
       loadRazorpayScript();
     }
-  }, [exhibitionId]);
+  }, [exhibitionId, isPaymentSuccessPage]);
+
+  const handlePaymentSuccessRedirect = async () => {
+    try {
+      const urlParams = new URLSearchParams(location.search);
+      const serviceChargeId = urlParams.get('serviceChargeId');
+      
+      if (!serviceChargeId) {
+        message.error('Payment verification failed: Missing service charge ID');
+        navigate('/');
+        return;
+      }
+
+      setLoading(true);
+      
+      // Get service charge details to verify payment
+      const response = await fetch(`/api/public/service-charge/status/${serviceChargeId}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to verify payment status');
+      }
+
+      if (data.data.status === 'paid') {
+        // Payment successful - show success step
+        setPaymentResult(data.data);
+        setCurrentStep(2);
+        
+        // Load exhibition details for context
+        if (data.data.exhibitionId) {
+          const exhibitionResponse = await fetch(`/api/public/service-charge/config/${data.data.exhibitionId}`);
+          if (exhibitionResponse.ok) {
+            const exhibitionData = await exhibitionResponse.json();
+            setExhibition(exhibitionData.data);
+          }
+        }
+        
+        message.success('Payment verified successfully!');
+      } else {
+        // Payment not completed yet
+        message.warning('Payment verification in progress. Please wait...');
+        // Retry verification after a delay
+        setTimeout(() => {
+          handlePaymentSuccessRedirect();
+        }, 3000);
+      }
+    } catch (error: any) {
+      console.error('Payment verification error:', error);
+      message.error(error.message || 'Payment verification failed');
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchExhibitionConfig = async () => {
     try {
@@ -537,7 +597,7 @@ const PublicServiceChargeForm: React.FC = () => {
     );
   }
 
-  if (!exhibition) {
+  if (!exhibition && !isPaymentSuccessPage) {
     return (
       <Layout>
         <GlobalHeader />
@@ -585,14 +645,16 @@ const PublicServiceChargeForm: React.FC = () => {
           <div className="form-container">
             <Card className="header-card">
               <div style={{ textAlign: 'center' }}>
-                <Title level={2}>{exhibition.config.title}</Title>
-                <Paragraph>{exhibition.config.description}</Paragraph>
-                <Space>
-                  <InfoCircleOutlined />
-                  <Text strong>{exhibition.name}</Text>
-                  <Divider type="vertical" />
-                  <Text>{exhibition.venue}</Text>
-                </Space>
+                <Title level={2}>{exhibition?.config.title || 'Service Charge Payment'}</Title>
+                <Paragraph>{exhibition?.config.description || 'Complete your service charge payment'}</Paragraph>
+                {exhibition && (
+                  <Space>
+                    <InfoCircleOutlined />
+                    <Text strong>{exhibition.name}</Text>
+                    <Divider type="vertical" />
+                    <Text>{exhibition.venue}</Text>
+                  </Space>
+                )}
               </div>
             </Card>
 
