@@ -50,7 +50,6 @@ interface ServiceChargeConfig {
   title: string;
   description: string;
   serviceTypes: ServiceType[];
-  razorpayKeyId?: string;
 }
 
 interface ServiceType {
@@ -116,15 +115,13 @@ const ServiceChargeSettings: React.FC = () => {
       isEnabled: false,
       title: 'Service Charges',
       description: 'Pay service charges for stall positioning and setup',
-      serviceTypes: [],
-      razorpayKeyId: ''
+      serviceTypes: []
     };
 
     form.setFieldsValue({
       isEnabled: config.isEnabled,
       title: config.title,
-      description: config.description,
-      razorpayKeyId: config.razorpayKeyId || ''
+      description: config.description
     });
   };
 
@@ -534,15 +531,7 @@ const ServiceChargeSettings: React.FC = () => {
                         <Input placeholder="e.g., Service Charges" />
                       </Form.Item>
                     </Col>
-                    <Col span={12}>
-                      <Form.Item
-                        name="razorpayKeyId"
-                        label="Razorpay Key ID (Optional)"
-                        tooltip="Leave empty to use default Razorpay credentials"
-                      >
-                        <Input placeholder="rzp_live_..." />
-                      </Form.Item>
-                    </Col>
+
                   </Row>
 
                   <Row gutter={16}>

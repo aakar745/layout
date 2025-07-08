@@ -2,12 +2,10 @@ import express from 'express';
 import { 
   getExhibitionServiceChargeConfig,
   createServiceChargeOrder,
-  verifyPayment,
   handlePhonePeCallback,
   verifyPhonePePayment,
   getServiceChargeStatus,
   downloadReceipt,
-  getServiceChargeByOrderId,
   handlePaymentFailure
 } from '../controllers/publicServiceCharge.controller';
 
@@ -26,13 +24,6 @@ router.get('/config/:exhibitionId', getExhibitionServiceChargeConfig);
  * @access  Public
  */
 router.post('/create-order', createServiceChargeOrder);
-
-/**
- * @route   POST /api/public/service-charge/verify-payment
- * @desc    Verify payment and complete the service charge (Razorpay)
- * @access  Public
- */
-router.post('/verify-payment', verifyPayment);
 
 /**
  * @route   POST /api/public/service-charge/phonepe-callback
@@ -61,13 +52,6 @@ router.post('/payment-failure', handlePaymentFailure);
  * @access  Public
  */
 router.get('/status/:serviceChargeId', getServiceChargeStatus);
-
-/**
- * @route   GET /api/public/service-charge/order/:orderId
- * @desc    Get service charge by order ID
- * @access  Public
- */
-router.get('/order/:orderId', getServiceChargeByOrderId);
 
 /**
  * @route   GET /api/public/service-charge/receipt/:serviceChargeId

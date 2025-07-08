@@ -5,36 +5,42 @@ import {
   Input, 
   Select, 
   Button, 
-  Card, 
   Steps, 
+  Card, 
   Row, 
   Col, 
   Typography, 
   message, 
-  Space,
-  Divider,
-  Spin,
+  Divider, 
+  Space, 
   Alert,
+  Descriptions,
+  Spin,
+  Result,
   Tag,
   Layout
 } from 'antd';
 import { 
-  UserOutlined, 
+  ShoppingCartOutlined, 
   CreditCardOutlined, 
-  CheckCircleOutlined,
+  CheckCircleOutlined, 
+  PhoneOutlined, 
+  MailOutlined, 
+  HomeOutlined, 
+  BankOutlined,
+  LoadingOutlined,
   InfoCircleOutlined,
-  MailOutlined,
-  PhoneOutlined,
-  BankOutlined
+  LockOutlined
 } from '@ant-design/icons';
+import publicServiceChargeService from '../../services/publicServiceCharge';
 import GlobalHeader from '../../components/layout/GlobalHeader';
 import GlobalFooter from '../../components/layout/GlobalFooter';
 import './ServiceCharges.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
-const { TextArea } = Input;
 const { Step } = Steps;
+const { TextArea } = Input;
 const { Content } = Layout;
 
 interface ServiceType {
@@ -54,8 +60,7 @@ interface ExhibitionConfig {
     title: string;
     description: string;
     serviceTypes: ServiceType[];
-    paymentGateway: 'razorpay' | 'phonepe';
-    razorpayKeyId: string;
+    paymentGateway: 'phonepe';
     phonePeConfig: {
       clientId: string;
       env: 'SANDBOX' | 'PRODUCTION';
@@ -73,12 +78,6 @@ interface FormData {
   vendorAddress: string;
   serviceType: string;
   description?: string;
-}
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
 }
 
 const PublicServiceChargeForm: React.FC = () => {
@@ -102,105 +101,193 @@ const PublicServiceChargeForm: React.FC = () => {
     serviceType: '',
   });
   const [paymentResult, setPaymentResult] = useState<any>(null);
+  const [verificationInProgress, setVerificationInProgress] = useState(false);
 
-  // Check if we're on payment result page (handles all PhonePe outcomes)
-  const isPaymentResultPage = location.pathname === '/service-charge/payment-result';
-  const isPaymentSuccessPage = location.pathname === '/service-charge/payment-success'; // Keep for Razorpay
+  // Check if we're on payment result page (handle multiple possible paths)
+  const isPaymentResultPage = location.pathname === '/service-charge/payment-result' || 
+                              location.pathname === '/service-charge/payment-success' ||
+                              location.search.includes('serviceChargeId=');
   
   useEffect(() => {
-    if (isPaymentResultPage || isPaymentSuccessPage) {
-      // Handle payment redirect
-      handlePaymentRedirect();
+    console.log('[Payment Redirect] useEffect triggered:', {
+      isPaymentResultPage,
+      pathname: location.pathname,
+      search: location.search,
+      exhibitionId
+    });
+    
+    if (isPaymentResultPage) {
+      // Handle payment redirect (but not if we're already in success step)
+      if (currentStep !== 2) {
+        console.log('[Payment Redirect] Handling payment redirect');
+        handlePaymentRedirect();
+      } else {
+        console.log('[Payment Redirect] Already in success step, skipping redirect handling');
+      }
     } else if (exhibitionId) {
+      console.log('[Payment Redirect] Fetching exhibition config for:', exhibitionId);
       fetchExhibitionConfig();
-      loadRazorpayScript();
+    } else {
+      console.log('[Payment Redirect] No action taken - missing exhibitionId or not payment result page');
     }
-  }, [exhibitionId, isPaymentResultPage, isPaymentSuccessPage]);
+  }, [exhibitionId, isPaymentResultPage, currentStep]);
+
+  const restoreFormDataFromServiceCharge = async () => {
+    try {
+      console.log('[Payment Redirect] Restoring form data from service charge');
+      
+      const urlParams = new URLSearchParams(location.search);
+      const serviceChargeId = urlParams.get('serviceChargeId');
+      
+      if (!serviceChargeId) {
+        console.error('[Payment Redirect] No service charge ID found for form restoration');
+        return;
+      }
+      
+      // Fetch the service charge details
+      const statusResponse = await publicServiceChargeService.getServiceChargeStatus(serviceChargeId);
+      
+      if (statusResponse.data.success) {
+        const serviceCharge = statusResponse.data.data;
+        
+        console.log('[Payment Redirect] Service charge data retrieved for form restoration:', serviceCharge);
+        
+        // Restore form data from service charge record
+        const restoredFormData = {
+          vendorName: serviceCharge.vendorName || '',
+          companyName: serviceCharge.companyName || '',
+          exhibitorCompanyName: serviceCharge.exhibitorCompanyName || '',
+          vendorEmail: serviceCharge.vendorEmail || '',
+          vendorPhone: serviceCharge.vendorPhone || '',
+          stallNumber: serviceCharge.stallNumber || '',
+          vendorAddress: serviceCharge.vendorAddress || '',
+          serviceType: serviceCharge.serviceType || '',
+          description: serviceCharge.description || ''
+        };
+        
+        console.log('[Payment Redirect] Restoring form data:', restoredFormData);
+        
+        // Set the form data
+        setFormData(restoredFormData);
+        
+        // Restore exhibition config if not already loaded
+        if (!exhibition && serviceCharge.exhibitionId) {
+          const exhibitionId = typeof serviceCharge.exhibitionId === 'string' 
+            ? serviceCharge.exhibitionId 
+            : serviceCharge.exhibitionId._id || serviceCharge.exhibitionId.id;
+          
+          console.log('[Payment Redirect] Loading exhibition config for restored form:', exhibitionId);
+          
+          try {
+            const exhibitionResponse = await publicServiceChargeService.getServiceChargeConfig(exhibitionId);
+            if (exhibitionResponse.data.success) {
+              setExhibition(exhibitionResponse.data.data);
+              console.log('[Payment Redirect] Exhibition config loaded for restored form');
+            }
+          } catch (exhibitionError) {
+            console.error('[Payment Redirect] Failed to load exhibition config for restored form:', exhibitionError);
+          }
+        }
+        
+        // Update the form fields with restored data
+        form.setFieldsValue(restoredFormData);
+        
+        console.log('[Payment Redirect] Form data restoration completed');
+      } else {
+        console.error('[Payment Redirect] Failed to fetch service charge for form restoration');
+      }
+    } catch (error) {
+      console.error('[Payment Redirect] Error restoring form data:', error);
+    }
+  };
 
   const handlePaymentRedirect = async () => {
+    // Prevent multiple verification attempts
+    if (verificationInProgress) {
+      console.log('[Payment Redirect] Verification already in progress, skipping');
+      return;
+    }
+
     try {
+      setVerificationInProgress(true);
+      
       const urlParams = new URLSearchParams(location.search);
       const serviceChargeId = urlParams.get('serviceChargeId');
       const gateway = urlParams.get('gateway');
       
-      // Extract PhonePe specific parameters from URL
-      const phonePeTransactionId = urlParams.get('transactionId'); // PhonePe sends this
-      const phonePeCode = urlParams.get('code'); // PhonePe payment result code
-      const phoneProvidReferenceId = urlParams.get('providerReferenceId'); // PhonePe reference ID
-      
       console.log('[Payment Redirect] Starting payment verification:', {
         serviceChargeId,
         gateway,
-        phonePeTransactionId,
-        phonePeCode,
-        phoneProvidReferenceId,
         currentPath: location.pathname,
-        fullUrl: location.pathname + location.search,
         allUrlParams: Object.fromEntries(urlParams.entries())
       });
-      
-      // Log all URL parameters for debugging
-      console.log('[Payment Redirect] All URL parameters received:');
-      for (const [key, value] of urlParams.entries()) {
-        console.log(`  ${key}: ${value}`);
-      }
       
       if (!serviceChargeId) {
         console.error('[Payment Redirect] Missing service charge ID');
         message.error('Payment verification failed: Missing service charge ID');
+        
+        // Try to extract from URL in case it's in a different format
+        const urlPath = location.pathname;
+        const urlSearchParams = new URLSearchParams(location.search);
+        console.log('[Payment Redirect] URL details:', {
+          pathname: urlPath,
+          searchParams: Object.fromEntries(urlSearchParams.entries()),
+          fullUrl: window.location.href
+        });
+        
         navigate('/');
         return;
       }
 
       setLoading(true);
       
-      // First get service charge details to find merchant transaction ID
-      console.log('[Payment Redirect] Fetching service charge status...');
-      const statusResponse = await fetch(`/api/public/service-charge/status/${serviceChargeId}`);
-      const statusData = await statusResponse.json();
+      // Get service charge details using the service method
+      const statusResponse = await publicServiceChargeService.getServiceChargeStatus(serviceChargeId);
       
-      if (!statusResponse.ok) {
-        console.error('[Payment Redirect] Status fetch failed:', statusData);
-        throw new Error(statusData.message || 'Failed to get service charge details');
+      if (!statusResponse.data.success) {
+        console.error('[Payment Redirect] Status fetch failed:', statusResponse.data);
+        throw new Error(statusResponse.data.message || 'Failed to get service charge details');
       }
 
-      const serviceCharge = statusData.data;
-      console.log('[Payment Redirect] Service charge details:', {
-        id: serviceCharge.id,
-        paymentStatus: serviceCharge.paymentStatus,
-        status: serviceCharge.status,
-        phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
-        razorpayOrderId: serviceCharge.razorpayOrderId
-      });
+      const serviceCharge = statusResponse.data.data;
       
-      // Debug: Log the entire serviceCharge object to see what we're actually getting
-      console.log('[Payment Redirect] Full service charge object:', serviceCharge);
-      console.log('[Payment Redirect] Service charge keys:', Object.keys(serviceCharge));
-      console.log('[Payment Redirect] phonePeMerchantTransactionId value:', serviceCharge.phonePeMerchantTransactionId);
-      console.log('[Payment Redirect] phonePeMerchantTransactionId type:', typeof serviceCharge.phonePeMerchantTransactionId);
-      
-      // Ensure we have exhibition config loaded for proper rendering
-      if (!exhibition && serviceCharge.exhibition) {
-        console.log('[Payment Redirect] Loading exhibition config for payment result page');
+      // Ensure we have exhibition config loaded
+      if (!exhibition && serviceCharge.exhibitionId) {
         try {
-          const exhibitionResponse = await fetch(`/api/public/service-charge/config/${serviceCharge.exhibition._id}`);
-          if (exhibitionResponse.ok) {
-            const exhibitionData = await exhibitionResponse.json();
-            setExhibition(exhibitionData.data);
+          // Handle both string ID and populated object
+          const exhibitionId = typeof serviceCharge.exhibitionId === 'string' 
+            ? serviceCharge.exhibitionId 
+            : serviceCharge.exhibitionId._id || serviceCharge.exhibitionId.id;
+          
+          console.log('[Payment Redirect] Loading exhibition config for ID:', exhibitionId);
+          
+          const exhibitionResponse = await publicServiceChargeService.getServiceChargeConfig(exhibitionId);
+          if (exhibitionResponse.data.success) {
+            setExhibition(exhibitionResponse.data.data);
+            console.log('[Payment Redirect] Exhibition config loaded successfully');
           }
         } catch (configError) {
           console.warn('[Payment Redirect] Failed to load exhibition config:', configError);
-          // Continue without full config - we'll use basic info from service charge
         }
       }
       
       // Check if payment is already verified
       if (serviceCharge.paymentStatus === 'paid') {
         console.log('[Payment Redirect] Payment already verified, showing success');
-        // Payment already verified - show success step
-        setPaymentResult(serviceCharge);
-        setCurrentStep(2);
+        // Ensure we have all the required data for the success step
+        const paymentData = {
+          serviceChargeId: serviceCharge._id || serviceCharge.id,
+          receiptNumber: serviceCharge.receiptNumber,
+          paymentId: serviceCharge.phonePeTransactionId || serviceCharge.paymentId,
+          amount: serviceCharge.amount,
+          paidAt: serviceCharge.paidAt,
+          receiptGenerated: serviceCharge.receiptGenerated,
+          receiptDownloadUrl: serviceCharge.receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id || serviceCharge.id}` : null
+        };
         
+        setPaymentResult(paymentData);
+        setCurrentStep(2);
+        setLoading(false); // Stop loading immediately when payment is verified
         message.success('Payment verified successfully!');
         return;
       }
@@ -209,182 +296,159 @@ const PublicServiceChargeForm: React.FC = () => {
       if (gateway === 'phonepe') {
         console.log('[Payment Redirect] Processing PhonePe payment verification');
         
-        // Use merchant transaction ID from database or fallback to URL parameter
-        let merchantTransactionId = serviceCharge.phonePeMerchantTransactionId;
-        
-        console.log('[Payment Redirect] Merchant Transaction ID from database:', {
-          value: merchantTransactionId,
-          type: typeof merchantTransactionId,
-          isUndefined: merchantTransactionId === undefined,
-          isNull: merchantTransactionId === null,
-          isEmpty: merchantTransactionId === '',
-          isFalsy: !merchantTransactionId
-        });
-        
-        if (!merchantTransactionId && phonePeTransactionId) {
-          console.log('[Payment Redirect] Using PhonePe transaction ID from URL as fallback:', phonePeTransactionId);
-          merchantTransactionId = phonePeTransactionId;
-        }
-        
-        // Also try receipt number as fallback (since that's what we use as merchant transaction ID)
-        if (!merchantTransactionId && serviceCharge.receiptNumber) {
-          console.log('[Payment Redirect] Using receipt number as merchant transaction ID fallback:', serviceCharge.receiptNumber);
-          merchantTransactionId = serviceCharge.receiptNumber;
-        }
+        let merchantTransactionId = serviceCharge.phonePeMerchantTransactionId || serviceCharge.receiptNumber;
         
         if (!merchantTransactionId) {
-          console.error('[Payment Redirect] Missing PhonePe merchant transaction ID in all sources:');
-          console.error('[Payment Redirect] - Database phonePeMerchantTransactionId:', serviceCharge.phonePeMerchantTransactionId);
-          console.error('[Payment Redirect] - Database receiptNumber:', serviceCharge.receiptNumber);
-          console.error('[Payment Redirect] - URL phonePeTransactionId:', phonePeTransactionId);
-          console.error('[Payment Redirect] - Available URL parameters:', Object.fromEntries(urlParams.entries()));
+          console.error('[Payment Redirect] Missing PhonePe merchant transaction ID');
           message.error('Payment verification failed: Missing PhonePe transaction details');
-          setCurrentStep(1); // Go back to payment form instead of home
+          setCurrentStep(1);
           return;
         }
         
         console.log('[Payment Redirect] Verifying PhonePe payment for merchant ID:', merchantTransactionId);
-        console.log('[Payment Redirect] PhonePe URL parameters:', { phonePeCode, phoneProvidReferenceId });
-        
-        // Show loading message for PhonePe verification
         message.loading('Verifying payment with PhonePe...', 0);
         
-        try {
-          const verifyResponse = await fetch('/api/public/service-charge/verify-phonepe-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        // Add retry mechanism for payment verification
+        const verifyPaymentWithRetry = async (retryCount = 0): Promise<void> => {
+          const maxRetries = 3;
+          const retryDelay = 2000; // 2 seconds
+          
+          try {
+            console.log(`[Payment Verification] Attempt ${retryCount + 1}/${maxRetries + 1} for merchant ID:`, merchantTransactionId);
+            
+            const verifyResponse = await publicServiceChargeService.verifyPhonePePayment({
               merchantTransactionId: merchantTransactionId
-            })
-          });
+            });
 
-          const verifyData = await verifyResponse.json();
-          message.destroy(); // Clear loading message
-          
-          console.log('[Payment Verification] PhonePe verification response:', {
-            ok: verifyResponse.ok,
-            status: verifyResponse.status,
-            success: verifyData.success,
-            state: verifyData.data?.state,
-            code: verifyData.data?.code,
-            message: verifyData.message
-          });
-          
-          if (verifyResponse.ok && verifyData.success) {
-            // Payment verified successfully
-            console.log('[Payment Verification] Payment verified successfully');
-            setPaymentResult(verifyData.data);
-            setCurrentStep(2);
+            console.log('[Payment Verification] Full response:', verifyResponse);
+            console.log('[Payment Verification] Response data:', verifyResponse.data);
+            console.log('[Payment Verification] Response success:', verifyResponse.data?.success);
             
-            // Load exhibition details for context if not already loaded
-            if (!exhibition && serviceCharge.exhibition) {
-              try {
-                const exhibitionResponse = await fetch(`/api/public/service-charge/config/${serviceCharge.exhibition._id}`);
-                if (exhibitionResponse.ok) {
-                  const exhibitionData = await exhibitionResponse.json();
-                  setExhibition(exhibitionData.data);
-                }
-              } catch (configError) {
-                console.warn('[Payment Verification] Failed to load exhibition config:', configError);
-              }
-            }
-            
-            message.success('Payment completed successfully!');
-            return;
-          } else {
-            // Verification failed or still pending
-            const state = verifyData.data?.state;
-            const code = verifyData.data?.code;
-            console.log('[Payment Verification] Payment verification not successful:', { state, code, verifyData });
-            
-            if (state === 'FAILED' || code === 'PAYMENT_ERROR') {
-              message.error('Payment failed. Please try again.');
-              setCurrentStep(1); // Go back to payment form
+            // Check if verification was successful
+            if (verifyResponse.data && verifyResponse.data.success) {
+              console.log('[Payment Verification] PhonePe payment verified successfully');
+              console.log('[Payment Verification] Payment result data:', verifyResponse.data.data);
+              
+              message.destroy();
+              setPaymentResult(verifyResponse.data.data);
+              setCurrentStep(2);
+              setLoading(false); // Stop loading immediately when payment is verified
+              message.success('Payment verified successfully!');
               return;
-            } else if (state === 'PENDING' || code === 'PAYMENT_PENDING') {
-              // Payment still pending - show pending message and retry
-              message.warning('Payment is being processed. Please wait...');
+            } 
+            
+            // Check if payment is still pending (might need retry)
+            const state = verifyResponse.data?.data?.state;
+            const isPending = state === 'PENDING' || state === 'PROCESSING';
+            
+            if (isPending && retryCount < maxRetries) {
+              console.log(`[Payment Verification] Payment still pending (${state}), retrying in ${retryDelay}ms...`);
+              message.destroy();
+              message.loading(`Payment is being processed... (Attempt ${retryCount + 2}/${maxRetries + 1})`, 0);
+              
               setTimeout(() => {
-                handlePaymentRedirect();
-              }, 5000); // Retry after 5 seconds
-              return;
-            } else {
-              // Unknown state or error
-              console.error('[Payment Verification] Unknown payment state or error:', verifyData);
-              message.error(verifyData.message || 'Payment verification failed');
-              setCurrentStep(1); // Go back to payment form
+                verifyPaymentWithRetry(retryCount + 1);
+              }, retryDelay);
               return;
             }
+            
+            // Payment failed or max retries reached
+            console.error('[Payment Verification] PhonePe payment verification failed:', {
+              response: verifyResponse.data,
+              state,
+              retryCount,
+              maxRetries
+            });
+            
+            message.destroy();
+            const errorMessage = verifyResponse.data?.message || 
+              (retryCount >= maxRetries ? 'Payment verification timeout. Please check your payment status.' : 'Payment verification failed');
+            message.error(errorMessage);
+            
+            // Restore form data from service charge record before going back to payment step
+            await restoreFormDataFromServiceCharge();
+            
+            // Small delay to ensure form and exhibition data are loaded
+            setTimeout(() => {
+              setCurrentStep(1);
+            }, 500);
+            
+          } catch (verifyError: any) {
+            console.error(`[Payment Verification] Error on attempt ${retryCount + 1}:`, verifyError);
+            
+            // If it's a network error and we haven't exhausted retries
+            if (retryCount < maxRetries && (verifyError.code === 'NETWORK_ERROR' || verifyError.message?.includes('fetch'))) {
+              console.log(`[Payment Verification] Network error, retrying in ${retryDelay}ms...`);
+              message.destroy();
+              message.loading(`Connection error, retrying... (Attempt ${retryCount + 2}/${maxRetries + 1})`, 0);
+              
+              setTimeout(() => {
+                verifyPaymentWithRetry(retryCount + 1);
+              }, retryDelay);
+              return;
+            }
+            
+            // Final error - no more retries
+            message.destroy();
+            console.error('[Payment Verification] Final verification error:', verifyError);
+            message.error('Payment verification failed. Please use the "Check Payment Status" button if you completed the payment.');
+            
+            // Restore form data from service charge record before going back to payment step
+            await restoreFormDataFromServiceCharge();
+            
+            // Small delay to ensure form and exhibition data are loaded
+            setTimeout(() => {
+              setCurrentStep(1);
+            }, 500);
           }
-        } catch (verifyError) {
-          console.error('[Payment Verification] Error during PhonePe verification:', verifyError);
-          message.destroy(); // Clear loading message
-          message.error('Payment verification failed due to network error');
-          setCurrentStep(1); // Go back to payment form
-          return;
-        }
-      } else if (!gateway || gateway === 'razorpay') {
-        console.log('[Payment Redirect] Processing Razorpay payment verification');
+        };
         
-        // Handle Razorpay verification (existing logic)
-        if (serviceCharge.razorpayOrderId) {
-          // This should have been handled by the Razorpay callback already
-          message.warning('Payment verification in progress...');
-          setTimeout(() => {
-            handlePaymentRedirect();
-          }, 3000);
-        } else {
-          console.error('[Payment Redirect] Missing Razorpay order details');
-          message.error('Payment verification failed: Missing Razorpay transaction details');
-          setCurrentStep(1); // Go back to payment form instead of home
-        }
-      } else {
-        // Unknown gateway
-        console.error('[Payment Redirect] Unknown payment gateway:', gateway);
-        message.error(`Unknown payment gateway: ${gateway}`);
-        setCurrentStep(1); // Go back to payment form instead of home
+        // Start verification with retry (add small delay to ensure callback is processed)
+        setTimeout(() => {
+          verifyPaymentWithRetry();
+        }, 1000); // 1 second delay
       }
     } catch (error: any) {
-      console.error('[Payment Redirect] Payment verification error:', error);
-      message.error(error.message || 'Payment verification failed');
+      console.error('[Payment Redirect] Error:', error);
       
-      // Check if we have exhibition data to stay on the form
-      if (exhibitionId) {
-        setCurrentStep(1); // Go back to payment form instead of home
+      // Check if it's a 404 error (service charge not found)
+      if (error.response?.status === 404 || error.message?.includes('404')) {
+        message.error('Payment record not found. Please contact support if you completed the payment.');
+        navigate('/');
+      } else if (error.response?.status === 400) {
+        message.error('Invalid payment details. Please try again.');
+        navigate('/');
       } else {
-        navigate('/'); // Only go to home if we can't stay on the form
+        message.error('Payment verification failed. Please try again or contact support.');
+        // Try to restore form data before navigating away
+        try {
+          await restoreFormDataFromServiceCharge();
+          // If restoration is successful, stay on the page and go to payment step
+          setTimeout(() => {
+            setCurrentStep(1);
+          }, 500);
+        } catch (restoreError) {
+          console.error('[Payment Redirect] Failed to restore form data, navigating to home:', restoreError);
+          navigate('/');
+        }
       }
     } finally {
       setLoading(false);
+      setVerificationInProgress(false);
     }
   };
 
   const fetchExhibitionConfig = async () => {
     try {
-      const response = await fetch(`/api/public/service-charge/config/${exhibitionId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch exhibition config');
-      }
-      
-      setExhibition(data.data);
-    } catch (error: any) {
-      message.error(error.message || 'Failed to load exhibition details');
-      setTimeout(() => navigate('/'), 3000);
+      setLoading(true);
+      const response = await publicServiceChargeService.getServiceChargeConfig(exhibitionId!);
+      setExhibition(response.data.data);
+    } catch (error) {
+      console.error('Error fetching exhibition config:', error);
+      message.error('Failed to load exhibition configuration');
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
   };
 
   const handleNext = () => {
@@ -396,8 +460,6 @@ const PublicServiceChargeForm: React.FC = () => {
   };
 
   const handlePrevious = () => {
-    const values = form.getFieldsValue();
-    setFormData({ ...formData, ...values });
     setCurrentStep(currentStep - 1);
   };
 
@@ -405,316 +467,348 @@ const PublicServiceChargeForm: React.FC = () => {
     try {
       setSubmitting(true);
       
-      // Create payment order
-      const orderResponse = await fetch('/api/public/service-charge/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          exhibitionId,
-          ...formData,
-          amount: getSelectedServiceAmount()
-        })
-      });
-
-      const orderData = await orderResponse.json();
+      const selectedService = exhibition?.config.serviceTypes.find(
+        service => service.type === formData.serviceType
+      );
       
-      if (!orderResponse.ok) {
-        throw new Error(orderData.message || 'Failed to create order');
+      if (!selectedService) {
+        message.error('Invalid service type selected');
+        return;
       }
 
-      const paymentGateway = orderData.data.paymentGateway;
+      const paymentData = {
+        exhibitionId: exhibition?._id,
+        ...formData,
+        amount: selectedService.amount,
+        description: formData.description || selectedService.description
+      };
+
+      console.log('[Payment] Creating PhonePe payment order:', paymentData);
       
-      if (paymentGateway === 'phonepe') {
-        // PhonePe payment flow
-        const isDevelopmentMode = exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode';
+      const orderResponse = await publicServiceChargeService.createPaymentOrder(paymentData);
+      
+      if (orderResponse.data.success) {
+        const orderData = orderResponse.data;
+        console.log('[Payment] PhonePe order created:', orderData);
         
-        if (isDevelopmentMode) {
-          // Development mode - simulate payment success
-          message.info('Development Mode: Simulating PhonePe payment...');
-          setTimeout(async () => {
-            await verifyPhonePePayment(orderData.data.orderId);
-          }, 2000); // 2 second delay to simulate payment processing
+        // PhonePe redirects to payment page
+        if (orderData.data.redirectUrl) {
+          console.log('[Payment] Redirecting to PhonePe payment page:', orderData.data.redirectUrl);
+          window.location.href = orderData.data.redirectUrl;
         } else {
-          // Production mode - redirect to PhonePe payment page
-          if (orderData.data.redirectUrl) {
-            window.location.href = orderData.data.redirectUrl;
-          } else {
-            throw new Error('PhonePe payment URL not received');
-          }
+          throw new Error('PhonePe redirect URL not received');
         }
       } else {
-        // Razorpay payment flow
-        const isDevelopmentMode = exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
-        
-        if (isDevelopmentMode) {
-          // Development mode - simulate payment success
-          message.info('Development Mode: Simulating Razorpay payment...');
-          setTimeout(async () => {
-            const mockResponse = {
-              razorpay_order_id: orderData.data.orderId,
-              razorpay_payment_id: `pay_dev_${Date.now()}`,
-              razorpay_signature: `sig_dev_${Date.now()}`
-            };
-            await verifyRazorpayPayment(mockResponse, orderData.data.serviceChargeId);
-          }, 2000); // 2 second delay to simulate payment processing
-        } else {
-          // Production mode - initialize Razorpay payment
-          const options = {
-            key: exhibition?.config?.razorpayKeyId,
-            amount: orderData.data.amount * 100, // Convert to paise
-            currency: 'INR',
-            name: exhibition?.name,
-            description: `Service Charge - ${formData.serviceType}`,
-            order_id: orderData.data.orderId,
-            prefill: {
-              name: formData.vendorName,
-              email: formData.vendorEmail,
-              contact: formData.vendorPhone,
-            },
-            handler: async (response: any) => {
-              await verifyRazorpayPayment(response, orderData.data.serviceChargeId);
-            },
-            modal: {
-              ondismiss: () => {
-                setSubmitting(false);
-                message.warning('Payment cancelled');
-              }
-            }
-          };
-
-          const razorpay = new window.Razorpay(options);
-          razorpay.open();
-        }
+        throw new Error(orderResponse.data.message || 'Failed to create payment order');
       }
-      
-    } catch (error: any) {
-      setSubmitting(false);
-      message.error(error.message || 'Payment initialization failed');
-    }
-  };
-
-  const verifyRazorpayPayment = async (paymentResponse: any, serviceChargeId: string) => {
-    try {
-      const verifyResponse = await fetch('/api/public/service-charge/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceChargeId,
-          razorpay_payment_id: paymentResponse.razorpay_payment_id,
-          razorpay_order_id: paymentResponse.razorpay_order_id,
-          razorpay_signature: paymentResponse.razorpay_signature,
-        })
-      });
-
-      const verifyData = await verifyResponse.json();
-      
-      if (!verifyResponse.ok) {
-        throw new Error(verifyData.message || 'Payment verification failed');
-      }
-
-      setPaymentResult(verifyData.data);
-      setCurrentStep(2);
-      message.success('Payment successful!');
-      
-    } catch (error: any) {
-      message.error(error.message || 'Payment verification failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const verifyPhonePePayment = async (merchantTransactionId: string) => {
-    try {
-      const verifyResponse = await fetch('/api/public/service-charge/verify-phonepe-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          merchantTransactionId
-        })
-      });
-
-      const verifyData = await verifyResponse.json();
-      
-      if (!verifyResponse.ok) {
-        throw new Error(verifyData.message || 'Payment verification failed');
-      }
-
-      setPaymentResult(verifyData.data);
-      setCurrentStep(2);
-      message.success('Payment successful!');
-      
-    } catch (error: any) {
-      message.error(error.message || 'Payment verification failed');
+    } catch (error) {
+      console.error('[Payment] Error creating payment order:', error);
+      message.error('Failed to initiate payment. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const getSelectedServiceAmount = () => {
-    const serviceType = exhibition?.config?.serviceTypes?.find(s => s.type === formData.serviceType);
-    return serviceType?.amount || 0;
+    // Return 0 if exhibition or formData is not properly loaded yet
+    if (!exhibition?.config?.serviceTypes || !formData.serviceType) {
+      return 0;
+    }
+    
+    const selectedService = exhibition.config.serviceTypes.find(
+      service => service.type === formData.serviceType
+    );
+    return selectedService ? selectedService.amount : 0;
+  };
+
+  const handleManualPaymentCheck = async () => {
+    try {
+      setSubmitting(true);
+      message.loading('Checking payment status...', 0);
+      
+      // Check if we have a service charge ID in the URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const serviceChargeId = urlParams.get('serviceChargeId');
+      
+      if (!serviceChargeId) {
+        message.destroy();
+        message.error('No payment ID found. Please initiate payment first.');
+        return;
+      }
+
+      // Fetch the service charge status
+      const statusResponse = await publicServiceChargeService.getServiceChargeStatus(serviceChargeId);
+      
+      if (statusResponse.data.success) {
+        const serviceCharge = statusResponse.data.data;
+        
+        if (serviceCharge.paymentStatus === 'paid') {
+          message.destroy();
+          message.success('Payment found! Redirecting to success page...');
+          
+          // Prepare payment result data
+          const paymentData = {
+            serviceChargeId: serviceCharge._id,
+            receiptNumber: serviceCharge.receiptNumber,
+            paymentId: serviceCharge.phonePeTransactionId,
+            amount: serviceCharge.amount,
+            paidAt: serviceCharge.paidAt,
+            receiptGenerated: serviceCharge.receiptGenerated,
+            receiptDownloadUrl: serviceCharge.receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : null,
+            state: 'COMPLETED'
+          };
+          
+          setPaymentResult(paymentData);
+          setCurrentStep(2);
+        } else {
+          message.destroy();
+          message.info(`Payment status: ${serviceCharge.paymentStatus}. Please try again if you have completed the payment.`);
+        }
+      } else {
+        message.destroy();
+        message.error('Could not check payment status. Please try again.');
+      }
+    } catch (error) {
+      message.destroy();
+      console.error('Error checking payment status:', error);
+      message.error('Error checking payment status. Please try again later.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderVendorDetailsStep = () => (
-    <Card title="Vendor Information" className="step-card">
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item
-            name="vendorName"
-            label="Vendor Name"
-            rules={[{ required: true, message: 'Please enter vendor name' }]}
-          >
-            <Input prefix={<UserOutlined />} placeholder="Enter vendor name" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="companyName"
-            label="Vendor Company Name"
-            rules={[{ required: true, message: 'Please enter vendor company name' }]}
-          >
-            <Input placeholder="Enter vendor company name" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="exhibitorCompanyName"
-            label="Exhibitor Company Name (Optional)"
-          >
-            <Input placeholder="Enter exhibitor company name" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="vendorEmail"
-            label="Email (Optional)"
-            rules={[
-              { type: 'email', message: 'Please enter valid email' }
-            ]}
-          >
-            <Input prefix={<MailOutlined />} placeholder="Enter email address" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="vendorPhone"
-            label="Phone Number"
-            rules={[{ required: true, message: 'Please enter phone number' }]}
-          >
-            <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="stallNumber"
-            label="Exhibitor Stall Number"
-            rules={[{ required: true, message: 'Please enter the exhibitor stall number' }]}
-          >
-            <Input placeholder="Enter exhibitor stall number" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item
-            name="serviceType"
-            label="Service Type"
-            rules={[{ required: true, message: 'Please select service type' }]}
-          >
-            <Select placeholder="Select service type">
-              {exhibition?.config?.serviceTypes?.map(service => (
-                <Option key={service.type} value={service.type}>
-                  {service.type} - ₹{service.amount.toLocaleString('en-IN')}
-                </Option>
-              )) || []}
-            </Select>
-          </Form.Item>
-        </Col>
-        <Col span={24}>
-          <Form.Item
-            name="vendorAddress"
-            label="Address"
-            rules={[{ required: true, message: 'Please enter address' }]}
-          >
-            <TextArea rows={3} placeholder="Enter complete address" />
-          </Form.Item>
-        </Col>
-        <Col span={24}>
-          <Form.Item
-            name="description"
-            label="Additional Notes (Optional)"
-          >
-            <TextArea rows={2} placeholder="Any additional notes or requirements" />
-          </Form.Item>
-        </Col>
-      </Row>
+    <Card className="step-card">
+      <div className="step-header">
+        <ShoppingCartOutlined className="step-icon" />
+        <Title level={3}>Service Details</Title>
+        <Paragraph type="secondary">
+          Please provide your vendor details and select the service type.
+        </Paragraph>
+      </div>
+
+      <Form form={form} layout="vertical" initialValues={formData}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="vendorName"
+              label="Vendor Name"
+              rules={[{ required: true, message: 'Please enter vendor name' }]}
+            >
+              <Input placeholder="Enter vendor name" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="companyName"
+              label="Vendor Company Name"
+              rules={[{ required: true, message: 'Please enter vendor company name' }]}
+            >
+              <Input placeholder="Enter vendor company name" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="exhibitorCompanyName"
+              label="Exhibitor Company Name"
+              tooltip="The company name of the exhibitor (if different from vendor)"
+            >
+              <Input placeholder="Enter exhibitor company name" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="stallNumber"
+              label="Stall Number"
+              rules={[{ required: true, message: 'Please enter stall number' }]}
+            >
+              <Input placeholder="Enter stall number" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="vendorPhone"
+              label="Phone Number"
+              rules={[
+                { required: true, message: 'Please enter phone number' },
+                { pattern: /^[0-9+\-\s()]{10,}$/, message: 'Please enter a valid phone number' }
+              ]}
+            >
+              <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="vendorEmail"
+              label="Email Address"
+              rules={[
+                { type: 'email', message: 'Please enter a valid email' }
+              ]}
+            >
+              <Input prefix={<MailOutlined />} placeholder="Enter email address" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Form.Item
+          name="vendorAddress"
+          label="Address"
+        >
+          <TextArea rows={3} placeholder="Enter complete address" />
+        </Form.Item>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="serviceType"
+              label="Service Type"
+              rules={[{ required: true, message: 'Please select service type' }]}
+            >
+              <Select placeholder="Select service type">
+                {exhibition?.config.serviceTypes.map(service => (
+                  <Option key={service.type} value={service.type}>
+                    {service.type} - ₹{service.amount.toLocaleString()}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="description"
+              label="Additional Description"
+            >
+              <TextArea rows={2} placeholder="Any additional details" />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
+
+      <div className="step-actions">
+        <Button type="primary" onClick={handleNext} size="large">
+          Next
+        </Button>
+      </div>
     </Card>
   );
 
   const renderPaymentStep = () => {
-    const selectedService = exhibition?.config?.serviceTypes?.find(s => s.type === formData.serviceType);
-    
-    return (
-      <Card title="Payment Details" className="step-card">
-        <div className="payment-summary">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Card size="small" title="Service Details">
-                <p><strong>Service Type:</strong> {formData.serviceType}</p>
-                <p><strong>Amount:</strong> ₹{selectedService?.amount.toLocaleString('en-IN')}</p>
-                {selectedService?.description && (
-                  <p><strong>Description:</strong> {selectedService.description}</p>
-                )}
-              </Card>
-            </Col>
-            <Col span={12}>
-              <Card size="small" title="Vendor Details">
-                <p><strong>Name:</strong> {formData.vendorName}</p>
-                <p><strong>Vendor Company:</strong> {formData.companyName}</p>
-                {formData.exhibitorCompanyName && <p><strong>Exhibitor Company:</strong> {formData.exhibitorCompanyName}</p>}
-                <p><strong>Stall Number:</strong> {formData.stallNumber}</p>
-                {formData.vendorEmail && <p><strong>Email:</strong> {formData.vendorEmail}</p>}
-                <p><strong>Phone:</strong> {formData.vendorPhone}</p>
-              </Card>
-            </Col>
-          </Row>
-          
-          <Divider />
-          
-          <div className="payment-total">
-            <Title level={3}>
-              Total Amount: ₹{selectedService?.amount.toLocaleString('en-IN')}
-            </Title>
+    // Show loading if data is being restored
+    if (!exhibition || !formData.serviceType) {
+      return (
+        <Card className="step-card">
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: '16px' }}>Loading payment details...</div>
           </div>
-          
-          {(() => {
-            const isDevelopmentMode = exhibition?.config?.paymentGateway === 'phonepe' 
-              ? exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode'
-              : exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
-            
-            const paymentGateway = exhibition?.config?.paymentGateway || 'phonepe';
-            
-            if (isDevelopmentMode) {
-              return (
-                <Alert
-                  message="Development Mode"
-                  description={`This is running in development mode. ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} payment will be simulated - no actual payment will be processed.`}
-                  type="warning"
-                  icon={<InfoCircleOutlined />}
-                  style={{ marginBottom: 16 }}
-                  showIcon
-                />
-              );
-            } else {
-              return (
-                <Alert
-                  message="Secure Payment"
-                  description={`Your payment is processed securely through ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'}. You will receive a receipt via email after successful payment.`}
-                  type="info"
-                  icon={<BankOutlined />}
-                  style={{ marginBottom: 16 }}
-                />
-              );
+        </Card>
+      );
+    }
+
+    const selectedService = exhibition.config.serviceTypes.find(
+      service => service.type === formData.serviceType
+    );
+
+    const isDevelopmentMode = exhibition.config.phonePeConfig?.env === 'SANDBOX';
+
+    return (
+      <Card className="step-card">
+        <div className="step-header">
+          <CreditCardOutlined className="step-icon" />
+          <Title level={3}>Payment Details</Title>
+          <Paragraph type="secondary">
+            Review your details and proceed with payment.
+          </Paragraph>
+        </div>
+
+        <Descriptions bordered column={1} size="small">
+          <Descriptions.Item label="Vendor Name">{formData.vendorName}</Descriptions.Item>
+          <Descriptions.Item label="Company Name">{formData.companyName}</Descriptions.Item>
+          {formData.exhibitorCompanyName && (
+            <Descriptions.Item label="Exhibitor Company">{formData.exhibitorCompanyName}</Descriptions.Item>
+          )}
+          <Descriptions.Item label="Stall Number">{formData.stallNumber}</Descriptions.Item>
+          <Descriptions.Item label="Phone">{formData.vendorPhone}</Descriptions.Item>
+          {formData.vendorEmail && (
+            <Descriptions.Item label="Email">{formData.vendorEmail}</Descriptions.Item>
+          )}
+          <Descriptions.Item label="Service Type">{formData.serviceType}</Descriptions.Item>
+          <Descriptions.Item label="Amount">
+            <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+              ₹{selectedService?.amount.toLocaleString()}
+            </Text>
+          </Descriptions.Item>
+        </Descriptions>
+
+        <Divider />
+
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          {isDevelopmentMode ? (
+            <Alert
+              message="Development Mode"
+              description="This is running in development mode. PhonePe payment will be simulated - no actual payment will be processed."
+              type="warning"
+              icon={<InfoCircleOutlined />}
+              style={{ marginBottom: 16 }}
+              showIcon
+            />
+          ) : (
+            <Alert
+              message="Secure Payment"
+              description="Your payment is processed securely through PhonePe. You will receive a receipt via email after successful payment."
+              type="info"
+              icon={<LockOutlined />}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+        </div>
+
+        <div className="step-actions">
+          <Space>
+            <Button onClick={handlePrevious} size="large">
+              Previous
+            </Button>
+            <Button
+              type="primary"
+              size="large"
+              loading={submitting}
+              onClick={handlePayment}
+              icon={<BankOutlined />}
+            >
+              {isDevelopmentMode
+                ? `Simulate PhonePe Payment ₹${getSelectedServiceAmount().toLocaleString()}`
+                : `Pay via PhonePe ₹${getSelectedServiceAmount().toLocaleString()}`}
+            </Button>
+          </Space>
+        </div>
+        
+        <div className="payment-help" style={{ marginTop: '16px', textAlign: 'center' }}>
+          <Alert
+            message="Already completed payment?"
+            description={
+              <div>
+                If you've completed the payment but it's not reflecting, click the button below to check your payment status.
+                <br />
+                <Button 
+                  type="link" 
+                  size="small" 
+                  onClick={handleManualPaymentCheck}
+                  loading={submitting}
+                  style={{ marginTop: '8px' }}
+                >
+                  Check Payment Status
+                </Button>
+              </div>
             }
-          })()}
+            type="info"
+            showIcon
+          />
         </div>
       </Card>
     );
@@ -722,110 +816,152 @@ const PublicServiceChargeForm: React.FC = () => {
 
   const renderSuccessStep = () => (
     <Card className="step-card success-card">
-      <div style={{ textAlign: 'center' }}>
-        <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a', marginBottom: 16 }} />
-        <Title level={2}>Payment Successful!</Title>
-        
-        {paymentResult && (
-          <div className="success-details">
-            <Tag color="green" style={{ marginBottom: 16 }}>
-              Receipt Number: {paymentResult.receiptNumber}
-            </Tag>
-            
-            <Card size="small" style={{ marginBottom: 16 }}>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <p><strong>Amount Paid:</strong> ₹{paymentResult.amount.toLocaleString('en-IN')}</p>
-                  <p><strong>Payment ID:</strong> {paymentResult.paymentId}</p>
-                </Col>
-                <Col span={12}>
-                  <p><strong>Date:</strong> {new Date(paymentResult.paidAt).toLocaleString()}</p>
-                  <p><strong>Status:</strong> <Tag color="green">Paid</Tag></p>
-                </Col>
-              </Row>
-            </Card>
-            
-            <Alert
-              message="Receipt Sent"
-              description="A detailed receipt has been sent to your email address. You can also download it using the link below."
-              type="success"
-              style={{ marginBottom: 16 }}
-            />
-            
-            {paymentResult.receiptDownloadUrl && (
-              <Button 
-                type="primary" 
-                icon={<BankOutlined />}
-                href={paymentResult.receiptDownloadUrl}
-                target="_blank"
-                style={{ marginRight: 8 }}
-              >
-                Download Receipt
+      <Result
+        status="success"
+        title="Payment Successful!"
+        subTitle={`Your service charge payment of ₹${paymentResult?.amount?.toLocaleString()} has been processed successfully.`}
+        extra={[
+          <div key="details" style={{ textAlign: 'left', margin: '20px 0' }}>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Receipt Number">
+                <Tag color="blue">{paymentResult?.receiptNumber}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Payment ID">
+                {paymentResult?.paymentId || 'N/A'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Amount">
+                ₹{paymentResult?.amount?.toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Payment Date">
+                {paymentResult?.paidAt ? new Date(paymentResult.paidAt).toLocaleString() : 'N/A'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color="green">Paid</Tag>
+              </Descriptions.Item>
+              {paymentResult?.state && (
+                <Descriptions.Item label="PhonePe Status">
+                  <Tag color="green">{paymentResult.state}</Tag>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          </div>,
+          <div key="actions">
+            <Space>
+              {paymentResult?.receiptDownloadUrl && (
+                <Button
+                  type="primary"
+                  href={paymentResult.receiptDownloadUrl}
+                  target="_blank"
+                  download
+                >
+                  Download Receipt
+                </Button>
+              )}
+              <Button onClick={() => navigate('/')}>
+                Back to Home
               </Button>
-            )}
-            
-            <Button onClick={() => navigate('/')}>
-              Back to Home
-            </Button>
+            </Space>
+          </div>,
+          <div key="help" style={{ marginTop: '16px' }}>
+            <Alert
+              message="Need Help?"
+              description="If you don't see your receipt or have any issues, please save your Receipt Number and contact support."
+              type="info"
+              showIcon
+              style={{ textAlign: 'left' }}
+            />
           </div>
-        )}
-      </div>
+        ]}
+      />
     </Card>
   );
 
-  if (loading) {
-    return (
-      <Layout>
-        <GlobalHeader />
-        <Content style={{ paddingTop: '64px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-            <Spin size="large" tip="Loading exhibition details..." />
-          </div>
-        </Content>
-        <GlobalFooter />
-      </Layout>
-    );
-  }
-
-  if (!exhibition && !isPaymentSuccessPage) {
-    return (
-      <Layout>
-        <GlobalHeader />
-        <Content style={{ paddingTop: '64px' }}>
-          <div style={{ padding: '50px', textAlign: 'center' }}>
-            <Alert
-              message="Exhibition Not Found"
-              description="The requested exhibition could not be found or service charges are not enabled."
-              type="error"
-              showIcon
-            />
-            <Button type="primary" onClick={() => navigate('/')} style={{ marginTop: 16 }}>
-              Back to Home
-            </Button>
-          </div>
-        </Content>
-        <GlobalFooter />
-      </Layout>
-    );
-  }
-
   const steps = [
     {
-      title: 'Vendor Details',
-      icon: <UserOutlined />,
+      title: 'Service Details',
       content: renderVendorDetailsStep(),
+      icon: <ShoppingCartOutlined />
     },
     {
       title: 'Payment',
-      icon: <CreditCardOutlined />,
       content: renderPaymentStep(),
+      icon: <CreditCardOutlined />
     },
     {
-      title: 'Confirmation',
-      icon: <CheckCircleOutlined />,
+      title: 'Success',
       content: renderSuccessStep(),
-    },
+      icon: <CheckCircleOutlined />
+    }
   ];
+
+  if (loading) {
+    console.log('[Payment Redirect] Component loading state:', {
+      isPaymentResultPage,
+      pathname: location.pathname,
+      search: location.search,
+      exhibitionId
+    });
+    
+    return (
+      <Layout>
+        <GlobalHeader />
+        <Content style={{ paddingTop: '64px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            minHeight: '60vh' 
+          }}>
+            <Spin size="large" indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+          </div>
+        </Content>
+        <GlobalFooter />
+      </Layout>
+    );
+  }
+
+  // Handle payment result page even if exhibition is not loaded yet
+  if (isPaymentResultPage && !exhibition && currentStep !== 2) {
+    console.log('[Payment Redirect] Payment result page loading - exhibition config not loaded yet');
+    
+    return (
+      <Layout>
+        <GlobalHeader />
+        <Content style={{ paddingTop: '64px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            minHeight: '60vh' 
+          }}>
+            <Spin size="large" indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
+          </div>
+        </Content>
+        <GlobalFooter />
+      </Layout>
+    );
+  }
+
+  if (!exhibition && currentStep !== 2) {
+    console.log('[Payment Redirect] Exhibition not found and not payment result page');
+    
+    return (
+      <Layout>
+        <GlobalHeader />
+        <Content style={{ paddingTop: '64px' }}>
+          <div style={{ padding: '50px' }}>
+            <Result
+              status="404"
+              title="Exhibition Not Found"
+              subTitle="The exhibition you're looking for doesn't exist or service charges are not enabled."
+              extra={<Button type="primary" onClick={() => navigate('/')}>Back Home</Button>}
+            />
+          </div>
+        </Content>
+        <GlobalFooter />
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -833,23 +969,29 @@ const PublicServiceChargeForm: React.FC = () => {
       <Content style={{ paddingTop: '64px', background: '#f5f5f5' }}>
         <div className="public-service-charge-form">
           <div className="form-container">
-            <Card className="header-card">
-              <div style={{ textAlign: 'center' }}>
-                            <Title level={2}>{exhibition?.config?.title || 'Service Charge Payment'}</Title>
-            <Paragraph>{exhibition?.config?.description || 'Complete your service charge payment'}</Paragraph>
-                {exhibition && (
+            {exhibition && (
+              <Card className="header-card">
+                <div style={{ textAlign: 'center' }}>
+                  <Title level={2}>{exhibition.config.title}</Title>
+                  <Paragraph>{exhibition.config.description}</Paragraph>
                   <Space>
                     <InfoCircleOutlined />
                     <Text strong>{exhibition.name}</Text>
                     <Divider type="vertical" />
                     <Text>{exhibition.venue}</Text>
                   </Space>
-                )}
-              </div>
-            </Card>
+                </div>
+              </Card>
+            )}
 
             <Card className="steps-card">
-              <Steps current={currentStep} items={steps} />
+              <Steps 
+                current={currentStep} 
+                items={steps.map(step => ({
+                  title: step.title,
+                  icon: step.icon
+                }))}
+              />
             </Card>
 
             <Form
@@ -860,44 +1002,6 @@ const PublicServiceChargeForm: React.FC = () => {
             >
               {steps[currentStep].content}
             </Form>
-
-            <Card className="actions-card">
-              <div style={{ textAlign: 'center' }}>
-                {currentStep > 0 && currentStep < 2 && (
-                  <Button onClick={handlePrevious} style={{ marginRight: 8 }}>
-                    Previous
-                  </Button>
-                )}
-                
-                {currentStep === 0 && (
-                  <Button type="primary" onClick={handleNext}>
-                    Next
-                  </Button>
-                )}
-                
-                            {currentStep === 1 && (
-              <Button 
-                type="primary" 
-                onClick={handlePayment}
-                loading={submitting}
-                icon={<CreditCardOutlined />}
-              >
-                {(() => {
-                              const isDevelopmentMode = exhibition?.config?.paymentGateway === 'phonepe'
-              ? exhibition?.config?.phonePeConfig?.clientId === 'phonepe_test_development_mode'
-              : exhibition?.config?.razorpayKeyId === 'rzp_test_development_mode';
-            
-            const paymentGateway = exhibition?.config?.paymentGateway || 'phonepe';
-                  const amount = getSelectedServiceAmount().toLocaleString('en-IN');
-                  
-                  return isDevelopmentMode 
-                    ? `Simulate ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} Payment Rs. ${amount}`
-                    : `Pay via ${paymentGateway === 'phonepe' ? 'PhonePe' : 'Razorpay'} Rs. ${amount}`;
-                })()}
-              </Button>
-            )}
-              </div>
-            </Card>
           </div>
         </div>
       </Content>

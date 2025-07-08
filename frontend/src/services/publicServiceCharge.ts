@@ -11,8 +11,7 @@ export interface ServiceChargeConfig {
   title: string;
   description: string;
   serviceTypes: ServiceType[];
-  paymentGateway: 'razorpay' | 'phonepe';
-  razorpayKeyId: string;
+  paymentGateway: 'phonepe';
   phonePeConfig: {
     clientId: string;
     env: 'SANDBOX' | 'PRODUCTION';
@@ -43,9 +42,13 @@ const publicServiceChargeService = {
   createPaymentOrder: (paymentData: any) =>
     publicApi.post(`/public/service-charge/create-order`, paymentData),
     
-  // Verify payment for service charges
-  verifyPayment: (paymentData: any) =>
-    publicApi.post(`/public/service-charge/verify-payment`, paymentData),
+  // Verify PhonePe payment
+  verifyPhonePePayment: (paymentData: any) =>
+    publicApi.post(`/public/service-charge/verify-phonepe-payment`, paymentData),
+    
+  // Get service charge status by ID
+  getServiceChargeStatus: (serviceChargeId: string) =>
+    publicApi.get(`/public/service-charge/status/${serviceChargeId}`),
 };
 
 export default publicServiceChargeService; 

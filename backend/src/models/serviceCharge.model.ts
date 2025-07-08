@@ -18,12 +18,7 @@ export interface IServiceCharge extends Document {
   description?: string;
   
   // Payment Gateway Integration
-  paymentGateway: 'razorpay' | 'phonepe';
-  
-  // Razorpay Integration
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
-  razorpaySignature?: string;
+  paymentGateway: 'phonepe';
   
   // PhonePe Integration
   phonePeOrderId?: string;
@@ -118,22 +113,8 @@ const serviceChargeSchema = new Schema({
   // Payment Gateway Integration
   paymentGateway: {
     type: String,
-    enum: ['razorpay', 'phonepe'],
+    enum: ['phonepe'],
     required: true
-  },
-  
-  // Razorpay Integration
-  razorpayOrderId: {
-    type: String,
-    trim: true
-  },
-  razorpayPaymentId: {
-    type: String,
-    trim: true
-  },
-  razorpaySignature: {
-    type: String,
-    trim: true
   },
   
   // PhonePe Integration
@@ -195,7 +176,6 @@ serviceChargeSchema.index({ paymentStatus: 1 });
 serviceChargeSchema.index({ status: 1 });
 serviceChargeSchema.index({ createdAt: -1 });
 serviceChargeSchema.index({ vendorEmail: 1 });
-serviceChargeSchema.index({ razorpayOrderId: 1 });
 serviceChargeSchema.index({ phonePeMerchantTransactionId: 1 });
 
 // Compound indexes for common query combinations

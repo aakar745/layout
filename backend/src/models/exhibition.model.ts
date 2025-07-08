@@ -170,8 +170,7 @@ export interface IExhibition extends Document {
       isActive: boolean;
     }>;
     // Payment Gateway Configuration
-    paymentGateway: 'razorpay' | 'phonepe'; // Active payment gateway
-    razorpayKeyId?: string; // Exhibition-specific Razorpay key if needed
+    paymentGateway: 'phonepe'; // PhonePe payment gateway
     phonePeConfig?: {
       clientId: string;
       env: 'SANDBOX' | 'PRODUCTION';
@@ -619,12 +618,8 @@ const exhibitionSchema = new Schema({
     // Payment Gateway Configuration
     paymentGateway: {
       type: String,
-      enum: ['razorpay', 'phonepe'],
+      enum: ['phonepe'],
       default: 'phonepe'
-    },
-    razorpayKeyId: {
-      type: String,
-      trim: true
     },
     phonePeConfig: {
       clientId: {

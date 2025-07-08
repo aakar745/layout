@@ -136,7 +136,7 @@ const PrivacyPolicy: React.FC = () => {
             </Paragraph>
             <List
               dataSource={[
-                'Payment processing (Razorpay, bank partners)',
+                'Payment processing (PhonePe, bank partners)',
                 'Email communication services',
                 'Cloud hosting and storage services',
                 'Analytics and performance monitoring',

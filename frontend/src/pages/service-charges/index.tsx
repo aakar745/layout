@@ -396,7 +396,10 @@ const ServiceChargesPage: React.FC = () => {
         <div>
           <div><Text strong>{record.vendorName}</Text></div>
           <div><Text type="secondary">{record.companyName}</Text></div>
-          <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.vendorEmail}</Text></div>
+          <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.vendorPhone}</Text></div>
+          {record.vendorEmail && (
+            <div><Text type="secondary" style={{ fontSize: '11px' }}>{record.vendorEmail}</Text></div>
+          )}
         </div>
       )
     },
@@ -410,6 +413,15 @@ const ServiceChargesPage: React.FC = () => {
           <div><Text strong>{text}</Text></div>
           <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.exhibitionId.venue}</Text></div>
         </div>
+      )
+    },
+    {
+      title: 'Stall Number',
+      dataIndex: 'stallNumber',
+      key: 'stallNumber',
+      width: 100,
+      render: (text: string) => (
+        <Tag color="blue">{text}</Tag>
       )
     },
     {
@@ -491,6 +503,18 @@ const ServiceChargesPage: React.FC = () => {
       <div className="page-header">
         <Title level={2}>Service Charges</Title>
         <Space>
+          <Input
+            placeholder="Search by vendor name, company, or receipt number"
+            prefix={<SearchOutlined />}
+            style={{ width: 300 }}
+            value={filters.vendorName || ''}
+            onChange={(e) => {
+              const searchValue = e.target.value;
+              setFilters(prev => ({ ...prev, vendorName: searchValue }));
+              setPagination(prev => ({ ...prev, current: 1 }));
+            }}
+            allowClear
+          />
           <Button
             icon={<FilterOutlined />}
             onClick={() => setFilterDrawerVisible(true)}
@@ -715,16 +739,15 @@ const ServiceChargesPage: React.FC = () => {
           <Button key="close" onClick={() => setDetailsVisible(false)}>
             Close
           </Button>,
-          selectedServiceCharge?.receiptGenerated && (
-            <Button 
-              key="download" 
-              type="primary" 
-              icon={<DownloadOutlined />}
-              onClick={() => selectedServiceCharge && handleDownloadReceipt(selectedServiceCharge._id)}
-            >
-              Download Receipt
-            </Button>
-          )
+          <Button 
+            key="download" 
+            type="primary" 
+            icon={<DownloadOutlined />}
+            onClick={() => selectedServiceCharge && handleDownloadReceipt(selectedServiceCharge._id)}
+            disabled={!selectedServiceCharge?.receiptGenerated}
+          >
+            {selectedServiceCharge?.receiptGenerated ? 'Download Receipt' : 'Receipt Not Available'}
+          </Button>
         ]}
         width={800}
       >

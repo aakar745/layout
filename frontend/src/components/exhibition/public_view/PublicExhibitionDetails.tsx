@@ -526,7 +526,7 @@ const PublicExhibitionDetails: React.FC = () => {
                   <ArrowRightOutlined />
                 </Button>
                 <Text type="secondary" className="secure-payment-text">
-                  Secure payment powered by Razorpay
+                                          Secure payment powered by PhonePe
                 </Text>
               </div>
             </div>
