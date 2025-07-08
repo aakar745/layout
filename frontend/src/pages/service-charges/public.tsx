@@ -715,7 +715,7 @@ const PublicServiceChargeForm: React.FC = () => {
       service => service.type === formData.serviceType
     );
 
-    const isDevelopmentMode = exhibition.config.phonePeConfig?.env === 'SANDBOX';
+    const isDevelopmentMode = exhibition.config.phonePeConfig?.clientId === 'phonepe_test_development_mode';
 
     return (
       <Card className="step-card">
