@@ -381,17 +381,17 @@ export class ServiceChargeReceiptService {
                     ₹${serviceCharge.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
                 
-                ${serviceCharge.razorpayPaymentId ? `
+                ${serviceCharge.phonePeTransactionId ? `
                 <div class="info-row">
                     <span class="label">Payment ID:</span>
-                    <span class="value">${serviceCharge.razorpayPaymentId}</span>
+                    <span class="value">${serviceCharge.phonePeTransactionId}</span>
                 </div>
                 ` : ''}
                 
-                ${serviceCharge.razorpayOrderId ? `
+                ${serviceCharge.phonePeOrderId ? `
                 <div class="info-row">
                     <span class="label">Order ID:</span>
-                    <span class="value">${serviceCharge.razorpayOrderId}</span>
+                    <span class="value">${serviceCharge.phonePeOrderId}</span>
                 </div>
                 ` : ''}
             </div>
