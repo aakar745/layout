@@ -588,8 +588,8 @@ const PublicServiceChargeForm: React.FC = () => {
       </div>
 
       <Form form={form} layout="vertical" initialValues={formData}>
-        <Row gutter={16}>
-          <Col span={12}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="vendorName"
               label="Vendor Name"
@@ -598,7 +598,7 @@ const PublicServiceChargeForm: React.FC = () => {
               <Input placeholder="Enter vendor name" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="companyName"
               label="Vendor Company Name"
@@ -609,8 +609,8 @@ const PublicServiceChargeForm: React.FC = () => {
           </Col>
         </Row>
 
-        <Row gutter={16}>
-          <Col span={12}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="exhibitorCompanyName"
               label="Exhibitor Company Name"
@@ -619,7 +619,7 @@ const PublicServiceChargeForm: React.FC = () => {
               <Input placeholder="Enter exhibitor company name" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="stallNumber"
               label="Stall Number"
@@ -630,8 +630,8 @@ const PublicServiceChargeForm: React.FC = () => {
           </Col>
         </Row>
 
-        <Row gutter={16}>
-          <Col span={12}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="vendorPhone"
               label="Phone Number"
@@ -643,7 +643,7 @@ const PublicServiceChargeForm: React.FC = () => {
               <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="vendorEmail"
               label="Email Address"
@@ -663,8 +663,8 @@ const PublicServiceChargeForm: React.FC = () => {
           <TextArea rows={3} placeholder="Enter complete address" />
         </Form.Item>
 
-        <Row gutter={16}>
-          <Col span={12}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="serviceType"
               label="Service Type"
@@ -679,7 +679,7 @@ const PublicServiceChargeForm: React.FC = () => {
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="description"
               label="Additional Description"
@@ -699,13 +699,34 @@ const PublicServiceChargeForm: React.FC = () => {
   );
 
   const renderPaymentStep = () => {
-    // Show loading if data is being restored
-    if (!exhibition || !formData.serviceType) {
+    // Show loading if exhibition data is not loaded yet
+    if (!exhibition) {
       return (
         <Card className="step-card">
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spin size="large" />
-            <div style={{ marginTop: '16px' }}>Loading payment details...</div>
+            <div style={{ marginTop: '16px' }}>Loading exhibition details...</div>
+          </div>
+        </Card>
+      );
+    }
+
+    // Show error if no service type is selected (shouldn't happen, but safety check)
+    if (!formData.serviceType) {
+      return (
+        <Card className="step-card">
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Alert
+              message="Service Type Missing"
+              description="Please go back and select a service type."
+              type="warning"
+              showIcon
+              action={
+                <Button onClick={handlePrevious} type="primary">
+                  Go Back
+                </Button>
+              }
+            />
           </div>
         </Card>
       );
@@ -715,10 +736,38 @@ const PublicServiceChargeForm: React.FC = () => {
       service => service.type === formData.serviceType
     );
 
+    // Show error if selected service is not found
+    if (!selectedService) {
+      return (
+        <Card className="step-card">
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Alert
+              message="Service Not Found"
+              description="The selected service type is no longer available. Please go back and select a different service."
+              type="error"
+              showIcon
+              action={
+                <Button onClick={handlePrevious} type="primary">
+                  Go Back
+                </Button>
+              }
+            />
+          </div>
+        </Card>
+      );
+    }
+
     const isDevelopmentMode = exhibition.config.phonePeConfig?.clientId === 'phonepe_test_development_mode';
 
+    console.log('[Payment Step] Rendering payment step:', {
+      exhibition: !!exhibition,
+      formData: formData,
+      selectedService: selectedService,
+      isDevelopmentMode: isDevelopmentMode
+    });
+
     return (
-      <Card className="step-card">
+      <Card className="step-card payment-step-card">
         <div className="step-header">
           <CreditCardOutlined className="step-icon" />
           <Title level={3}>Payment Details</Title>

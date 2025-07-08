@@ -1,7 +1,7 @@
 .service-charges-page {
   padding: 24px;
-  background: #f0f2f5;
-  min-height: calc(100vh - 64px);
+  background: #f5f5f5;
+  min-height: 100vh;
 }
 
 .page-header {
@@ -9,12 +9,15 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  padding: 0 8px;
+  padding: 20px 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.page-header h2 {
+.page-header .ant-typography {
   margin: 0;
-  color: #1d1d1d;
+  color: #1a1a1a;
   font-weight: 600;
 }
 
@@ -23,21 +26,328 @@
 }
 
 .stats-row .ant-card {
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
 }
 
-.stats-row .ant-statistic-title {
-  color: #8c8c8c;
-  font-size: 14px;
-  font-weight: 400;
+.stats-row .ant-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
-.stats-row .ant-statistic-content {
-  color: #1d1d1d;
-  font-size: 24px;
+/* Modern Table Styling */
+.service-charges-table-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.service-charges-table-card .ant-card-body {
+  padding: 0;
+}
+
+.modern-table {
+  background: white;
+}
+
+.modern-table .ant-table-thead > tr > th {
+  background: #fafafa;
+  border-bottom: 2px solid #e8e8e8;
   font-weight: 600;
+  font-size: 13px;
+  color: #262626;
+  padding: 16px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modern-table .ant-table-tbody > tr {
+  transition: all 0.2s ease;
+}
+
+.modern-table .ant-table-tbody > tr:hover {
+  background: #f0f7ff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+}
+
+.table-row-light {
+  background: #ffffff;
+}
+
+.table-row-dark {
+  background: #fafafa;
+}
+
+.modern-table .ant-table-tbody > tr > td {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+  vertical-align: top;
+}
+
+/* Fixed column shadows */
+.modern-table .ant-table-cell-fix-left {
+  position: sticky !important;
+  z-index: 9;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.06);
+}
+
+.modern-table .ant-table-cell-fix-right {
+  position: sticky !important;
+  z-index: 9;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Custom pagination styling */
+.modern-table .ant-pagination {
+  padding: 16px 24px;
+  background: #fafafa;
+  border-top: 1px solid #f0f0f0;
+  margin: 0;
+}
+
+.modern-table .ant-pagination-total-text {
+  font-size: 13px;
+  color: #666;
+}
+
+/* Tag improvements */
+.modern-table .ant-tag {
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Status-specific tag colors */
+.ant-tag-green {
+  background: #f6ffed;
+  color: #389e0d;
+  border: 1px solid #b7eb8f;
+}
+
+.ant-tag-red {
+  background: #fff2f0;
+  color: #cf1322;
+  border: 1px solid #ffccc7;
+}
+
+.ant-tag-orange {
+  background: #fff7e6;
+  color: #d46b08;
+  border: 1px solid #ffd591;
+}
+
+.ant-tag-purple {
+  background: #f9f0ff;
+  color: #722ed1;
+  border: 1px solid #d3adf7;
+}
+
+.ant-tag-blue {
+  background: #e6f7ff;
+  color: #0958d9;
+  border: 1px solid #91d5ff;
+}
+
+.ant-tag-geekblue {
+  background: #f0f5ff;
+  color: #2f54eb;
+  border: 1px solid #adc6ff;
+}
+
+/* Action button styling */
+.modern-table .ant-btn-text {
+  transition: all 0.2s ease;
+}
+
+.modern-table .ant-btn-text:hover {
+  background: #e6f7ff !important;
+  border-color: #91d5ff !important;
+  color: #1890ff !important;
+  transform: scale(1.05);
+}
+
+/* Dropdown menu styling */
+.ant-dropdown-menu {
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+}
+
+.ant-dropdown-menu-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.ant-dropdown-menu-item:hover {
+  background: #f0f7ff;
+}
+
+.ant-dropdown-menu-item-icon {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+/* Filter drawer styling */
+.ant-drawer-header {
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ant-drawer-title {
+  font-weight: 600;
+  color: #262626;
+}
+
+.ant-drawer-body {
+  padding: 24px;
+}
+
+/* Modal improvements */
+.service-charge-details .ant-tabs-tab {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.service-charge-details .ant-tabs-content-holder {
+  padding: 20px 0;
+}
+
+.service-charge-details p {
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.service-charge-details strong {
+  color: #262626;
+  font-weight: 600;
+}
+
+/* Responsive improvements */
+@media (max-width: 1200px) {
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  
+  .page-header .ant-space {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .service-charges-page {
+    padding: 16px;
+  }
+  
+  .stats-row .ant-col {
+    margin-bottom: 16px;
+  }
+  
+  .modern-table .ant-table-tbody > tr > td {
+    padding: 8px 6px;
+    font-size: 11px;
+  }
+  
+  .modern-table .ant-table-thead > tr > th {
+    padding: 12px 6px;
+    font-size: 12px;
+  }
+}
+
+/* Loading state improvements */
+.ant-spin-nested-loading > .ant-spin .ant-spin-dot {
+  font-size: 24px;
+}
+
+.ant-spin-nested-loading > .ant-spin .ant-spin-text {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Search and filter styling */
+.page-header .ant-input-affix-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.page-header .ant-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.page-header .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+}
+
+.page-header .ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border: none;
+}
+
+.page-header .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+}
+
+/* Copy button styling */
+.ant-typography-copy {
+  margin-left: 8px;
+  color: #1890ff;
+  transition: all 0.2s ease;
+}
+
+.ant-typography-copy:hover {
+  color: #40a9ff;
+  transform: scale(1.1);
+}
+
+/* Scrollbar styling for the table */
+.modern-table .ant-table-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.modern-table .ant-table-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.modern-table .ant-table-body::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.modern-table .ant-table-body::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Animation for table loading */
+@keyframes tableLoadingPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.modern-table.ant-table-loading .ant-table-tbody > tr > td {
+  animation: tableLoadingPulse 1.5s ease-in-out infinite;
 }
 
 .service-charges-page .ant-card {
@@ -364,13 +674,52 @@
 }
 
 .steps-card {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+.steps-card .ant-card-body {
+  padding: 12px 16px;
+}
+
 .steps-card .ant-steps {
-  padding: 24px 32px;
+  padding: 8px 16px;
+  margin: 0;
+}
+
+.steps-card .ant-steps-item {
+  padding-bottom: 0;
+}
+
+.steps-card .ant-steps-item-icon {
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  margin-right: 8px;
+}
+
+.steps-card .ant-steps-item-title {
+  line-height: 32px;
+  margin-bottom: 0;
+}
+
+.steps-card .ant-steps-item-finish .ant-steps-icon {
+  background-color: #52c41a !important;
+  border-color: #52c41a !important;
+  color: #fff !important;
+}
+
+.steps-card .ant-steps-item-process .ant-steps-icon {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #fff !important;
+}
+
+.steps-card .ant-steps-item-wait .ant-steps-icon {
+  background-color: #fff !important;
+  border-color: #d9d9d9 !important;
+  color: #999 !important;
 }
 
 .step-card {
@@ -386,6 +735,35 @@
 
 .step-card .ant-card-body {
   padding: 32px;
+}
+
+.payment-step-card {
+  min-height: 400px;
+}
+
+.payment-step-card .step-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.payment-step-card .step-icon {
+  font-size: 24px;
+  color: #1890ff;
+  margin-bottom: 8px;
+}
+
+.payment-step-card .step-actions {
+  text-align: center;
+  margin-top: 32px;
+}
+
+.payment-step-card .ant-descriptions {
+  margin-bottom: 24px;
+}
+
+.payment-step-card .payment-help {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 16px;
 }
 
 .actions-card {
@@ -468,19 +846,38 @@
 }
 
 .public-service-charge-form .ant-steps-item-finish .ant-steps-icon {
-  background-color: #52c41a;
-  border-color: #52c41a;
+  background-color: #52c41a !important;
+  border-color: #52c41a !important;
+  color: #fff !important;
 }
 
 .public-service-charge-form .ant-steps-item-process .ant-steps-icon {
-  background-color: #1890ff;
-  border-color: #1890ff;
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #fff !important;
+}
+
+.public-service-charge-form .ant-steps-item-wait .ant-steps-icon {
+  background-color: #fff !important;
+  border-color: #d9d9d9 !important;
+  color: #999 !important;
+}
+
+.public-service-charge-form .ant-steps-item-icon {
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Responsive design for public form */
 @media (max-width: 768px) {
   .public-service-charge-form {
     padding: 16px;
+    padding-top: 60px;
   }
   
   .form-container {
@@ -489,11 +886,11 @@
   
   .header-card .ant-card-body,
   .step-card .ant-card-body {
-    padding: 24px 16px;
+    padding: 20px 16px;
   }
   
   .steps-card .ant-steps {
-    padding: 16px;
+    padding: 6px 12px;
   }
   
   .actions-card .ant-card-body {
@@ -507,11 +904,88 @@
   .success-card .ant-card-body {
     padding: 32px 16px;
   }
+  
+  /* Success step mobile improvements */
+  .success-card .ant-result-extra {
+    text-align: center;
+  }
+  
+  .success-card .ant-result-extra .ant-space {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .success-card .ant-result-extra .ant-btn {
+    width: 100%;
+    max-width: 200px;
+    margin-bottom: 8px;
+  }
+  
+  .success-card .ant-descriptions {
+    margin-bottom: 16px;
+  }
+  
+  .success-card .ant-descriptions-item-label,
+  .success-card .ant-descriptions-item-content {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .success-card .ant-descriptions-item-label {
+    font-weight: 600;
+    color: #595959;
+    width: 35%;
+  }
+  
+  .success-card .ant-descriptions-item-content {
+    color: #262626;
+    word-break: break-word;
+  }
+  
+  /* Mobile form improvements */
+  .public-service-charge-form .ant-form-item {
+    margin-bottom: 20px;
+  }
+  
+  .public-service-charge-form .ant-btn {
+    height: 44px;
+    font-size: 16px;
+    min-width: 140px;
+  }
+  
+  .public-service-charge-form .ant-input,
+  .public-service-charge-form .ant-select-selector {
+    height: 44px;
+    font-size: 16px;
+  }
+  
+  .step-actions {
+    text-align: center;
+    margin-top: 24px;
+  }
+  
+  /* Payment step mobile button fix */
+  .payment-step-card .step-actions .ant-space {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .payment-step-card .step-actions .ant-btn {
+    width: 100%;
+    max-width: 280px;
+    white-space: normal;
+    height: auto;
+    min-height: 44px;
+    padding: 8px 16px;
+    text-align: center;
+    line-height: 1.4;
+  }
 }
 
 @media (max-width: 576px) {
   .public-service-charge-form {
     padding: 12px;
+    padding-top: 60px;
   }
   
   .header-card .ant-card-body {
@@ -527,7 +1001,7 @@
   }
   
   .steps-card .ant-steps {
-    padding: 12px;
+    padding: 4px 8px;
   }
   
   .payment-total {
@@ -535,7 +1009,105 @@
   }
   
   .payment-total .ant-typography {
+    font-size: 18px;
+  }
+  
+  /* Small mobile improvements */
+  .public-service-charge-form .ant-form-item {
+    margin-bottom: 16px;
+  }
+  
+  .public-service-charge-form .ant-btn {
+    height: 48px;
+    font-size: 16px;
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .public-service-charge-form .ant-input,
+  .public-service-charge-form .ant-select-selector,
+  .public-service-charge-form .ant-input-affix-wrapper {
+    height: 48px;
+    font-size: 16px;
+  }
+  
+  .step-actions {
+    text-align: center;
+    margin-top: 20px;
+  }
+  
+  /* Small mobile payment button fix */
+  .payment-step-card .step-actions .ant-space {
+    flex-direction: column;
+    width: 100%;
+    gap: 12px !important;
+  }
+  
+  .payment-step-card .step-actions .ant-btn {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    height: auto;
+    min-height: 48px;
+    padding: 10px 16px;
+    text-align: center;
+    line-height: 1.3;
+    font-size: 15px;
+  }
+  
+  .step-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .step-header .ant-typography h3 {
     font-size: 20px;
+    margin-bottom: 8px;
+  }
+  
+  /* Small mobile success step improvements */
+  .success-card .ant-card-body {
+    padding: 16px 8px;
+  }
+  
+  .success-card .ant-result-title {
+    font-size: 18px !important;
+    margin-bottom: 8px;
+  }
+  
+  .success-card .ant-result-subtitle {
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+  
+  .success-card .ant-result-extra .ant-space {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px !important;
+  }
+  
+  .success-card .ant-result-extra .ant-btn {
+    width: 100%;
+    max-width: 100%;
+    height: 44px;
+    font-size: 15px;
+    margin-bottom: 0;
+  }
+  
+  .success-card .ant-descriptions-item-label,
+  .success-card .ant-descriptions-item-content {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  
+  .success-card .ant-alert {
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  
+  .success-card .ant-alert .ant-alert-message {
+    font-size: 14px;
+    font-weight: 600;
   }
 }
 

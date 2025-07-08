@@ -302,6 +302,8 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       console.log('[PhonePe Callback] Payment successful for service charge:', serviceCharge._id);
     } else {
       serviceCharge.paymentStatus = 'failed';
+      serviceCharge.status = 'cancelled';
+      
       console.log('[PhonePe Callback] Payment failed for service charge:', serviceCharge._id, 'State:', state, 'Code:', responseCode);
     }
 
@@ -467,28 +469,42 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
             code: paymentStatus.data.responseCode
           }
         });
-              } else {
-          // Payment failed or pending
-          const errorMessage = paymentStatus.data?.responseCode || 'Payment verification failed';
-          
-          console.error('[PhonePe Verify] Payment verification failed:', {
-            merchantTransactionId,
-            state: paymentStatus.data?.state,
-            code: paymentStatus.data?.responseCode,
-            message: paymentStatus.message
-          });
+                    } else {
+        // Payment failed or pending
+        const paymentState = paymentStatus.data?.state;
+        const errorMessage = paymentStatus.data?.responseCode || 'Payment verification failed';
+        
+        console.error('[PhonePe Verify] Payment verification failed:', {
+          merchantTransactionId,
+          state: paymentState,
+          code: paymentStatus.data?.responseCode,
+          message: paymentStatus.message
+        });
 
-          return res.status(400).json({
-            success: false,
-            message: 'Payment verification failed',
-            error: errorMessage,
-            data: {
-              serviceChargeId: serviceCharge._id,
-              state: paymentStatus.data?.state,
-              code: paymentStatus.data?.responseCode
-            }
-          });
+        // Update service charge status based on payment state
+        if (paymentState === 'FAILED') {
+          // Payment explicitly failed - update status to failed
+          serviceCharge.paymentStatus = 'failed';
+          serviceCharge.status = 'cancelled';
+          await serviceCharge.save();
+          
+          console.log('[PhonePe Verify] Service charge status updated to failed for:', serviceCharge._id);
         }
+        // If state is 'PENDING', keep the current pending status
+
+        return res.status(400).json({
+          success: false,
+          message: paymentState === 'FAILED' ? 'Payment failed' : 'Payment verification failed',
+          error: errorMessage,
+          data: {
+            serviceChargeId: serviceCharge._id,
+            state: paymentState,
+            code: paymentStatus.data?.responseCode,
+            paymentStatus: serviceCharge.paymentStatus,
+            status: serviceCharge.status
+          }
+        });
+      }
     } catch (verifyError) {
       console.error('[PhonePe Verify] Error verifying with PhonePe API:', verifyError);
       

@@ -31,7 +31,7 @@ export const getServiceCharges = async (req: Request, res: Response) => {
       status,
       startDate,
       endDate,
-      vendorName,
+      search,
       serviceType
     } = req.query;
 
@@ -87,8 +87,15 @@ export const getServiceCharges = async (req: Request, res: Response) => {
       query.serviceType = serviceType;
     }
 
-    if (vendorName) {
-      query.vendorName = { $regex: vendorName, $options: 'i' };
+    if (search) {
+      query.$or = [
+        { receiptNumber: { $regex: search, $options: 'i' } },
+        { vendorName: { $regex: search, $options: 'i' } },
+        { companyName: { $regex: search, $options: 'i' } },
+        { vendorPhone: { $regex: search, $options: 'i' } },
+        { vendorEmail: { $regex: search, $options: 'i' } },
+        { stallNumber: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Date range filter

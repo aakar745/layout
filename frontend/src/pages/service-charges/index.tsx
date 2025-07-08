@@ -31,7 +31,10 @@ import {
   DollarOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  MoreOutlined,
+  CalendarOutlined,
+  FieldTimeOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -46,23 +49,34 @@ interface ServiceCharge {
   _id: string;
   receiptNumber: string;
   vendorName: string;
-  vendorEmail: string;
+  vendorEmail?: string;
   vendorPhone: string;
   companyName: string;
+  exhibitorCompanyName?: string;
   stallNumber?: string;
+  vendorAddress?: string;
   serviceType: string;
   amount: number;
+  description?: string;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   status: 'submitted' | 'paid' | 'completed' | 'cancelled';
   paidAt?: string;
   createdAt: string;
+  updatedAt?: string;
   exhibitionId: {
     _id: string;
     name: string;
     venue: string;
+    startDate?: string;
+    endDate?: string;
   };
   adminNotes?: string;
   receiptGenerated: boolean;
+  receiptPath?: string;
+  // PhonePe fields
+  phonePeOrderId?: string;
+  phonePeTransactionId?: string;
+  phonePeMerchantTransactionId?: string;
 }
 
 interface ServiceChargeStats {
@@ -79,7 +93,7 @@ interface Filters {
   paymentStatus?: string;
   status?: string;
   serviceType?: string;
-  vendorName?: string;
+  search?: string;
   dateRange?: [dayjs.Dayjs, dayjs.Dayjs];
 }
 
@@ -232,7 +246,12 @@ const ServiceChargesPage: React.FC = () => {
 
   const handleExport = async () => {
     try {
-      const queryParams: Record<string, string> = {};
+      message.loading('Preparing export...', 0);
+      
+      const queryParams: Record<string, string> = {
+        export: 'true',
+        limit: '10000' // Export all records
+      };
       
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && key !== 'dateRange') {
@@ -247,37 +266,92 @@ const ServiceChargesPage: React.FC = () => {
 
       const params = new URLSearchParams(queryParams);
 
-      const response = await fetch(`/api/service-charges/export?${params}`, {
+      const response = await fetch(`/api/service-charges?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
 
+      message.destroy();
+
       if (response.ok) {
         const data = await response.json();
+        const serviceCharges = data.data || [];
         
-        // Convert to CSV and download
+        if (serviceCharges.length === 0) {
+          message.warning('No data to export');
+          return;
+        }
+
+        // Define CSV headers matching the table columns
+        const csvHeaders = [
+          'Receipt Number',
+          'Vendor Name',
+          'Company Name',
+          'Mobile',
+          'Email',
+          'Stall Number',
+          'Amount (₹)',
+          'Payment Status',
+          'Status',
+          'Created Date',
+          'Created Time',
+          'Paid Date',
+          'Paid Time',
+          'Admin Notes'
+        ];
+
+        // Convert service charges to CSV rows
+        const csvRows = serviceCharges.map((charge: ServiceCharge) => [
+          charge.receiptNumber,
+          charge.vendorName,
+          charge.companyName,
+          charge.vendorPhone,
+          charge.vendorEmail || '',
+          charge.stallNumber || '',
+          charge.amount,
+          charge.paymentStatus.toUpperCase(),
+          charge.status.toUpperCase(),
+          dayjs(charge.createdAt).format('DD/MM/YYYY'),
+          dayjs(charge.createdAt).format('HH:mm:ss'),
+          charge.paidAt ? dayjs(charge.paidAt).format('DD/MM/YYYY') : '',
+          charge.paidAt ? dayjs(charge.paidAt).format('HH:mm:ss') : '',
+          charge.adminNotes || ''
+        ]);
+
+        // Escape and quote CSV values
+        const escapeCSV = (value: any) => {
+          const str = String(value || '');
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+
         const csvContent = [
-          Object.keys(data.data[0] || {}).join(','),
-          ...data.data.map((row: any) => Object.values(row).join(','))
+          csvHeaders.map(escapeCSV).join(','),
+          ...csvRows.map((row: any[]) => row.map(escapeCSV).join(','))
         ].join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+        // Add BOM for proper Excel encoding
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        a.download = `service-charges-${dayjs().format('YYYY-MM-DD')}.csv`;
+        a.download = `service-charges-${dayjs().format('YYYY-MM-DD-HHmm')}.csv`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         
-        message.success('Export completed successfully');
+        message.success(`Export completed! ${serviceCharges.length} records exported.`);
       } else {
         message.error('Failed to export data');
       }
     } catch (error) {
       console.error('Error exporting data:', error);
+      message.destroy();
       message.error('Error exporting data');
     }
   };
@@ -383,63 +457,54 @@ const ServiceChargesPage: React.FC = () => {
       title: 'Receipt #',
       dataIndex: 'receiptNumber',
       key: 'receiptNumber',
-      width: 120,
+      width: 140,
+      fixed: 'left' as const,
       render: (text: string) => (
-        <Text strong copyable>{text}</Text>
+        <Text strong copyable style={{ fontSize: '15px' }}>{text}</Text>
       )
     },
     {
-      title: 'Vendor',
+      title: 'Vendor Details',
       key: 'vendor',
       width: 200,
       render: (record: ServiceCharge) => (
-        <div>
-          <div><Text strong>{record.vendorName}</Text></div>
-          <div><Text type="secondary">{record.companyName}</Text></div>
-          <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.vendorPhone}</Text></div>
+        <div style={{ lineHeight: '1.3' }}>
+          <div><Text strong style={{ fontSize: '13px' }}>{record.vendorName}</Text></div>
+          <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.companyName}</Text></div>
           {record.vendorEmail && (
-            <div><Text type="secondary" style={{ fontSize: '11px' }}>{record.vendorEmail}</Text></div>
+            <div><Text type="secondary" style={{ fontSize: '13px', opacity: 0.8 }}>{record.vendorEmail}</Text></div>
           )}
         </div>
       )
     },
     {
-      title: 'Exhibition',
-      dataIndex: ['exhibitionId', 'name'],
-      key: 'exhibition',
-      width: 150,
-      render: (text: string, record: ServiceCharge) => (
-        <div>
-          <div><Text strong>{text}</Text></div>
-          <div><Text type="secondary" style={{ fontSize: '12px' }}>{record.exhibitionId.venue}</Text></div>
-        </div>
+      title: 'Mobile',
+      dataIndex: 'vendorPhone',
+      key: 'mobile',
+      width: 120,
+      align: 'center' as const, 
+      render: (phone: string) => (
+        <Text style={{ fontSize: '15px', fontFamily: 'monospace' }}>{phone}</Text>
       )
     },
     {
-      title: 'Stall Number',
+      title: 'Stall No.',
       dataIndex: 'stallNumber',
       key: 'stallNumber',
       width: 100,
+      align: 'center' as const,
       render: (text: string) => (
-        <Tag color="blue">{text}</Tag>
-      )
-    },
-    {
-      title: 'Service Type',
-      dataIndex: 'serviceType',
-      key: 'serviceType',
-      width: 120,
-      render: (text: string) => (
-        <Tag>{text.charAt(0).toUpperCase() + text.slice(1)}</Tag>
+        <Tag color="blue" style={{ fontSize: '13px', margin: 0 }}>{text}</Tag>
       )
     },
     {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
-      width: 100,
+      width: 110,
+      align: 'center' as const,
       render: (amount: number) => (
-        <Text strong>₹{amount.toLocaleString('en-IN')}</Text>
+        <Text strong style={{ fontSize: '15px' }}>₹{amount.toLocaleString('en-IN')}</Text>
       )
     },
     {
@@ -447,8 +512,9 @@ const ServiceChargesPage: React.FC = () => {
       dataIndex: 'paymentStatus',
       key: 'paymentStatus',
       width: 120,
+      align: 'center' as const,
       render: (status: string) => (
-        <Tag color={getPaymentStatusColor(status)}>
+        <Tag color={getPaymentStatusColor(status)} style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>
           {status.toUpperCase()}
         </Tag>
       )
@@ -457,9 +523,10 @@ const ServiceChargesPage: React.FC = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 110,
+      align: 'center' as const,
       render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
+        <Tag color={getStatusColor(status)} style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>
           {status.toUpperCase()}
         </Tag>
       )
@@ -467,23 +534,59 @@ const ServiceChargesPage: React.FC = () => {
     {
       title: 'Date',
       dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 120,
-      render: (date: string, record: ServiceCharge) => (
-        <div>
-          <div>{dayjs(date).format('DD/MM/YYYY')}</div>
-          {record.paidAt && (
-            <div style={{ fontSize: '12px', color: '#52c41a' }}>
-              Paid: {dayjs(record.paidAt).format('DD/MM/YYYY')}
-            </div>
-          )}
+      key: 'date',
+      width: 100,
+      align: 'center' as const,
+      render: (date: string) => (
+        <div style={{ lineHeight: '1.2' }}>
+          <div style={{ fontSize: '13px', fontWeight: 500 }}>
+            <CalendarOutlined style={{ marginRight: 4, color: '#1890ff' }} />
+            {dayjs(date).format('DD/MM/YY')}
+          </div>
         </div>
       )
+    },
+    {
+      title: 'Time',
+      dataIndex: 'createdAt',
+      key: 'time',
+      width: 90,
+      align: 'center' as const,
+      render: (date: string) => (
+        <div style={{ fontSize: '13px', color: '#666' }}>
+          <FieldTimeOutlined style={{ marginRight: 4 }} />
+          {dayjs(date).format('HH:mm')}
+        </div>
+      )
+    },
+    {
+      title: 'Paid At',
+      dataIndex: 'paidAt',
+      key: 'paidAt',
+      width: 100,
+      align: 'center' as const,
+      render: (paidAt: string | undefined, record: ServiceCharge) => {
+        if (!paidAt || record.paymentStatus !== 'paid') {
+          return <Text type="secondary" style={{ fontSize: '13px' }}>-</Text>;
+        }
+        return (
+          <div style={{ lineHeight: '1.2' }}>
+            <div style={{ fontSize: '13px', color: '#52c41a', fontWeight: 500 }}>
+              {dayjs(paidAt).format('DD/MM/YY')}
+            </div>
+            <div style={{ fontSize: '10px', color: '#52c41a' }}>
+              {dayjs(paidAt).format('HH:mm')}
+            </div>
+          </div>
+        );
+      }
     },
     {
       title: 'Actions',
       key: 'actions',
       width: 100,
+      align: 'center' as const,
+      fixed: 'right' as const,
       render: (record: ServiceCharge) => (
         <Dropdown
           menu={{
@@ -491,8 +594,19 @@ const ServiceChargesPage: React.FC = () => {
             onClick: ({ key }) => handleActionClick(key, record)
           }}
           trigger={['click']}
+          placement="bottomRight"
         >
-          <Button size="small">Actions</Button>
+          <Button 
+            type="text" 
+            size="small" 
+            icon={<MoreOutlined />}
+            style={{ 
+              padding: '4px 8px',
+              borderRadius: '6px',
+              border: '1px solid #d9d9d9',
+              backgroundColor: '#fafafa'
+            }}
+          />
         </Dropdown>
       )
     }
@@ -504,13 +618,13 @@ const ServiceChargesPage: React.FC = () => {
         <Title level={2}>Service Charges</Title>
         <Space>
           <Input
-            placeholder="Search by vendor name, company, or receipt number"
+            placeholder="Search by receipt, vendor, company, mobile, stall no."
             prefix={<SearchOutlined />}
-            style={{ width: 300 }}
-            value={filters.vendorName || ''}
+            style={{ width: 350 }}
+            value={filters.search || ''}
             onChange={(e) => {
               const searchValue = e.target.value;
-              setFilters(prev => ({ ...prev, vendorName: searchValue }));
+              setFilters(prev => ({ ...prev, search: searchValue }));
               setPagination(prev => ({ ...prev, current: 1 }));
             }}
             allowClear
@@ -585,7 +699,7 @@ const ServiceChargesPage: React.FC = () => {
       )}
 
       {/* Main Table */}
-      <Card>
+      <Card className="service-charges-table-card">
         <Table
           columns={columns}
           dataSource={serviceCharges}
@@ -597,6 +711,8 @@ const ServiceChargesPage: React.FC = () => {
             total: pagination.total,
             showSizeChanger: true,
             showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            pageSizeOptions: ['10', '20', '50', '100'],
             onChange: (page, pageSize) => {
               setPagination(prev => ({
                 ...prev,
@@ -605,7 +721,16 @@ const ServiceChargesPage: React.FC = () => {
               }));
             }
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ 
+            x: 1200, // Adjusted for removed service column
+            y: 'calc(100vh - 380px)' // Dynamic height based on viewport
+          }}
+          size="middle"
+          bordered
+          className="modern-table"
+          rowClassName={(record, index) => 
+            index % 2 === 0 ? 'table-row-light' : 'table-row-dark'
+          }
         />
       </Card>
 
@@ -663,8 +788,8 @@ const ServiceChargesPage: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item name="vendorName" label="Vendor Name">
-            <Input placeholder="Search by vendor name" />
+          <Form.Item name="search" label="Search">
+            <Input placeholder="Search by receipt, vendor, company, mobile, stall no." />
           </Form.Item>
 
           <Form.Item name="dateRange" label="Date Range">
