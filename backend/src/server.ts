@@ -16,6 +16,10 @@ import { initializeSocket } from './services/socket.service';
 import { initializeCleanupService } from './services/cleanup.service';
 import { initializeLetterScheduler } from './services/letterScheduler.service';
 
+// Initialize critical models first
+import Counter from './models/counter.model';
+import ServiceCharge from './models/serviceCharge.model';
+
 // Import routes
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
@@ -53,6 +57,27 @@ initializeSocket(server);
 // IMPORTANT: Place body parsing middleware before any route handlers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Initialize database connection and models
+const initializeDatabase = async () => {
+  try {
+    await connectDB();
+    
+    // Initialize critical models to ensure they're ready
+    console.log('[Database] Initializing Counter model...');
+    await Counter.init();
+    console.log('[Database] Counter model initialized successfully');
+    
+    console.log('[Database] Initializing ServiceCharge model...');
+    await ServiceCharge.init();
+    console.log('[Database] ServiceCharge model initialized successfully');
+    
+    console.log('[Database] All models initialized successfully');
+  } catch (error) {
+    console.error('[Database] Error initializing models:', error);
+    throw error;
+  }
+};
 
 // Middleware
 app.use(cors({
@@ -424,7 +449,7 @@ app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
 app.use(errorHandler);
 
 // MongoDB connection with cleanup service initialization
-connectDB().then(() => {
+initializeDatabase().then(() => {
   console.log('Connected to MongoDB');
   
   // Initialize cleanup service for temporary files

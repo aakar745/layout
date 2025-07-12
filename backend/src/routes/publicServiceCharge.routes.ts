@@ -103,6 +103,37 @@ router.post('/upload', (req, res, next) => {
 });
 
 /**
+ * @route   GET /api/public/service-charge/test-counter
+ * @desc    Test counter service (for debugging production issues)
+ * @access  Public
+ */
+router.get('/test-counter', async (req, res) => {
+  try {
+    const CounterService = require('../services/counter.service').default;
+    
+    // Test counter service
+    const receiptNumber = await CounterService.generateReceiptNumber();
+    const counterStatus = await CounterService.getCounterStatus('serviceCharge');
+    
+    res.json({
+      success: true,
+      data: {
+        receiptNumber,
+        counterStatus,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Counter service test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: (error as Error).message,
+      stack: (error as Error).stack
+    });
+  }
+});
+
+/**
  * @route   POST /api/public/service-charge/create-order
  * @desc    Create service charge order and initiate payment
  * @access  Public
