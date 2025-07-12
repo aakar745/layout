@@ -18,8 +18,13 @@ import {
   Spin,
   Result,
   Tag,
-  Layout
+  Layout,
+  Upload,
+  App
 } from 'antd';
+import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
+import heic2any from 'heic2any';
+import api from '../../services/api';
 import { 
   ShoppingCartOutlined, 
   CreditCardOutlined, 
@@ -30,7 +35,8 @@ import {
   BankOutlined,
   LoadingOutlined,
   InfoCircleOutlined,
-  LockOutlined
+  LockOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import publicServiceChargeService from '../../services/publicServiceCharge';
 import GlobalHeader from '../../components/layout/GlobalHeader';
@@ -40,13 +46,18 @@ import './ServiceCharges.css';
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { Step } = Steps;
-const { TextArea } = Input;
 const { Content } = Layout;
 
-interface ServiceType {
-  type: string;
-  amount: number;
-  description?: string;
+interface ServiceChargeStall {
+  _id: string;
+  stallNumber: string;
+  exhibitorCompanyName: string;
+  stallArea: number;
+  dimensions?: {
+    width: number;
+    height: number;
+  };
+  isActive: boolean;
 }
 
 interface ExhibitionConfig {
@@ -59,7 +70,16 @@ interface ExhibitionConfig {
     isEnabled: boolean;
     title: string;
     description: string;
-    serviceTypes: ServiceType[];
+    // Support both old and new pricing systems
+    serviceTypes?: {
+      type: string;
+      amount: number;
+    }[];
+    pricingRules?: {
+      smallStallThreshold: number;
+      smallStallPrice: number;
+      largeStallPrice: number;
+    };
     paymentGateway: 'phonepe';
     phonePeConfig: {
       clientId: string;
@@ -72,12 +92,11 @@ interface FormData {
   vendorName: string;
   companyName: string;
   exhibitorCompanyName?: string;
-  vendorEmail?: string;
   vendorPhone: string;
   stallNumber: string;
-  vendorAddress: string;
-  serviceType: string;
-  description?: string;
+  stallArea?: number;
+  serviceType?: string; // Keep for backward compatibility
+  uploadedImage?: string;
 }
 
 const PublicServiceChargeForm: React.FC = () => {
@@ -85,23 +104,213 @@ const PublicServiceChargeForm: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [form] = Form.useForm();
+  const { message } = App.useApp();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [exhibition, setExhibition] = useState<ExhibitionConfig | null>(null);
+  const [stalls, setStalls] = useState<ServiceChargeStall[]>([]);
+  const [selectedStall, setSelectedStall] = useState<ServiceChargeStall | null>(null);
   const [formData, setFormData] = useState<FormData>({
     vendorName: '',
     companyName: '',
     exhibitorCompanyName: '',
-    vendorEmail: '',
     vendorPhone: '',
     stallNumber: '',
-    vendorAddress: '',
+    stallArea: 0,
     serviceType: '',
+    uploadedImage: '',
   });
   const [paymentResult, setPaymentResult] = useState<any>(null);
   const [verificationInProgress, setVerificationInProgress] = useState(false);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  // Upload props for service charge image
+  const uploadProps: UploadProps = {
+    name: 'uploadedImage',
+    action: `${api.defaults.baseURL}/public/service-charge/upload`,
+    headers: {
+      // No authorization needed for public uploads
+    },
+    accept: 'image/*,.heic,.HEIC',
+    maxCount: 1,
+    fileList,
+    listType: 'picture-card',
+    showUploadList: {
+      showPreviewIcon: true,
+      showRemoveIcon: true,
+      showDownloadIcon: false,
+    },
+    onPreview: (file) => {
+      const imageUrl = file.url || file.thumbUrl;
+      if (imageUrl) {
+        window.open(imageUrl, '_blank');
+      }
+    },
+    customRequest: async (options) => {
+      const { file, onSuccess, onError, onProgress } = options;
+      
+      // Ensure we have a File object
+      if (typeof file === 'string') {
+        onError?.(new Error('Invalid file type'));
+        return;
+      }
+      
+      let fileToUpload = file as File;
+      const originalName = (file as any).name || fileToUpload.name;
+      
+      // Check if this is a HEIC file and convert it
+      if (originalName && originalName.toLowerCase().endsWith('.heic')) {
+        try {
+          console.log('[HEIC Conversion] Converting HEIC to JPEG...');
+          message.loading('Converting HEIC to JPEG...', 0);
+          
+          const convertedBlob = await heic2any({
+            blob: fileToUpload,
+            toType: 'image/jpeg',
+            quality: 0.8
+          }) as Blob;
+          
+          fileToUpload = new File(
+            [convertedBlob], 
+            originalName.replace(/\.heic$/i, '.jpg'), 
+            { type: 'image/jpeg' }
+          );
+          
+          console.log('[HEIC Conversion] Successfully converted to JPEG');
+          message.destroy();
+        } catch (error) {
+          console.error('[HEIC Conversion] Error:', error);
+          message.destroy();
+          message.error('Failed to convert HEIC file. Please try a different image.');
+          onError?.(error as Error);
+          return;
+        }
+      }
+      
+      // Upload the file (original or converted)
+      const formData = new FormData();
+      formData.append('uploadedImage', fileToUpload);
+      
+      try {
+        const response = await fetch(`${api.defaults.baseURL}/public/service-charge/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          onSuccess?.(result, fileToUpload);
+        } else {
+          throw new Error(result.message || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('[Upload Error]:', error);
+        onError?.(error as Error);
+      }
+    },
+    beforeUpload: (file) => {
+      console.log('[Frontend Upload] File details:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+
+      // Check file size - 10MB limit
+      const isLt10M = file.size / 1024 / 1024 < 10;
+      if (!isLt10M) {
+        message.error('Image must be smaller than 10MB!');
+        return false;
+      }
+      
+      // Check file extension (more reliable than MIME type for HEIC)
+      const fileName = file.name.toLowerCase();
+      const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.heic'];
+      const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+      
+      // Check MIME type for non-HEIC files (HEIC files can have various MIME types)
+      const isStandardImage = file.type.startsWith('image/');
+      const isHeicFile = fileName.endsWith('.heic');
+      
+      if (!hasValidExtension) {
+        message.error('Please upload a valid image file (JPG, PNG, GIF, SVG, HEIC)!');
+        return false;
+      }
+      
+      // For non-HEIC files, also check MIME type
+      if (!isHeicFile && !isStandardImage) {
+        message.error('Invalid file type. Please upload an image file!');
+        return false;
+      }
+      
+      console.log('[Frontend Upload] File validation passed:', fileName);
+      return true;
+    },
+    onChange(info) {
+      const { status, name, response } = info.file;
+      
+      if (status === 'uploading') {
+        setFileList([...info.fileList]);
+        return;
+      }
+      
+      if (status === 'done' && response && response.success) {
+        console.log('[File Upload] Upload successful:', response);
+        
+        // Create the file list item with proper URL for display
+        const fileListItem = {
+          uid: info.file.uid,
+          name,
+          status: 'done' as const,
+          response,
+          // Always set the URL since HEIC files are now converted to JPEG
+          url: `${api.defaults.baseURL}/public/uploads/${response.path}`,
+          thumbUrl: `${api.defaults.baseURL}/public/uploads/${response.path}`
+        };
+        
+        setFileList([fileListItem]);
+        setFormData(prev => ({ ...prev, uploadedImage: response.path }));
+        
+        // Show specific message for HEIC files that were converted
+        if (name.toLowerCase().includes('heic') && name.toLowerCase().endsWith('.jpg')) {
+          message.success(`HEIC file uploaded successfully! Converted to JPEG for web display.`);
+        } else {
+          message.success(`${name} uploaded successfully`);
+        }
+      } else if (status === 'error') {
+        console.error('[Upload Error] Details:', {
+          name,
+          response,
+          error: info.file.error
+        });
+        
+        // Handle structured error responses from backend
+        if (response?.error === 'LIMIT_FILE_SIZE') {
+          message.error(`${name} is too large. Maximum file size is 10MB.`);
+        } else if (response?.error === 'INVALID_FILE_TYPE') {
+          message.error(`${name} is not a supported file type. Please upload JPG, PNG, GIF, SVG, or HEIC files.`);
+        } else if (response?.message) {
+          // Use the specific error message from backend
+          message.error(response.message);
+        } else {
+          // Fallback for other errors
+          message.error(`${name} upload failed. Please try again.`);
+        }
+        setFileList([]);
+      } else if (status === 'removed') {
+        setFileList([]);
+        setFormData(prev => ({ ...prev, uploadedImage: '' }));
+      }
+    },
+    onRemove() {
+      setFileList([]);
+      setFormData(prev => ({ ...prev, uploadedImage: '' }));
+      return true;
+    }
+  };
 
   // Check if we're on payment result page (handle multiple possible paths)
   const isPaymentResultPage = location.pathname === '/service-charge/payment-result' || 
@@ -117,12 +326,15 @@ const PublicServiceChargeForm: React.FC = () => {
     });
     
     if (isPaymentResultPage) {
-      // Handle payment redirect (but not if we're already in success step)
-      if (currentStep !== 2) {
+      // Handle payment redirect (but not if we're already in success step or payment is verified)
+      if (currentStep !== 2 && !paymentVerified) {
         console.log('[Payment Redirect] Handling payment redirect');
         handlePaymentRedirect();
       } else {
-        console.log('[Payment Redirect] Already in success step, skipping redirect handling');
+        console.log('[Payment Redirect] Already in success step or payment verified, skipping redirect handling', {
+          currentStep,
+          paymentVerified
+        });
       }
     } else if (exhibitionId) {
       console.log('[Payment Redirect] Fetching exhibition config for:', exhibitionId);
@@ -130,7 +342,15 @@ const PublicServiceChargeForm: React.FC = () => {
     } else {
       console.log('[Payment Redirect] No action taken - missing exhibitionId or not payment result page');
     }
-  }, [exhibitionId, isPaymentResultPage, currentStep]);
+  }, [exhibitionId, isPaymentResultPage, currentStep, paymentVerified]);
+
+  // Cleanup effect to reset verification states when component unmounts
+  useEffect(() => {
+    return () => {
+      setVerificationInProgress(false);
+      setPaymentVerified(false);
+    };
+  }, []);
 
   const restoreFormDataFromServiceCharge = async () => {
     try {
@@ -157,12 +377,9 @@ const PublicServiceChargeForm: React.FC = () => {
           vendorName: serviceCharge.vendorName || '',
           companyName: serviceCharge.companyName || '',
           exhibitorCompanyName: serviceCharge.exhibitorCompanyName || '',
-          vendorEmail: serviceCharge.vendorEmail || '',
           vendorPhone: serviceCharge.vendorPhone || '',
           stallNumber: serviceCharge.stallNumber || '',
-          vendorAddress: serviceCharge.vendorAddress || '',
           serviceType: serviceCharge.serviceType || '',
-          description: serviceCharge.description || ''
         };
         
         console.log('[Payment Redirect] Restoring form data:', restoredFormData);
@@ -203,8 +420,11 @@ const PublicServiceChargeForm: React.FC = () => {
 
   const handlePaymentRedirect = async () => {
     // Prevent multiple verification attempts
-    if (verificationInProgress) {
-      console.log('[Payment Redirect] Verification already in progress, skipping');
+    if (verificationInProgress || paymentVerified) {
+      console.log('[Payment Redirect] Verification already in progress or completed, skipping', {
+        verificationInProgress,
+        paymentVerified
+      });
       return;
     }
 
@@ -287,8 +507,9 @@ const PublicServiceChargeForm: React.FC = () => {
         
         setPaymentResult(paymentData);
         setCurrentStep(2);
+        setPaymentVerified(true); // Mark payment as verified to prevent re-verification
         setLoading(false); // Stop loading immediately when payment is verified
-        message.success('Payment verified successfully!');
+        // Success message removed - the success step UI itself is the confirmation
         return;
       }
 
@@ -306,6 +527,8 @@ const PublicServiceChargeForm: React.FC = () => {
         }
         
         console.log('[Payment Redirect] Verifying PhonePe payment for merchant ID:', merchantTransactionId);
+        // Only show loading message if no other loading message is active
+        message.destroy(); // Clear any existing messages first
         message.loading('Verifying payment with PhonePe...', 0);
         
         // Add retry mechanism for payment verification
@@ -332,8 +555,9 @@ const PublicServiceChargeForm: React.FC = () => {
               message.destroy();
               setPaymentResult(verifyResponse.data.data);
               setCurrentStep(2);
+              setPaymentVerified(true); // Mark payment as verified to prevent re-verification
               setLoading(false); // Stop loading immediately when payment is verified
-              message.success('Payment verified successfully!');
+              // Success message removed to prevent duplication - payment already verified above
               return;
             } 
             
@@ -451,10 +675,103 @@ const PublicServiceChargeForm: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (exhibitionId) {
+      fetchExhibitionConfig();
+      fetchStalls(); // Fetch stalls when component mounts
+    }
+  }, [exhibitionId]);
+
+  // Fetch available stalls for the exhibition
+  const fetchStalls = async () => {
+    try {
+      const response = await fetch(`/api/public/service-charge/stalls/${exhibitionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStalls(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching stalls:', error);
+      // Don't show error message here as it's not critical for backward compatibility
+    }
+  };
+
+  // Handle stall selection and auto-fill
+  const handleStallSelection = (stallNumber: string) => {
+    const stall = stalls.find(s => s.stallNumber === stallNumber);
+    if (stall) {
+      setSelectedStall(stall);
+      // Auto-fill exhibitor company name
+      form.setFieldsValue({
+        exhibitorCompanyName: stall.exhibitorCompanyName
+      });
+      setFormData(prev => ({
+        ...prev,
+        stallNumber: stallNumber,
+        exhibitorCompanyName: stall.exhibitorCompanyName,
+        stallArea: stall.stallArea
+      }));
+    } else {
+      setSelectedStall(null);
+      // Clear auto-filled data if manual entry
+      if (stalls.length > 0) {
+        form.setFieldsValue({
+          exhibitorCompanyName: ''
+        });
+        setFormData(prev => ({
+          ...prev,
+          stallNumber: stallNumber,
+          exhibitorCompanyName: '',
+          stallArea: 0
+        }));
+      }
+    }
+  };
+
+  // Calculate service charge amount based on stall area or service type
+  const calculateServiceCharge = () => {
+    if (!exhibition?.config) return 0;
+
+    // New stall-based pricing system - use default pricing rules if stalls are available
+    if (stalls.length > 0 && (selectedStall || formData.stallArea)) {
+      const stallArea = selectedStall?.stallArea || formData.stallArea || 0;
+      // Use default pricing rules: ≤50 sqm = ₹2000, >50 sqm = ₹2500
+      const smallStallThreshold = 50;
+      const smallStallPrice = 2000;
+      const largeStallPrice = 2500;
+      
+      return stallArea <= smallStallThreshold ? smallStallPrice : largeStallPrice;
+    }
+
+    // Legacy service type system
+    if (exhibition.config.serviceTypes && formData.serviceType) {
+      const selectedService = exhibition.config.serviceTypes.find(
+        service => service.type === formData.serviceType
+      );
+      return selectedService ? selectedService.amount : 0;
+    }
+
+    return 0;
+  };
+
   const handleNext = () => {
     form.validateFields().then(() => {
       const values = form.getFieldsValue();
-      setFormData({ ...formData, ...values });
+      
+      // Additional validation for stall-based pricing
+      if (stalls.length > 0 && !selectedStall) {
+        message.warning('Please select a stall to proceed.');
+        return;
+      }
+      
+      // Additional validation for legacy service type
+      if (stalls.length === 0 && exhibition?.config.serviceTypes && !values.serviceType) {
+        message.warning('Please select a service type to proceed.');
+        return;
+      }
+      
+      // Preserve the uploadedImage file when updating formData
+      setFormData({ ...formData, ...values, uploadedImage: formData.uploadedImage });
       setCurrentStep(currentStep + 1);
     });
   };
@@ -467,23 +784,34 @@ const PublicServiceChargeForm: React.FC = () => {
     try {
       setSubmitting(true);
       
-      const selectedService = exhibition?.config.serviceTypes.find(
-        service => service.type === formData.serviceType
-      );
+      const serviceChargeAmount = calculateServiceCharge();
       
-      if (!selectedService) {
-        message.error('Invalid service type selected');
+      if (!serviceChargeAmount) {
+        message.error('Unable to calculate service charge. Please try again.');
         return;
       }
 
+      // Prepare payment data for both new and legacy systems
       const paymentData = {
-        exhibitionId: exhibition?._id,
-        ...formData,
-        amount: selectedService.amount,
-        description: formData.description || selectedService.description
+        exhibitionId: exhibition?._id || '',
+        vendorName: formData.vendorName,
+        vendorPhone: formData.vendorPhone,
+        companyName: formData.companyName,
+        exhibitorCompanyName: formData.exhibitorCompanyName || '',
+        stallNumber: formData.stallNumber,
+        stallArea: selectedStall?.stallArea || formData.stallArea || 0,
+        serviceType: formData.serviceType || 'Stall Service Charge',
+        amount: serviceChargeAmount.toString(),
+        uploadedImage: formData.uploadedImage || ''
       };
 
-      console.log('[Payment] Creating PhonePe payment order:', paymentData);
+      console.log('[Payment] Payment data structure:', {
+        ...paymentData,
+        isStallBased: !!(selectedStall || formData.stallArea),
+        calculatedAmount: serviceChargeAmount
+      });
+
+      console.log('[Payment] Creating PhonePe payment order with data:', paymentData);
       
       const orderResponse = await publicServiceChargeService.createPaymentOrder(paymentData);
       
@@ -510,15 +838,12 @@ const PublicServiceChargeForm: React.FC = () => {
   };
 
   const getSelectedServiceAmount = () => {
-    // Return 0 if exhibition or formData is not properly loaded yet
-    if (!exhibition?.config?.serviceTypes || !formData.serviceType) {
-      return 0;
-    }
-    
-    const selectedService = exhibition.config.serviceTypes.find(
-      service => service.type === formData.serviceType
-    );
-    return selectedService ? selectedService.amount : 0;
+    return calculateServiceCharge();
+  };
+
+  const formatDimensions = (dimensions?: { width: number; height: number }) => {
+    if (!dimensions) return 'Not specified';
+    return `${dimensions.width}m × ${dimensions.height}m`;
   };
 
   const handleManualPaymentCheck = async () => {
@@ -560,6 +885,7 @@ const PublicServiceChargeForm: React.FC = () => {
           
           setPaymentResult(paymentData);
           setCurrentStep(2);
+          setPaymentVerified(true); // Mark payment as verified
         } else {
           message.destroy();
           message.info(`Payment status: ${serviceCharge.paymentStatus}. Please try again if you have completed the payment.`);
@@ -583,7 +909,7 @@ const PublicServiceChargeForm: React.FC = () => {
         <ShoppingCartOutlined className="step-icon" />
         <Title level={3}>Service Details</Title>
         <Paragraph type="secondary">
-          Please provide your vendor details and select the service type.
+          Please provide your vendor details and select your stall.
         </Paragraph>
       </div>
 
@@ -595,7 +921,7 @@ const PublicServiceChargeForm: React.FC = () => {
               label="Vendor Name"
               rules={[{ required: true, message: 'Please enter vendor name' }]}
             >
-              <Input placeholder="Enter vendor name" />
+              <Input placeholder="Enter vendor name" size="large" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={24} md={12}>
@@ -604,28 +930,7 @@ const PublicServiceChargeForm: React.FC = () => {
               label="Vendor Company Name"
               rules={[{ required: true, message: 'Please enter vendor company name' }]}
             >
-              <Input placeholder="Enter vendor company name" />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={24} md={12}>
-            <Form.Item
-              name="exhibitorCompanyName"
-              label="Exhibitor Company Name"
-              tooltip="The company name of the exhibitor (if different from vendor)"
-            >
-              <Input placeholder="Enter exhibitor company name" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={24} md={12}>
-            <Form.Item
-              name="stallNumber"
-              label="Stall Number"
-              rules={[{ required: true, message: 'Please enter stall number' }]}
-            >
-              <Input placeholder="Enter stall number" />
+              <Input placeholder="Enter vendor company name" size="large" />
             </Form.Item>
           </Col>
         </Row>
@@ -640,58 +945,185 @@ const PublicServiceChargeForm: React.FC = () => {
                 { pattern: /^[0-9+\-\s()]{10,}$/, message: 'Please enter a valid phone number' }
               ]}
             >
-              <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" />
+              <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" size="large" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={24} md={12}>
             <Form.Item
-              name="vendorEmail"
-              label="Email Address"
-              rules={[
-                { type: 'email', message: 'Please enter a valid email' }
-              ]}
+              name="stallNumber"
+              label="Stall Number"
+              rules={[{ required: true, message: 'Please enter stall number' }]}
             >
-              <Input prefix={<MailOutlined />} placeholder="Enter email address" />
+              {stalls.length > 0 ? (
+                <Select 
+                  placeholder="Choose your stall number"
+                  showSearch
+                  allowClear
+                  size="large"
+                  onChange={handleStallSelection}
+                  filterOption={(input, option) =>
+                    (option?.children && option.children.toString().toLowerCase().indexOf(input.toLowerCase()) >= 0) || false
+                  }
+                >
+                  {stalls.map(stall => (
+                    <Option key={stall.stallNumber} value={stall.stallNumber}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span><strong>{stall.stallNumber}</strong></span>
+                        <Tag color="blue" style={{ marginLeft: '8px' }}>{stall.stallArea} sqm</Tag>
+                      </div>
+                    </Option>
+                  ))}
+                </Select>
+              ) : (
+                <Input 
+                  placeholder="Enter stall number" 
+                  size="large"
+                  onChange={(e) => handleStallSelection(e.target.value)}
+                />
+              )}
             </Form.Item>
           </Col>
         </Row>
-
-        <Form.Item
-          name="vendorAddress"
-          label="Address"
-        >
-          <TextArea rows={3} placeholder="Enter complete address" />
-        </Form.Item>
 
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={24} md={12}>
             <Form.Item
-              name="serviceType"
-              label="Service Type"
-              rules={[{ required: true, message: 'Please select service type' }]}
+              name="exhibitorCompanyName"
+              label={
+                <span>
+                  Exhibitor Company Name
+                  {selectedStall && (
+                    <Tag color="green" style={{ marginLeft: '8px', fontSize: '10px' }}>
+                      Auto-filled
+                    </Tag>
+                  )}
+                </span>
+              }
+              tooltip={stalls.length > 0 ? "This field is auto-filled when you select a stall" : "The company name of the exhibitor"}
             >
-              <Select placeholder="Select service type">
-                {exhibition?.config.serviceTypes.map(service => (
-                  <Option key={service.type} value={service.type}>
-                    {service.type} - ₹{service.amount.toLocaleString()}
-                  </Option>
-                ))}
-              </Select>
+              <Input 
+                placeholder="Enter exhibitor company name" 
+                size="large"
+                readOnly={selectedStall !== null}
+                style={{ 
+                  backgroundColor: selectedStall ? '#f6ffed' : 'white',
+                  borderColor: selectedStall ? '#b7eb8f' : '#d9d9d9',
+                  cursor: selectedStall ? 'not-allowed' : 'text'
+                }}
+              />
             </Form.Item>
           </Col>
           <Col xs={24} sm={24} md={12}>
             <Form.Item
-              name="description"
-              label="Additional Description"
+              label="Upload Image"
+              tooltip="Upload an image related to the service (optional)"
             >
-              <TextArea rows={2} placeholder="Any additional details" />
+              <Upload {...uploadProps}>
+                {fileList.length < 1 && (
+                  <div style={{ width: '100%', textAlign: 'center', padding: '20px' }}>
+                    <UploadOutlined style={{ fontSize: '24px', color: '#999', marginBottom: '8px' }} />
+                    <div style={{ color: '#666' }}>Click to upload image</div>
+                  </div>
+                )}
+              </Upload>
+              <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: '4px' }}>
+                Supported formats: JPG, PNG, GIF, SVG, HEIC (Max size: 10MB)
+              </Text>
             </Form.Item>
           </Col>
         </Row>
+
+        {/* Show stall details if selected */}
+        {selectedStall && (
+          <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+            <Col xs={24}>
+              <Card size="small" style={{ backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                  <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px', fontSize: '16px' }} />
+                  <Title level={5} style={{ margin: 0, color: '#389e0d' }}>Stall Details</Title>
+                </div>
+                <Row gutter={[16, 8]}>
+                  <Col xs={24} sm={12} md={6}>
+                    <Text strong>Stall Number:</Text>
+                    <br />
+                    <Text>{selectedStall.stallNumber}</Text>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Text strong>Area:</Text>
+                    <br />
+                    <Text>{selectedStall.stallArea} sqm</Text>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Text strong>Dimensions:</Text>
+                    <br />
+                    <Text>{formatDimensions(selectedStall.dimensions)}</Text>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Text strong>Service Charge:</Text>
+                    <br />
+                    <Text strong style={{ color: '#1890ff', fontSize: '16px' }}>
+                      ₹{calculateServiceCharge().toLocaleString()}
+                    </Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: '10px', color: '#666' }}>
+                      (Inclusive of GST)
+                    </Text>
+                  </Col>
+                </Row>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* Show pricing info if no stall selected but stalls are available */}
+        {!selectedStall && stalls.length > 0 && (
+          <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+            <Col xs={24}>
+              <Alert
+                message="Service Charge Information"
+                description={
+                  <div>
+                                         <p>• Stalls with area ≤ 50 sqm: <strong>₹2,000</strong></p>
+                     <p style={{ margin: 0 }}>• Stalls with area &gt; 50 sqm: <strong>₹2,500</strong></p>
+                     <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}><em>(All prices inclusive of GST)</em></p>
+                  </div>
+                }
+                type="info"
+                showIcon
+              />
+            </Col>
+          </Row>
+        )}
+
+        {/* Legacy service type selection - show only if no stalls available */}
+        {stalls.length === 0 && exhibition?.config.serviceTypes && (
+          <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+            <Col xs={24}>
+              <Form.Item
+                name="serviceType"
+                label="Service Type"
+                rules={[{ required: true, message: 'Please select service type' }]}
+              >
+                <Select placeholder="Select service type" size="large">
+                  {exhibition.config.serviceTypes?.map(service => (
+                    <Option key={service.type} value={service.type}>
+                      {service.type} - ₹{service.amount.toLocaleString()} (Incl. GST)
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        )}
       </Form>
 
-      <div className="step-actions">
-        <Button type="primary" onClick={handleNext} size="large">
+      <div className="step-actions" style={{ textAlign: 'center', marginTop: '32px' }}>
+        <Button 
+          type="primary" 
+          onClick={handleNext} 
+          size="large"
+          style={{ minWidth: '120px' }}
+        >
           Next
         </Button>
       </div>
@@ -711,40 +1143,18 @@ const PublicServiceChargeForm: React.FC = () => {
       );
     }
 
-    // Show error if no service type is selected (shouldn't happen, but safety check)
-    if (!formData.serviceType) {
+    // Calculate service charge amount
+    const serviceChargeAmount = getSelectedServiceAmount();
+
+    // Show error if unable to calculate service charge
+    if (!serviceChargeAmount) {
       return (
         <Card className="step-card">
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Alert
-              message="Service Type Missing"
-              description="Please go back and select a service type."
+              message="Unable to Calculate Service Charge"
+              description="Please go back and ensure all required information is provided."
               type="warning"
-              showIcon
-              action={
-                <Button onClick={handlePrevious} type="primary">
-                  Go Back
-                </Button>
-              }
-            />
-          </div>
-        </Card>
-      );
-    }
-
-    const selectedService = exhibition.config.serviceTypes.find(
-      service => service.type === formData.serviceType
-    );
-
-    // Show error if selected service is not found
-    if (!selectedService) {
-      return (
-        <Card className="step-card">
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <Alert
-              message="Service Not Found"
-              description="The selected service type is no longer available. Please go back and select a different service."
-              type="error"
               showIcon
               action={
                 <Button onClick={handlePrevious} type="primary">
@@ -762,7 +1172,7 @@ const PublicServiceChargeForm: React.FC = () => {
     console.log('[Payment Step] Rendering payment step:', {
       exhibition: !!exhibition,
       formData: formData,
-      selectedService: selectedService,
+      serviceChargeAmount: serviceChargeAmount,
       isDevelopmentMode: isDevelopmentMode
     });
 
@@ -783,15 +1193,87 @@ const PublicServiceChargeForm: React.FC = () => {
             <Descriptions.Item label="Exhibitor Company">{formData.exhibitorCompanyName}</Descriptions.Item>
           )}
           <Descriptions.Item label="Stall Number">{formData.stallNumber}</Descriptions.Item>
-          <Descriptions.Item label="Phone">{formData.vendorPhone}</Descriptions.Item>
-          {formData.vendorEmail && (
-            <Descriptions.Item label="Email">{formData.vendorEmail}</Descriptions.Item>
+          {selectedStall && (
+            <>
+              <Descriptions.Item label="Stall Area">{selectedStall.stallArea} sqm</Descriptions.Item>
+              <Descriptions.Item label="Stall Dimensions">{formatDimensions(selectedStall.dimensions)}</Descriptions.Item>
+            </>
           )}
-          <Descriptions.Item label="Service Type">{formData.serviceType}</Descriptions.Item>
-          <Descriptions.Item label="Amount">
-            <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-              ₹{selectedService?.amount.toLocaleString()}
+          <Descriptions.Item label="Phone">{formData.vendorPhone}</Descriptions.Item>
+          {formData.uploadedImage && (
+            <Descriptions.Item label="Uploaded Image">
+              <div style={{ marginTop: '8px' }}>
+                <img
+                  src={formData.uploadedImage.startsWith('http') ? formData.uploadedImage : `${api.defaults.baseURL}/public/uploads/${formData.uploadedImage}`}
+                  alt="Service charge attachment"
+                  style={{
+                    maxWidth: '200px',
+                    maxHeight: '150px',
+                    objectFit: 'contain',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'block'
+                  }}
+                  onClick={() => {
+                    window.open(`${api.defaults.baseURL}/public/uploads/${formData.uploadedImage}`, '_blank');
+                  }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = `
+                        <div style="
+                          color: #ff4d4f; 
+                          padding: 16px; 
+                          border: 1px dashed #ff4d4f; 
+                          border-radius: 6px; 
+                          text-align: center;
+                          background-color: #fff2f0;
+                          font-size: 12px;
+                        ">
+                          ❌ Image preview unavailable
+                        </div>
+                      `;
+                    }
+                  }}
+                  onLoad={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.border = '1px solid #52c41a';
+                  }}
+                />
+                <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+                  📱 Click to view full size
+                  {formData.uploadedImage.toLowerCase().includes('heic') && (
+                    <span style={{ color: '#1890ff', marginLeft: '4px' }}>
+                      (Originally HEIC, converted to JPEG)
+                    </span>
+                  )}
+                </Text>
+              </div>
+            </Descriptions.Item>
+          )}
+          {/* Show service type only for legacy systems */}
+          {formData.serviceType && stalls.length === 0 && (
+            <Descriptions.Item label="Service Type">{formData.serviceType}</Descriptions.Item>
+          )}
+          <Descriptions.Item label="Service Charge">
+            <Text strong style={{ fontSize: '18px', color: '#1890ff' }}>
+              ₹{serviceChargeAmount.toLocaleString()}
             </Text>
+            <div style={{ marginTop: '4px' }}>
+              <Text type="secondary" style={{ fontSize: '11px', color: '#666' }}>
+                (Inclusive of GST)
+              </Text>
+            </div>
+            {selectedStall && (
+              <div style={{ marginTop: '4px' }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  {selectedStall.stallArea <= 50 ? 'Small stall pricing (≤50 sqm)' : 'Large stall pricing (>50 sqm)'}
+                </Text>
+              </div>
+            )}
           </Descriptions.Item>
         </Descriptions>
 
@@ -831,8 +1313,8 @@ const PublicServiceChargeForm: React.FC = () => {
               icon={<BankOutlined />}
             >
               {isDevelopmentMode
-                ? `Simulate PhonePe Payment ₹${getSelectedServiceAmount().toLocaleString()}`
-                : `Pay via PhonePe ₹${getSelectedServiceAmount().toLocaleString()}`}
+                ? `Simulate PhonePe Payment ₹${serviceChargeAmount.toLocaleString()} (Incl. GST)`
+                : `Pay via PhonePe ₹${serviceChargeAmount.toLocaleString()} (Incl. GST)`}
             </Button>
           </Space>
         </div>
@@ -868,7 +1350,7 @@ const PublicServiceChargeForm: React.FC = () => {
       <Result
         status="success"
         title="Payment Successful!"
-        subTitle={`Your service charge payment of ₹${paymentResult?.amount?.toLocaleString()} has been processed successfully.`}
+        subTitle={`Your service charge payment of ₹${paymentResult?.amount?.toLocaleString()} (inclusive of GST) has been processed successfully.`}
         extra={[
           <div key="details" style={{ textAlign: 'left', margin: '20px 0' }}>
             <Descriptions bordered column={1} size="small">
@@ -879,7 +1361,7 @@ const PublicServiceChargeForm: React.FC = () => {
                 {paymentResult?.paymentId || 'N/A'}
               </Descriptions.Item>
               <Descriptions.Item label="Amount">
-                ₹{paymentResult?.amount?.toLocaleString()}
+                ₹{paymentResult?.amount?.toLocaleString()} <Text type="secondary" style={{ fontSize: '11px' }}>(Incl. GST)</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Payment Date">
                 {paymentResult?.paidAt ? new Date(paymentResult.paidAt).toLocaleString() : 'N/A'}
@@ -1043,14 +1525,7 @@ const PublicServiceChargeForm: React.FC = () => {
               />
             </Card>
 
-            <Form
-              form={form}
-              layout="vertical"
-              initialValues={formData}
-              onValuesChange={(_, allValues) => setFormData({ ...formData, ...allValues })}
-            >
-              {steps[currentStep].content}
-            </Form>
+            {steps[currentStep].content}
           </div>
         </div>
       </Content>

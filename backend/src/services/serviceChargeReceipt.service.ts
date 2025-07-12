@@ -40,7 +40,7 @@ export class ServiceChargeReceiptService {
       const fileName = `receipt-${receiptData.serviceCharge.receiptNumber}-${Date.now()}.pdf`;
       const filePath = path.join(this.receiptDir, fileName);
 
-      // Launch Puppeteer
+      // Launch Puppeteer OPTIMIZED for high concurrency
       const browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -50,7 +50,17 @@ export class ServiceChargeReceiptService {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-images',
+          '--disable-javascript',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-default-apps',
+          '--memory-pressure-off'
         ]
       });
 
@@ -331,10 +341,7 @@ export class ServiceChargeReceiptService {
                             <span class="value">${serviceCharge.exhibitorCompanyName}</span>
                         </div>
                         ` : ''}
-                        <div class="info-row">
-                            <span class="label">Email:</span>
-                            <span class="value">${serviceCharge.vendorEmail || 'Not provided'}</span>
-                        </div>
+
                         <div class="info-row">
                             <span class="label">Phone:</span>
                             <span class="value">${serviceCharge.vendorPhone}</span>
@@ -366,10 +373,20 @@ export class ServiceChargeReceiptService {
                     <span class="label">Service Type:</span>
                     <span class="value">${serviceCharge.serviceType.charAt(0).toUpperCase() + serviceCharge.serviceType.slice(1)}</span>
                 </div>
-                ${serviceCharge.description ? `
+                ${serviceCharge.stallArea ? `
+                <div class="info-row">
+                    <span class="label">Stall Area:</span>
+                    <span class="value">${serviceCharge.stallArea} sqm</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Pricing Basis:</span>
+                    <span class="value">${serviceCharge.stallArea <= 50 ? 'Small stall (≤50 sqm)' : 'Large stall (>50 sqm)'}</span>
+                </div>
+                ` : ''}
+                ${(serviceCharge as any).description ? `
                 <div class="info-row">
                     <span class="label">Description:</span>
-                    <span class="value">${serviceCharge.description}</span>
+                    <span class="value">${(serviceCharge as any).description}</span>
                 </div>
                 ` : ''}
             </div>
@@ -379,6 +396,9 @@ export class ServiceChargeReceiptService {
                 <h3>Payment Information</h3>
                 <div class="amount-display">
                     ₹${serviceCharge.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div style="text-align: center; margin-top: 5px; font-size: 12px; color: #666;">
+                    (Inclusive of GST)
                 </div>
                 
                 ${serviceCharge.phonePeTransactionId ? `
@@ -409,13 +429,13 @@ export class ServiceChargeReceiptService {
   }
 
   /**
-   * Get receipt file path by receipt number
+   * Get receipt file path by receipt number - ASYNC for high concurrency
    * @param receiptNumber Receipt number
    * @returns File path if exists, null otherwise
    */
-  getReceiptPath(receiptNumber: string): string | null {
+  async getReceiptPath(receiptNumber: string): Promise<string | null> {
     try {
-      const files = fs.readdirSync(this.receiptDir);
+      const files = await fs.promises.readdir(this.receiptDir);
       const receiptFile = files.find(file => file.includes(receiptNumber) && file.endsWith('.pdf'));
       
       if (receiptFile) {
@@ -430,31 +450,32 @@ export class ServiceChargeReceiptService {
   }
 
   /**
-   * Delete receipt file
+   * Delete receipt file - ASYNC for high concurrency
    * @param filePath File path to delete
    */
   async deleteReceipt(filePath: string): Promise<void> {
     try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log('[Receipt Service] Receipt deleted:', filePath);
-      }
+      await fs.promises.access(filePath);
+      await fs.promises.unlink(filePath);
+      console.log('[Receipt Service] Receipt deleted:', filePath);
     } catch (error) {
-      console.error('[Receipt Service] Error deleting receipt:', error);
+      if ((error as any).code !== 'ENOENT') {
+        console.error('[Receipt Service] Error deleting receipt:', error);
+      }
     }
   }
 
   /**
-   * Clean up old receipt files (older than 30 days)
+   * Clean up old receipt files (older than 30 days) - ASYNC for high concurrency
    */
   async cleanupOldReceipts(): Promise<void> {
     try {
-      const files = fs.readdirSync(this.receiptDir);
+      const files = await fs.promises.readdir(this.receiptDir);
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
       for (const file of files) {
         const filePath = path.join(this.receiptDir, file);
-        const stats = fs.statSync(filePath);
+        const stats = await fs.promises.stat(filePath);
         
         if (stats.mtime.getTime() < thirtyDaysAgo) {
           await this.deleteReceipt(filePath);

@@ -280,6 +280,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           onClick: () => navigate('/service-charges'),
         },
         {
+          key: 'service-charge-stalls',
+          label: 'Stall Management',
+          requiredPermission: 'view_service_charges',
+          onClick: () => navigate('/service-charge-stalls'),
+        },
+        {
           key: 'service-charges/settings',
           label: 'Settings',
           requiredPermission: 'manage_service_charges',
@@ -388,6 +394,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'letters': 'view_letters',
       'invoices': 'view_invoices',
       'service-charges': 'view_service_charges',
+      'service-charge-stalls': 'view_service_charges',
       'service-charges/settings': 'manage_service_charges',
       'exhibitors': 'view_exhibitors',
       'activity': 'view_activities',

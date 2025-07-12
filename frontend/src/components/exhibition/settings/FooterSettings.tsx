@@ -136,7 +136,7 @@ const FooterSettings: React.FC<FooterSettingsProps> = ({ form }) => {
             <Form.Item
               name="footerLogo"
               label="Footer Logo"
-              tooltip="Upload your footer logo (recommended size: 200x200px, max 2MB)"
+              tooltip="Upload your footer logo (recommended size: 200x200px, max 10MB)"
             >
               <Upload {...uploadProps}>
                 {fileList.length < 1 && (

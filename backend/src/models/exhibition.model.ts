@@ -163,12 +163,19 @@ export interface IExhibition extends Document {
     isEnabled: boolean;
     title: string;
     description: string;
-    serviceTypes: Array<{
+    // Legacy service types (for backward compatibility)
+    serviceTypes?: Array<{
       name: string;
       amount: number;
       description: string;
       isActive: boolean;
     }>;
+    // New stall-based pricing rules
+    pricingRules?: {
+      smallStallThreshold: number;
+      smallStallPrice: number;
+      largeStallPrice: number;
+    };
     // Payment Gateway Configuration
     paymentGateway: 'phonepe'; // PhonePe payment gateway
     phonePeConfig?: {
@@ -593,6 +600,7 @@ const exhibitionSchema = new Schema({
       trim: true,
       default: 'Pay service charges for stall positioning and setup'
     },
+    // Legacy service types (for backward compatibility)
     serviceTypes: [{
       name: {
         type: String,
@@ -615,6 +623,22 @@ const exhibitionSchema = new Schema({
         default: true
       }
     }],
+    // New stall-based pricing rules
+    pricingRules: {
+      smallStallThreshold: {
+        type: Number,
+        min: 1,
+        max: 1000
+      },
+      smallStallPrice: {
+        type: Number,
+        min: 0
+      },
+      largeStallPrice: {
+        type: Number,
+        min: 0
+      }
+    },
     // Payment Gateway Configuration
     paymentGateway: {
       type: String,

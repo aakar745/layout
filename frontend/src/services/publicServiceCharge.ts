@@ -39,8 +39,9 @@ const publicServiceChargeService = {
     publicApi.get<PublicServiceChargeResponse>(`/public/service-charge/config/${exhibitionIdOrSlug}`),
     
   // Create payment order for service charges
-  createPaymentOrder: (paymentData: any) =>
-    publicApi.post(`/public/service-charge/create-order`, paymentData),
+  createPaymentOrder: (paymentData: any) => {
+    return publicApi.post(`/public/service-charge/create-order`, paymentData);
+  },
     
   // Verify PhonePe payment
   verifyPhonePePayment: (paymentData: any) =>

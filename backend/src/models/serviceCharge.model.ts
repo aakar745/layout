@@ -6,16 +6,15 @@ export interface IServiceCharge extends Document {
   // Vendor Information
   vendorName: string;
   vendorPhone: string;
-  vendorEmail?: string;
   companyName: string;
   exhibitorCompanyName?: string;
   stallNumber: string;
-  vendorAddress?: string;
+  stallArea?: number; // Stall area for new pricing system
+  uploadedImage?: string; // Path to uploaded image
   
   // Service Details
   serviceType: string;
   amount: number;
-  description?: string;
   
   // Payment Gateway Integration
   paymentGateway: 'phonepe';
@@ -62,12 +61,11 @@ const serviceChargeSchema = new Schema({
     trim: true,
     match: [/^[0-9-+()]*$/, 'Please enter a valid phone number']
   },
-  vendorEmail: {
+  uploadedImage: {
     type: String,
     required: false,
     trim: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address']
+    maxlength: [255, 'Image path cannot exceed 255 characters']
   },
   companyName: {
     type: String,
@@ -87,9 +85,10 @@ const serviceChargeSchema = new Schema({
     trim: true,
     maxlength: [20, 'Stall number cannot exceed 20 characters']
   },
-  vendorAddress: {
-    type: String,
-    trim: true
+  stallArea: {
+    type: Number,
+    required: false,
+    min: [0, 'Stall area must be positive']
   },
   
   // Service Details
@@ -104,11 +103,7 @@ const serviceChargeSchema = new Schema({
     required: true,
     min: [0, 'Amount must be positive']
   },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot exceed 500 characters']
-  },
+
   
   // Payment Gateway Integration
   paymentGateway: {
@@ -175,7 +170,7 @@ serviceChargeSchema.index({ exhibitionId: 1 });
 serviceChargeSchema.index({ paymentStatus: 1 });
 serviceChargeSchema.index({ status: 1 });
 serviceChargeSchema.index({ createdAt: -1 });
-serviceChargeSchema.index({ vendorEmail: 1 });
+serviceChargeSchema.index({ uploadedImage: 1 });
 serviceChargeSchema.index({ phonePeMerchantTransactionId: 1 });
 
 // Compound indexes for common query combinations

@@ -93,7 +93,6 @@ export const getServiceCharges = async (req: Request, res: Response) => {
         { vendorName: { $regex: search, $options: 'i' } },
         { companyName: { $regex: search, $options: 'i' } },
         { vendorPhone: { $regex: search, $options: 'i' } },
-        { vendorEmail: { $regex: search, $options: 'i' } },
         { stallNumber: { $regex: search, $options: 'i' } }
       ];
     }
@@ -197,6 +196,7 @@ export const updateServiceChargeConfig = async (req: Request, res: Response) => 
       title,
       description,
       serviceTypes,
+      pricingRules,
       razorpayKeyId
     } = req.body;
 
@@ -217,16 +217,33 @@ export const updateServiceChargeConfig = async (req: Request, res: Response) => 
       return res.status(404).json({ message: 'Exhibition not found or access denied' });
     }
 
+    // Prepare update data - support both old serviceTypes and new pricingRules
+    const updateData: any = {
+      'serviceChargeConfig.isEnabled': isEnabled,
+      'serviceChargeConfig.title': title,
+      'serviceChargeConfig.description': description,
+    };
+
+    // Handle pricing rules (new stall-based system)
+    if (pricingRules) {
+      updateData['serviceChargeConfig.pricingRules'] = pricingRules;
+      // Remove old serviceTypes if switching to new system
+      updateData['$unset'] = { 'serviceChargeConfig.serviceTypes': '' };
+    }
+    
+    // Handle service types (legacy support)
+    if (serviceTypes && !pricingRules) {
+      updateData['serviceChargeConfig.serviceTypes'] = serviceTypes;
+    }
+
+    if (razorpayKeyId) {
+      updateData['serviceChargeConfig.razorpayKeyId'] = razorpayKeyId;
+    }
+
     // Update service charge configuration
     const updatedExhibition = await Exhibition.findByIdAndUpdate(
       exhibitionId,
-      {
-        'serviceChargeConfig.isEnabled': isEnabled,
-        'serviceChargeConfig.title': title,
-        'serviceChargeConfig.description': description,
-        'serviceChargeConfig.serviceTypes': serviceTypes,
-        'serviceChargeConfig.razorpayKeyId': razorpayKeyId
-      },
+      updateData,
       { new: true }
     );
 
@@ -238,6 +255,7 @@ export const updateServiceChargeConfig = async (req: Request, res: Response) => 
       description: `Service charge configuration updated for exhibition "${exhibition.name}"`,
       metadata: {
         isEnabled,
+        hasPricingRules: !!pricingRules,
         serviceTypesCount: serviceTypes?.length || 0
       }
     });
@@ -500,7 +518,6 @@ export const exportServiceCharges = async (req: Request, res: Response) => {
       'Exhibition': (charge.exhibitionId as any)?.name || '',
       'Vendor Name': charge.vendorName,
       'Company': charge.companyName,
-      'Email': charge.vendorEmail,
       'Phone': charge.vendorPhone,
       'Service Type': charge.serviceType,
       'Amount': charge.amount,
@@ -508,7 +525,8 @@ export const exportServiceCharges = async (req: Request, res: Response) => {
       'Status': charge.status,
       'Created Date': charge.createdAt.toISOString().split('T')[0],
       'Payment Date': charge.paidAt ? charge.paidAt.toISOString().split('T')[0] : '',
-      'Stall Number': charge.stallNumber || ''
+      'Stall Number': charge.stallNumber || '',
+      'Uploaded Image': charge.uploadedImage || ''
     }));
 
     // Log activity
@@ -569,6 +587,195 @@ export const downloadReceipt = async (req: Request, res: Response) => {
     console.error('Error downloading receipt:', error);
     return res.status(500).json({
       message: 'Error downloading receipt',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * Delete a single service charge
+ */
+export const deleteServiceCharge = async (req: Request, res: Response) => {
+  try {
+    const { serviceChargeId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(serviceChargeId)) {
+      return res.status(400).json({ message: 'Invalid service charge ID' });
+    }
+
+    const serviceCharge = await ServiceCharge.findById(serviceChargeId)
+      .populate('exhibitionId');
+
+    if (!serviceCharge) {
+      return res.status(404).json({ message: 'Service charge not found' });
+    }
+
+    // Check if user has access to this exhibition
+    const exhibition = await Exhibition.findOne({
+      _id: serviceCharge.exhibitionId,
+      $or: [
+        { createdBy: req.user?._id },
+        { assignedUsers: req.user?._id }
+      ]
+    });
+
+    if (!exhibition) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Store receipt path for cleanup
+    const receiptPath = serviceCharge.receiptPath;
+    const receiptNumber = serviceCharge.receiptNumber;
+    const vendorName = serviceCharge.vendorName;
+
+    // Delete the service charge
+    await ServiceCharge.findByIdAndDelete(serviceChargeId);
+
+    // Clean up receipt file if it exists
+    if (receiptPath) {
+      const fs = require('fs');
+      try {
+        if (fs.existsSync(receiptPath)) {
+          fs.unlinkSync(receiptPath);
+        }
+      } catch (fileError) {
+        console.warn('Could not delete receipt file:', fileError);
+        // Don't fail the request if file cleanup fails
+      }
+    }
+
+    // Log activity
+    await logActivity(req, {
+      action: 'service_charge_delete',
+      resource: 'service_charge',
+      resourceId: serviceChargeId,
+      description: `Service charge deleted: ${receiptNumber} for ${vendorName}`,
+      metadata: {
+        receiptNumber,
+        vendorName,
+        amount: serviceCharge.amount,
+        paymentStatus: serviceCharge.paymentStatus
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service charge deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting service charge:', error);
+    return res.status(500).json({
+      message: 'Error deleting service charge',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * Delete all service charges (bulk delete)
+ */
+export const deleteAllServiceCharges = async (req: Request, res: Response) => {
+  try {
+    // Check if user is authenticated
+    if (!req.user?._id) {
+      return res.status(401).json({ 
+        message: 'Authentication required',
+        error: 'No user found in request'
+      });
+    }
+
+    // Check if user has admin access
+    let hasDeleteAllAccess = false;
+    
+    if (req.user) {
+      const user = await User.findById(req.user._id).populate('role');
+      
+      if (user && user.role) {
+        const userRole = user.role as unknown as IRole;
+        
+        if (userRole.permissions) {
+          hasDeleteAllAccess = userRole.permissions.some(permission => 
+            permission === 'delete_all_service_charges' || 
+            permission === 'admin' ||
+            permission === '*'
+          );
+        }
+      }
+    }
+
+    if (!hasDeleteAllAccess) {
+      return res.status(403).json({ 
+        message: 'Access denied - Admin privileges required for bulk deletion' 
+      });
+    }
+
+    // Build query based on user permissions
+    let query: any = {};
+
+    // Get all service charges the user has access to
+    const accessibleExhibitions = await Exhibition.find({
+      $or: [
+        { createdBy: req.user._id },
+        { assignedUsers: req.user._id }
+      ]
+    }).select('_id');
+    
+    query.exhibitionId = { $in: accessibleExhibitions.map(ex => ex._id) };
+
+    // Get all service charges to be deleted (for cleanup and logging)
+    const serviceCharges = await ServiceCharge.find(query);
+    
+    if (serviceCharges.length === 0) {
+      return res.status(404).json({ 
+        message: 'No service charges found to delete' 
+      });
+    }
+
+    // Collect receipt paths for cleanup
+    const receiptPaths = serviceCharges
+      .filter(sc => sc.receiptPath)
+      .map(sc => sc.receiptPath);
+
+    // Delete all service charges
+    const deleteResult = await ServiceCharge.deleteMany(query);
+
+    // Clean up receipt files
+    const fs = require('fs');
+    let cleanupCount = 0;
+    receiptPaths.forEach(path => {
+      try {
+        if (path && fs.existsSync(path)) {
+          fs.unlinkSync(path);
+          cleanupCount++;
+        }
+      } catch (fileError) {
+        console.warn('Could not delete receipt file:', path, fileError);
+        // Don't fail the request if file cleanup fails
+      }
+    });
+
+    // Log activity
+    await logActivity(req, {
+      action: 'service_charges_bulk_delete',
+      resource: 'service_charge',
+      description: `Bulk deleted ${deleteResult.deletedCount} service charges`,
+      metadata: {
+        deletedCount: deleteResult.deletedCount,
+        receiptFilesDeleted: cleanupCount,
+        totalAmount: serviceCharges.reduce((sum, sc) => sum + sc.amount, 0)
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} service charges`,
+      deletedCount: deleteResult.deletedCount,
+      receiptFilesDeleted: cleanupCount
+    });
+  } catch (error) {
+    console.error('Error deleting all service charges:', error);
+    return res.status(500).json({
+      message: 'Error deleting service charges',
       error: (error as Error).message
     });
   }

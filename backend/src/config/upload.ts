@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { Request, Response, NextFunction } from 'express';
 
 // Define allowed upload types
-const ALLOWED_TYPES = ['exhibitors', 'misc', 'exhibitions', 'logos', 'sponsors', 'fixtures'];
+const ALLOWED_TYPES = ['exhibitors', 'misc', 'exhibitions', 'logos', 'sponsors', 'fixtures', 'service-charges'];
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -99,26 +99,60 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req: Request, file: Express.Multer.File, callback: multer.FileFilterCallback) => {
-  // Check file type
-  if (!file.mimetype.startsWith('image/')) {
-    callback(null, false);
-    return;
-  }
+  console.log('[Upload Filter] File details:', {
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size
+  });
 
-  // Check file extension
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg'];
+  // Check file extension first - including HEIC
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.heic', '.HEIC'];
   const ext = path.extname(file.originalname).toLowerCase();
+  
   if (!validExtensions.includes(ext)) {
+    console.log('[Upload Filter] Invalid file extension:', ext);
     callback(null, false);
     return;
   }
 
   // Check filename length
   if (file.originalname.length > 200) {
+    console.log('[Upload Filter] Filename too long:', file.originalname.length);
     callback(null, false);
     return;
   }
 
+  // Special handling for HEIC files (they can have various MIME types)
+  if (ext === '.heic') {
+    const validHeicMimes = [
+      'image/heic',
+      'image/heif', 
+      'image/heic-sequence',
+      'image/heif-sequence',
+      'application/octet-stream', // Some browsers send this for HEIC
+      'application/unknown', // Fallback
+      '' // Some systems don't detect MIME type for HEIC
+    ];
+    
+    if (file.mimetype && !validHeicMimes.includes(file.mimetype) && !file.mimetype.startsWith('image/')) {
+      console.log('[Upload Filter] Invalid HEIC MIME type:', file.mimetype);
+      callback(null, false);
+      return;
+    }
+    
+    console.log('[Upload Filter] HEIC file accepted:', file.originalname);
+    callback(null, true);
+    return;
+  }
+
+  // Check standard image MIME types for other formats
+  if (!file.mimetype.startsWith('image/')) {
+    console.log('[Upload Filter] Invalid MIME type:', file.mimetype);
+    callback(null, false);
+    return;
+  }
+
+  console.log('[Upload Filter] File accepted:', file.originalname);
   callback(null, true);
 };
 
@@ -127,7 +161,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
     files: 1 // Only allow 1 file per request
   }
 });
@@ -137,7 +171,7 @@ const uploadMultiple = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // 10MB limit
     files: 10 // Allow up to 10 files per request
   }
 });
@@ -213,6 +247,14 @@ async function processImage(
 ) {
   // Skip SVG files (they're vectors and shouldn't be resized)
   if (file.mimetype === 'image/svg+xml') {
+    return;
+  }
+  
+  // HEIC files are now handled on the client side and converted to JPEG before upload
+  // So we should never receive HEIC files on the server anymore
+  if (file.mimetype === 'image/heic' || file.originalname.toLowerCase().endsWith('.heic')) {
+    console.log('[Image Processing] Warning: HEIC file received on server. Client-side conversion may have failed:', file.originalname);
+    // Skip processing HEIC files on server since they should be converted client-side
     return;
   }
   

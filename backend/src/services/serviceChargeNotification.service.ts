@@ -43,8 +43,9 @@ export class ServiceChargeNotificationService {
       // Create in-app notifications for all recipients
       await this.createInAppNotifications(serviceCharge, exhibition, notificationRecipients);
 
-      // Send email notifications
-      await this.sendEmailNotifications(serviceCharge, exhibition, notificationRecipients);
+      // DISABLED: Email notifications for fast payment processing
+      // await this.sendEmailNotifications(serviceCharge, exhibition, notificationRecipients);
+      console.log('[Service Charge Notification] Email notifications disabled for fast payment processing');
 
       console.log('[Service Charge Notification] Notifications sent successfully');
     } catch (error) {
@@ -325,10 +326,6 @@ export class ServiceChargeNotificationService {
                         <span class="info-value">${serviceCharge.companyName}</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">Email:</span>
-                        <span class="info-value">${serviceCharge.vendorEmail}</span>
-                    </div>
-                    <div class="info-row">
                         <span class="info-label">Phone:</span>
                         <span class="info-value">${serviceCharge.vendorPhone}</span>
                     </div>
@@ -350,12 +347,6 @@ export class ServiceChargeNotificationService {
                         <span class="info-label">Exhibition:</span>
                         <span class="info-value">${exhibition.name}</span>
                     </div>
-                    ${serviceCharge.description ? `
-                    <div class="info-row">
-                        <span class="info-label">Description:</span>
-                        <span class="info-value">${serviceCharge.description}</span>
-                    </div>
-                    ` : ''}
                 </div>
                 
                 <div style="text-align: center;">
@@ -436,36 +427,16 @@ export class ServiceChargeNotificationService {
     receiptPath: string
   ): Promise<void> {
     try {
-      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.log('[Service Charge Notification] Email credentials not configured, skipping receipt email');
-        return;
-      }
-
-      const emailSubject = `Payment Receipt - ${exhibition.name} Service Charges`;
-      const emailHtml = this.generateReceiptEmailTemplate(serviceCharge, exhibition);
-
-      const mailOptions = {
-        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-        to: serviceCharge.vendorEmail,
-        subject: emailSubject,
-        html: emailHtml,
-        attachments: [
-          {
-            filename: `Receipt-${serviceCharge.receiptNumber}.pdf`,
-            path: receiptPath
-          }
-        ]
-      };
-
-      await this.transporter.sendMail(mailOptions);
-      console.log('[Service Charge Notification] Receipt email sent to vendor:', serviceCharge.vendorEmail);
+      // Since vendor email is no longer collected, skip email sending
+      console.log('[Service Charge Notification] Vendor email not available, skipping receipt email for:', serviceCharge.receiptNumber);
+      return;
     } catch (error) {
-      console.error('[Service Charge Notification] Error sending receipt email:', error);
+      console.error('[Service Charge Notification] Error in sendReceiptToVendor:', error);
     }
   }
 
   /**
-   * Generate receipt email template for vendor
+   * Generate receipt email template for vendor (DEPRECATED - vendor email no longer collected)
    * @param serviceCharge Service charge details
    * @param exhibition Exhibition details
    * @returns HTML email template
@@ -474,104 +445,8 @@ export class ServiceChargeNotificationService {
     serviceCharge: IServiceCharge,
     exhibition: IExhibition
   ): string {
-    return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Payment Receipt</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                background-color: #f4f4f4;
-                margin: 0;
-                padding: 20px;
-            }
-            .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background: #fff;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            }
-            .header {
-                background: #28a745;
-                color: white;
-                padding: 20px;
-                text-align: center;
-            }
-            .content {
-                padding: 30px;
-            }
-            .success-icon {
-                font-size: 48px;
-                text-align: center;
-                margin: 20px 0;
-            }
-            .amount {
-                font-size: 24px;
-                font-weight: bold;
-                color: #28a745;
-                text-align: center;
-                padding: 15px;
-                background: #d4edda;
-                border-radius: 5px;
-                margin: 20px 0;
-            }
-            .footer {
-                background: #f8f9fa;
-                padding: 20px;
-                text-align: center;
-                color: #666;
-                font-size: 14px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>✅ Payment Successful</h1>
-            </div>
-            
-            <div class="content">
-                <div class="success-icon">🎉</div>
-                
-                <p>Dear ${serviceCharge.vendorName},</p>
-                
-                <p>Thank you for your payment! Your service charge payment has been successfully processed.</p>
-                
-                <div class="amount">
-                    Amount Paid: ₹${serviceCharge.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-                
-                <p><strong>Payment Details:</strong></p>
-                <ul>
-                    <li>Receipt Number: ${serviceCharge.receiptNumber}</li>
-                    <li>Exhibition: ${exhibition.name}</li>
-                    <li>Service Type: ${serviceCharge.serviceType.charAt(0).toUpperCase() + serviceCharge.serviceType.slice(1)}</li>
-                    <li>Payment Date: ${new Date(serviceCharge.paidAt || serviceCharge.createdAt).toLocaleDateString()}</li>
-                </ul>
-                
-                <p>Please find your payment receipt attached to this email for your records.</p>
-                
-                <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
-                
-                <p>Thank you for your business!</p>
-            </div>
-            
-            <div class="footer">
-                <p>${exhibition.companyName || 'Exhibition Management'}</p>
-                <p>${exhibition.companyEmail || ''}</p>
-                <p>${exhibition.companyContactNo || ''}</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+    // This function is deprecated since vendor email is no longer collected
+    return '';
   }
 }
 

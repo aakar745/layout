@@ -5,6 +5,7 @@ import Exhibition from '../models/exhibition.model';
 import { phonePeService } from '../services/phonepe.service';
 import { serviceChargeReceiptService } from '../services/serviceChargeReceipt.service';
 import { serviceChargeNotificationService } from '../services/serviceChargeNotification.service';
+import { paymentQueueService } from '../services/paymentQueue.service';
 
 /**
  * Get exhibition service charge configuration
@@ -91,21 +92,20 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       exhibitionId,
       vendorName,
       vendorPhone,
-      vendorEmail,
       companyName,
       exhibitorCompanyName,
       stallNumber,
-      vendorAddress,
+      stallArea,
       serviceType,
-      description,
-      amount
+      amount,
+      uploadedImage
     } = req.body;
 
     // Validate required fields
-    if (!vendorName || !vendorPhone || !companyName || !stallNumber || !serviceType || !amount) {
+    if (!vendorName || !vendorPhone || !companyName || !stallNumber || !amount) {
       return res.status(400).json({ 
         message: 'Missing required fields',
-        required: ['vendorName', 'vendorPhone', 'companyName', 'stallNumber', 'serviceType', 'amount']
+        required: ['vendorName', 'vendorPhone', 'companyName', 'stallNumber', 'amount']
       });
     }
 
@@ -137,15 +137,43 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate that the service type exists in the exhibition config
-    const serviceTypeConfig = exhibition.serviceChargeConfig.serviceTypes?.find(
-      st => st.name === serviceType && st.isActive
-    );
+    // Validate service type for legacy systems or use stall-based pricing
+    let serviceTypeConfig;
+    const isStallBasedPricing = stallArea && stallArea > 0;
+    
+    console.log('[Service Charge Order] Processing payment:', {
+      isStallBasedPricing,
+      stallArea,
+      serviceType,
+      amount,
+      exhibitionId: exhibition._id
+    });
+    
+    if (isStallBasedPricing) {
+      // For stall-based pricing, create a virtual service type
+      serviceTypeConfig = {
+        name: serviceType || 'Stall Service Charge',
+        amount: parseFloat(amount),
+        isActive: true
+      };
+      console.log('[Service Charge Order] Using stall-based pricing:', serviceTypeConfig);
+    } else {
+      // For legacy service type system
+      serviceTypeConfig = exhibition.serviceChargeConfig.serviceTypes?.find(
+        st => st.name === serviceType && st.isActive
+      );
 
-    if (!serviceTypeConfig) {
-      return res.status(400).json({ 
-        message: 'Invalid service type selected' 
-      });
+      if (!serviceTypeConfig) {
+        return res.status(400).json({ 
+          message: 'Invalid service type selected' 
+        });
+      }
+    }
+
+    // Handle uploaded image path
+    let uploadedImagePath = null;
+    if (uploadedImage && typeof uploadedImage === 'string' && uploadedImage.trim() !== '') {
+      uploadedImagePath = uploadedImage;
     }
 
     // Create service charge record (PhonePe only)
@@ -153,13 +181,12 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       exhibitionId: exhibition._id,
       vendorName: vendorName.trim(),
       vendorPhone: vendorPhone.trim(),
-      vendorEmail: vendorEmail?.trim().toLowerCase(),
       companyName: companyName.trim(),
       exhibitorCompanyName: exhibitorCompanyName?.trim(),
       stallNumber: stallNumber.trim(),
-      vendorAddress: vendorAddress?.trim(),
-      serviceType,
-      description: description?.trim() || serviceTypeConfig.description,
+      stallArea: stallArea || null,
+      uploadedImage: uploadedImagePath,
+      serviceType: serviceTypeConfig.name,
       amount,
       paymentGateway: 'phonepe',
       paymentStatus: 'pending',
@@ -168,27 +195,37 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
 
     await serviceCharge.save();
 
-    // Create PhonePe payment order
+    // Create PhonePe payment order using QUEUE SYSTEM for 100+ users
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const paymentId = serviceCharge.receiptNumber!;
+      console.log('[Payment Queue] Queuing payment order creation for:', paymentId);
       
-      const redirectUrl = `${frontendUrl}/service-charge/payment-result?serviceChargeId=${serviceCharge._id}&gateway=phonepe`;
-      const callbackUrl = `${backendUrl}/api/public/service-charge/phonepe-callback`;
+      // Get queue status
+      const queueStatus = paymentQueueService.getQueueStatus();
+      console.log('[Payment Queue] Current status:', queueStatus);
       
-      console.log('[Public Service Charge] Creating PhonePe order with URLs:', {
-        redirectUrl,
-        callbackUrl,
-        receiptNumber: serviceCharge.receiptNumber,
-        frontendUrl,
-        backendUrl
-      });
-      
-      const phonePeOrder = await phonePeService.createOrder({
-        amount,
-        receiptId: serviceCharge.receiptNumber!,
-        redirectUrl,
-        callbackUrl
+      // Process payment through queue system
+      const phonePeOrder = await paymentQueueService.processPayment(paymentId, async () => {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+        
+        const redirectUrl = `${frontendUrl}/service-charge/payment-result?serviceChargeId=${serviceCharge._id}&gateway=phonepe`;
+        const callbackUrl = `${backendUrl}/api/public/service-charge/phonepe-callback`;
+        
+        console.log('[Public Service Charge] Creating PhonePe order with URLs:', {
+          redirectUrl,
+          callbackUrl,
+          receiptNumber: serviceCharge.receiptNumber,
+          frontendUrl,
+          backendUrl
+        });
+        
+        return await phonePeService.createOrder({
+          amount,
+          receiptId: serviceCharge.receiptNumber!,
+          redirectUrl,
+          callbackUrl
+        });
       });
 
       // Update service charge with PhonePe order details
@@ -332,19 +369,13 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
             console.error('[PhonePe Callback] Receipt generation failed:', receiptError);
           }
 
-          // Send notifications
+          // Send notifications - EMAIL DISABLED for fast payment processing
           try {
-            // Notify admin about new payment
+            // Only notify admin about new payment (no email)
             await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
 
-            // Send receipt email to vendor
-            if (serviceCharge.receiptPath) {
-              await serviceChargeNotificationService.sendReceiptToVendor(
-                serviceCharge,
-                exhibition,
-                serviceCharge.receiptPath
-              );
-            }
+            // REMOVED: Receipt email to vendor - no email notifications for fast processing
+            console.log('[PhonePe Callback] Email notifications disabled for fast payment processing');
           } catch (notificationError) {
             console.error('[PhonePe Callback] Notification sending failed:', notificationError);
           }
@@ -437,17 +468,13 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
               console.error('[PhonePe Verify] Receipt generation failed:', receiptError);
             }
 
-            // Send notifications
+            // Send notifications - EMAIL DISABLED for fast payment processing
             try {
+              // Only notify admin about new payment (no email)
               await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
 
-              if (serviceCharge.receiptPath) {
-                await serviceChargeNotificationService.sendReceiptToVendor(
-                  serviceCharge,
-                  exhibition,
-                  serviceCharge.receiptPath
-                );
-              }
+              // REMOVED: Receipt email to vendor - no email notifications for fast processing
+              console.log('[PhonePe Verify] Email notifications disabled for fast payment processing');
             } catch (notificationError) {
               console.error('[PhonePe Verify] Notification sending failed:', notificationError);
             }
@@ -632,6 +659,31 @@ export const handlePaymentFailure = async (req: Request, res: Response) => {
     console.error('Error handling payment failure:', error);
     return res.status(500).json({
       message: 'Error handling payment failure',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * Get payment queue status - for monitoring 100+ concurrent users
+ */
+export const getPaymentQueueStatus = async (req: Request, res: Response) => {
+  try {
+    const queueStatus = paymentQueueService.getQueueStatus();
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...queueStatus,
+        utilizationPercentage: Math.round((queueStatus.active / queueStatus.capacity) * 100),
+        isAtCapacity: queueStatus.active >= queueStatus.capacity,
+        estimatedWaitTime: queueStatus.queued > 0 ? Math.ceil(queueStatus.queued / 10) : 0 // Estimated minutes
+      }
+    });
+  } catch (error) {
+    console.error('Error getting payment queue status:', error);
+    return res.status(500).json({
+      message: 'Error getting queue status',
       error: (error as Error).message
     });
   }

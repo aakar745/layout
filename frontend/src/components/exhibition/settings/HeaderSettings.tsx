@@ -484,7 +484,7 @@ const HeaderSettings: React.FC<HeaderSettingsProps> = ({ form }) => {
             <Form.Item
               name="headerLogo"
               label="Header Logo"
-              tooltip="Upload your exhibition logo (recommended size: 200x200px, max 2MB)"
+              tooltip="Upload your exhibition logo (recommended size: 200x200px, max 10MB)"
             >
               <Upload {...uploadProps}>
                 {fileList.length < 1 && uploadButton}
@@ -548,7 +548,7 @@ const HeaderSettings: React.FC<HeaderSettingsProps> = ({ form }) => {
             </Text>
             <Form.Item
               name="sponsorLogos"
-              tooltip="Upload sponsor logos (recommended size: 150x150px, max 2MB each)"
+              tooltip="Upload sponsor logos (recommended size: 150x150px, max 10MB each)"
             >
               <Upload {...sponsorUploadProps}>
                 {sponsorUploadButton}

@@ -264,7 +264,7 @@ const Settings: React.FC = () => {
               <Form.Item
                 label="Site Logo"
                 name="logo"
-                tooltip="Upload your site logo (recommended size: 200x200px, max 2MB)"
+                tooltip="Upload your site logo (recommended size: 200x200px, max 10MB)"
               >
                 <Upload {...uploadProps}>
                   {fileList.length < 1 && uploadButton}

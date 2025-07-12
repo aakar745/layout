@@ -647,6 +647,49 @@
   font-weight: 500;
 }
 
+/* Service Charge Image Styles */
+.service-charge-image {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.service-charge-image:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.service-charge-image-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+}
+
+.service-charge-image-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border: 1px solid #ff4d4f;
+  border-radius: 4px;
+  background-color: #fff2f0;
+  color: #ff4d4f;
+  font-size: 12px;
+}
+
+.service-charge-image-preview {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 /* Public Service Charge Form Styles */
 .public-service-charge-form {
   min-height: 100vh;
@@ -1180,4 +1223,329 @@
   .service-charges-page .ant-col {
     margin-bottom: 16px;
   }
+}
+
+/* HEIC File Preview Styles */
+.heic-file-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.heic-file-preview:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.heic-file-preview:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.heic-file-item {
+  background: #f8f9ff !important;
+  border: 1px solid #e6f0ff !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease;
+}
+
+.heic-file-item:hover {
+  background: #f0f6ff !important;
+  border-color: #bae7ff !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(24, 144, 255, 0.1);
+}
+
+.heic-file-item .ant-upload-list-item-name {
+  color: #1890ff !important;
+  font-weight: 500;
+}
+
+.heic-file-item .ant-upload-list-item-actions {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.heic-file-item:hover .ant-upload-list-item-actions {
+  opacity: 1;
+}
+
+.heic-file-item .ant-upload-list-item-action {
+  background: rgba(255, 77, 79, 0.1) !important;
+  border: 1px solid rgba(255, 77, 79, 0.2) !important;
+  color: #ff4d4f !important;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.heic-file-item .ant-upload-list-item-action:hover {
+  background: rgba(255, 77, 79, 0.2) !important;
+  border-color: rgba(255, 77, 79, 0.4) !important;
+  transform: scale(1.1);
+}
+
+/* Upload area enhancements for HEIC */
+.public-service-charge-form .ant-upload-drag {
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.public-service-charge-form .ant-upload-drag:hover {
+  border-color: #1890ff;
+  background: #f0f6ff;
+}
+
+.public-service-charge-form .ant-upload-drag.ant-upload-drag-hover {
+  border-color: #1890ff;
+  background: #f0f6ff;
+}
+
+.public-service-charge-form .ant-upload-list {
+  margin-top: 8px;
+}
+
+.public-service-charge-form .ant-upload-list-item {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.public-service-charge-form .ant-upload-list-item:hover {
+  background: #f0f6ff;
 } 
+
+/* New Stall Selection UI */
+.stall-selection-card {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stall-selection-card:hover {
+  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.12);
+  transform: translateY(-2px);
+}
+
+.stall-details-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.stall-details-header .anticon {
+  color: #52c41a;
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.stall-details-header h5 {
+  margin: 0;
+  color: #389e0d;
+}
+
+.stall-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.stall-option-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stall-option-name {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.stall-option-company {
+  color: #666;
+  font-size: 13px;
+}
+
+.stall-option-tag {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.service-charge-info-alert {
+  margin-top: 16px;
+}
+
+.service-charge-info-alert .ant-alert-message {
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.service-charge-info-alert .ant-alert-description {
+  color: #666;
+  font-size: 13px;
+}
+
+.service-charge-info-alert .ant-alert-description p {
+  margin: 4px 0;
+}
+
+.service-charge-info-alert .ant-alert-description strong {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+/* Payment Details Enhancement */
+.payment-details-card {
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.payment-details-card .ant-descriptions-item-label {
+  font-weight: 600;
+  color: #333;
+  background: #fafafa;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.payment-details-card .ant-descriptions-item-content {
+  padding: 8px 12px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
+}
+
+.service-charge-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1890ff;
+  text-shadow: 0 1px 2px rgba(24, 144, 255, 0.2);
+}
+
+.service-charge-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* Step Actions Enhancement */
+.step-actions {
+  text-align: center;
+  margin-top: 32px;
+  padding: 24px 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.step-actions .ant-btn {
+  min-width: 120px;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.step-actions .ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #0967d2 100%);
+  border: none;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+.step-actions .ant-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.4);
+}
+
+/* Form Input Enhancement */
+.public-service-charge-form .ant-input,
+.public-service-charge-form .ant-select-selector {
+  border-radius: 8px;
+  border: 2px solid #f0f0f0;
+  transition: all 0.3s ease;
+}
+
+.public-service-charge-form .ant-input:focus,
+.public-service-charge-form .ant-select-selector:focus,
+.public-service-charge-form .ant-input:hover,
+.public-service-charge-form .ant-select-selector:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+/* Upload Button Enhancement */
+.public-service-charge-form .ant-upload .ant-btn {
+  border-radius: 8px;
+  border: 2px dashed #d9d9d9;
+  height: 48px;
+  background: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.public-service-charge-form .ant-upload .ant-btn:hover {
+  border-color: #1890ff;
+  background: #f0f7ff;
+}
+
+/* Responsive enhancements */
+@media (max-width: 768px) {
+  .stall-option {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .stall-option-tag {
+    margin-left: 0;
+    margin-top: 4px;
+  }
+  
+  .service-charge-amount {
+    font-size: 18px;
+  }
+  
+  .step-actions .ant-btn {
+    min-width: 100px;
+    height: 44px;
+    font-size: 14px;
+  }
+}

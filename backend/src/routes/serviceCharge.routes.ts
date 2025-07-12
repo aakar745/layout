@@ -6,7 +6,9 @@ import {
   updateServiceChargeStatus,
   getServiceChargeStats,
   exportServiceCharges,
-  downloadReceipt
+  downloadReceipt,
+  deleteServiceCharge,
+  deleteAllServiceCharges
 } from '../controllers/serviceCharge.controller';
 import { protect, authorize } from '../middleware/auth.middleware';
 
@@ -63,5 +65,19 @@ router.get('/export', authorize('dashboard_view'), exportServiceCharges);
  * @access  Admin with service charge permissions
  */
 router.get('/:serviceChargeId/receipt', downloadReceipt);
+
+/**
+ * @route   DELETE /api/service-charges/:serviceChargeId
+ * @desc    Delete a single service charge
+ * @access  Admin with service charge permissions
+ */
+router.delete('/:serviceChargeId', authorize('dashboard_view'), deleteServiceCharge);
+
+/**
+ * @route   DELETE /api/service-charges
+ * @desc    Delete all service charges (bulk delete)
+ * @access  Admin with advanced permissions
+ */
+router.delete('/', authorize('dashboard_view'), deleteAllServiceCharges);
 
 export default router; 

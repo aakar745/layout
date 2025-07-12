@@ -19,8 +19,9 @@ export const PDF_CACHE_MAX_AGE = parseInt(process.env.PDF_CACHE_MAX_AGE || '2592
 // Set maximum cache size - default 500MB
 export const PDF_CACHE_MAX_SIZE = parseInt(process.env.PDF_CACHE_MAX_SIZE || '524288000', 10); // 500MB in bytes
 
-// Limit concurrent PDF generation to avoid memory issues
-export const MAX_CONCURRENT_PDF_GENERATIONS = Math.max(1, Math.min(2, Math.floor(cpus().length / 2)));
+// Support 100 concurrent PDF generations for payment receipts
+// Optimized for service charge receipts (smaller, faster PDFs)
+export const MAX_CONCURRENT_PDF_GENERATIONS = 100;
 let currentPdfGenerations = 0;
 const pdfGenerationQueue: Array<() => void> = [];
 
@@ -305,8 +306,8 @@ export const queuePdfGeneration = async (generateFn: () => Promise<Buffer>): Pro
   
   // If too many concurrent generations, add to queue with timeout
   return new Promise((resolve, reject) => {
-    // Add timeout to prevent indefinite waiting
-    const timeoutMs = 120000; // 2 minutes timeout
+    // Add timeout to prevent indefinite waiting - increased for 100+ user support
+    const timeoutMs = 300000; // 5 minutes timeout for high concurrency
     const timeout = setTimeout(() => {
       // Remove from queue if still there
       const index = pdfGenerationQueue.indexOf(processItem);

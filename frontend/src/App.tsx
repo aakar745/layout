@@ -47,6 +47,7 @@ const AnalyticsPage = lazy(() => import('./pages/analytics'));
 const ServiceChargesPage = lazy(() => import('./pages/service-charges/index'));
 const ServiceChargeSettings = lazy(() => import('./pages/service-charges/settings'));
 const ServiceChargeForm = lazy(() => import('./pages/service-charges/public'));
+const ServiceChargeStallsPage = lazy(() => import('./pages/service-charge-stalls/index'));
 
 // Static Pages
 const AboutUs = lazy(() => import('./pages/static/AboutUs'));
@@ -484,6 +485,16 @@ function App() {
                    <PrivateRoute>
                      <MainLayout>
                        <ServiceChargeSettings />
+                     </MainLayout>
+                   </PrivateRoute>
+                 }
+               />
+               <Route
+                 path="/service-charge-stalls"
+                 element={
+                   <PrivateRoute>
+                     <MainLayout>
+                       <ServiceChargeStallsPage />
                      </MainLayout>
                    </PrivateRoute>
                  }
