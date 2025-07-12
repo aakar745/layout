@@ -8,7 +8,8 @@ import {
   exportServiceCharges,
   downloadReceipt,
   deleteServiceCharge,
-  deleteAllServiceCharges
+  deleteAllServiceCharges,
+  getCounterStatus
 } from '../controllers/serviceCharge.controller';
 import { protect, authorize } from '../middleware/auth.middleware';
 
@@ -79,5 +80,12 @@ router.delete('/:serviceChargeId', authorize('dashboard_view'), deleteServiceCha
  * @access  Admin with advanced permissions
  */
 router.delete('/', authorize('dashboard_view'), deleteAllServiceCharges);
+
+/**
+ * @route   GET /api/service-charges/counter-status
+ * @desc    Get counter status for monitoring
+ * @access  Admin with service charge permissions
+ */
+router.get('/counter-status', authorize('dashboard_view'), getCounterStatus);
 
 export default router; 

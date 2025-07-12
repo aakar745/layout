@@ -5,6 +5,7 @@ import Exhibition from '../models/exhibition.model';
 import User from '../models/user.model';
 import { IRole } from '../models/role.model';
 import { logActivity } from '../services/activity.service';
+import CounterService from '../services/counter.service';
 
 /**
  * Get all service charges with pagination and filtering
@@ -776,6 +777,30 @@ export const deleteAllServiceCharges = async (req: Request, res: Response) => {
     console.error('Error deleting all service charges:', error);
     return res.status(500).json({
       message: 'Error deleting service charges',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * Get counter status for monitoring
+ */
+export const getCounterStatus = async (req: Request, res: Response) => {
+  try {
+    const counterStatus = await CounterService.getCounterStatus('serviceCharge');
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        counter: counterStatus,
+        nextReceiptNumber: `SC${counterStatus?.year}${String((counterStatus?.sequence || 0) + 1).padStart(6, '0')}`,
+        lastUpdateTime: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting counter status:', error);
+    return res.status(500).json({
+      message: 'Error getting counter status',
       error: (error as Error).message
     });
   }

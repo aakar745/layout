@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import CounterService from '../services/counter.service';
 
 export interface IServiceCharge extends Document {
   exhibitionId: mongoose.Types.ObjectId;
@@ -178,12 +179,17 @@ serviceChargeSchema.index({ exhibitionId: 1, paymentStatus: 1 });
 serviceChargeSchema.index({ exhibitionId: 1, status: 1 });
 serviceChargeSchema.index({ exhibitionId: 1, createdAt: -1 });
 
-// Generate receipt number before saving
+// Generate receipt number before saving using atomic counter
 serviceChargeSchema.pre('save', async function(next) {
   if (this.isNew && !this.receiptNumber) {
-    const count = await mongoose.model('ServiceCharge').countDocuments();
-    const receiptNumber = `SC${new Date().getFullYear()}${String(count + 1).padStart(6, '0')}`;
-    this.receiptNumber = receiptNumber;
+    try {
+      // Use atomic counter service to prevent race conditions
+      this.receiptNumber = await CounterService.generateReceiptNumber();
+      console.log('[Service Charge] Generated receipt number:', this.receiptNumber);
+    } catch (error) {
+      console.error('[Service Charge] Error generating receipt number:', error);
+      return next(error as Error);
+    }
   }
   next();
 });

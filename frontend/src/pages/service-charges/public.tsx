@@ -732,15 +732,22 @@ const PublicServiceChargeForm: React.FC = () => {
   const calculateServiceCharge = () => {
     if (!exhibition?.config) return 0;
 
-    // New stall-based pricing system - use default pricing rules if stalls are available
+    // New stall-based pricing system - use actual pricing rules from exhibition settings
     if (stalls.length > 0 && (selectedStall || formData.stallArea)) {
       const stallArea = selectedStall?.stallArea || formData.stallArea || 0;
-      // Use default pricing rules: ≤50 sqm = ₹2000, >50 sqm = ₹2500
-      const smallStallThreshold = 50;
-      const smallStallPrice = 2000;
-      const largeStallPrice = 2500;
       
-      return stallArea <= smallStallThreshold ? smallStallPrice : largeStallPrice;
+      // Use pricing rules from exhibition configuration
+      const pricingRules = exhibition.config.pricingRules;
+      if (pricingRules) {
+        const threshold = pricingRules.smallStallThreshold || 50;
+        const smallPrice = pricingRules.smallStallPrice || 2000;
+        const largePrice = pricingRules.largeStallPrice || 2500;
+        
+        return stallArea <= threshold ? smallPrice : largePrice;
+      } else {
+        // Fallback to default pricing if no rules configured
+        return stallArea <= 50 ? 2000 : 2500;
+      }
     }
 
     // Legacy service type system
@@ -1076,24 +1083,32 @@ const PublicServiceChargeForm: React.FC = () => {
         )}
 
         {/* Show pricing info if no stall selected but stalls are available */}
-        {!selectedStall && stalls.length > 0 && (
-          <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-            <Col xs={24}>
-              <Alert
-                message="Service Charge Information"
-                description={
-                  <div>
-                                         <p>• Stalls with area ≤ 50 sqm: <strong>₹2,000</strong></p>
-                     <p style={{ margin: 0 }}>• Stalls with area &gt; 50 sqm: <strong>₹2,500</strong></p>
-                     <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}><em>(All prices inclusive of GST)</em></p>
-                  </div>
-                }
-                type="info"
-                showIcon
-              />
-            </Col>
-          </Row>
-        )}
+                {!selectedStall && stalls.length > 0 && (() => {
+          // Get pricing rules from exhibition configuration
+          const pricingRules = exhibition?.config?.pricingRules;
+          const threshold = pricingRules?.smallStallThreshold || 50;
+          const smallPrice = pricingRules?.smallStallPrice || 2000;
+          const largePrice = pricingRules?.largeStallPrice || 2500;
+          
+          return (
+            <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+              <Col xs={24}>
+                <Alert
+                  message="Service Charge Information"
+                  description={
+                    <div>
+                      <p>• Stalls with area ≤ {threshold} sqm: <strong>₹{smallPrice.toLocaleString()}</strong></p>
+                      <p style={{ margin: 0 }}>• Stalls with area &gt; {threshold} sqm: <strong>₹{largePrice.toLocaleString()}</strong></p>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}><em>(All prices inclusive of GST)</em></p>
+                    </div>
+                  }
+                  type="info"
+                  showIcon
+                />
+              </Col>
+            </Row>
+          );
+        })()}
 
         {/* Legacy service type selection - show only if no stalls available */}
         {stalls.length === 0 && exhibition?.config.serviceTypes && (
@@ -1267,13 +1282,19 @@ const PublicServiceChargeForm: React.FC = () => {
                 (Inclusive of GST)
               </Text>
             </div>
-            {selectedStall && (
-              <div style={{ marginTop: '4px' }}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  {selectedStall.stallArea <= 50 ? 'Small stall pricing (≤50 sqm)' : 'Large stall pricing (>50 sqm)'}
-                </Text>
-              </div>
-            )}
+            {selectedStall && (() => {
+              // Get pricing rules from exhibition configuration
+              const pricingRules = exhibition?.config?.pricingRules;
+              const threshold = pricingRules?.smallStallThreshold || 50;
+              
+              return (
+                <div style={{ marginTop: '4px' }}>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {selectedStall.stallArea <= threshold ? `Small stall pricing (≤${threshold} sqm)` : `Large stall pricing (>${threshold} sqm)`}
+                  </Text>
+                </div>
+              );
+            })()}
           </Descriptions.Item>
         </Descriptions>
 

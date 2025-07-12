@@ -66,6 +66,8 @@ export const getExhibitionServiceChargeConfig = async (req: Request, res: Respon
           title: exhibition.serviceChargeConfig.title,
           description: exhibition.serviceChargeConfig.description,
           serviceTypes: mappedServiceTypes,
+          // Include pricing rules for stall-based pricing
+          pricingRules: exhibition.serviceChargeConfig.pricingRules,
           paymentGateway,
           phonePeConfig: {
             clientId: exhibition.serviceChargeConfig.phonePeConfig?.clientId || phonePeService.getPublicKey(),
