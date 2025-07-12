@@ -22,16 +22,46 @@ export class CounterService {
         },
         { 
           new: true, 
-          upsert: true,
-          // Use write concern for extra safety in high-concurrency scenarios
-          writeConcern: { w: 'majority', j: true }
+          upsert: true
+          // Removed writeConcern for better production compatibility
         }
       );
+
+      if (!counter) {
+        throw new Error('Failed to generate sequence number');
+      }
 
       return counter.sequence;
     } catch (error) {
       console.error('Error getting next sequence:', error);
-      throw error;
+      
+      // Fallback: try without atomic operation if main approach fails
+      try {
+        console.log('Attempting fallback counter generation...');
+        const existingCounter = await Counter.findOne({ _id: name, year: currentYear });
+        
+        if (existingCounter) {
+          existingCounter.sequence += 1;
+          await existingCounter.save();
+          return existingCounter.sequence;
+        } else {
+          // Create new counter
+          const newCounter = new Counter({
+            _id: name,
+            year: currentYear,
+            sequence: 1
+          });
+          await newCounter.save();
+          return 1;
+        }
+      } catch (fallbackError) {
+        console.error('Fallback counter generation also failed:', fallbackError);
+        // Last resort: use timestamp-based fallback
+        const timestamp = Date.now();
+        const lastSixDigits = timestamp % 1000000;
+        console.log('Using timestamp-based fallback sequence:', lastSixDigits);
+        return lastSixDigits;
+      }
     }
   }
 

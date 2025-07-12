@@ -183,12 +183,17 @@ serviceChargeSchema.index({ exhibitionId: 1, createdAt: -1 });
 serviceChargeSchema.pre('save', async function(next) {
   if (this.isNew && !this.receiptNumber) {
     try {
+      console.log('[Service Charge] Generating receipt number for new service charge...');
       // Use atomic counter service to prevent race conditions
       this.receiptNumber = await CounterService.generateReceiptNumber();
       console.log('[Service Charge] Generated receipt number:', this.receiptNumber);
     } catch (error) {
       console.error('[Service Charge] Error generating receipt number:', error);
-      return next(error as Error);
+      console.error('[Service Charge] Error stack:', (error as Error).stack);
+      
+      // Create a more descriptive error message
+      const errorMessage = `Failed to generate receipt number: ${(error as Error).message}`;
+      return next(new Error(errorMessage));
     }
   }
   next();
