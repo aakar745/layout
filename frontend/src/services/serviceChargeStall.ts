@@ -121,9 +121,25 @@ export const importServiceChargeStalls = async (
   exhibitionId: string,
   data: ImportServiceChargeStallRequest
 ): Promise<ImportResult> => {
-  const response = await api.post<{ data: ImportResult }>(
-    `/service-charge-stalls/${exhibitionId}/import`,
-    data
-  );
-  return response.data.data;
+  // Use fetch directly to get better error handling for validation errors
+  const response = await fetch(`/api/service-charge-stalls/${exhibitionId}/import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  const responseData = await response.json();
+
+  if (!response.ok) {
+    // Create a custom error with full error data for validation errors
+    const error = new Error(responseData.message || 'Import failed') as any;
+    error.validationData = responseData;
+    error.status = response.status;
+    throw error;
+  }
+
+  return responseData.data;
 }; 

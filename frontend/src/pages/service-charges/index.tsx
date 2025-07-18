@@ -271,7 +271,7 @@ const ServiceChargesPage: React.FC = () => {
       
       const queryParams: Record<string, string> = {
         export: 'true',
-        limit: '10000' // Export all records
+        limit: '10000'
       };
       
       Object.entries(filters).forEach(([key, value]) => {

@@ -201,8 +201,8 @@ const ServiceChargeStallsPage: React.FC = () => {
         
         // Convert the data to expected format
         const processedData = jsonData.map((row: any) => ({
-          stallNumber: row['Stall Number'] || row['stallNumber'] || '',
-          exhibitorCompanyName: row['Exhibitor Company Name'] || row['exhibitorCompanyName'] || '',
+          stallNumber: String(row['Stall Number'] || row['stallNumber'] || '').trim(),
+          exhibitorCompanyName: String(row['Exhibitor Company Name'] || row['exhibitorCompanyName'] || '').trim(),
           stallArea: parseFloat(row['Stall Area (sqm)'] || row['stallArea'] || '0'),
           dimensions: (row['Width'] && row['Height']) ? {
             width: parseFloat(row['Width'] || '0'),
@@ -242,26 +242,34 @@ const ServiceChargeStallsPage: React.FC = () => {
     } catch (error: any) {
       console.error('Error importing stalls:', error);
       
-      // Handle validation errors
-      if (error.message.includes('Validation failed')) {
-        try {
-          const errorData = JSON.parse(error.message.split('Validation failed')[1]);
-          message.error(
+      // Handle validation errors using the new error structure
+      if (error.validationData && error.validationData.message === 'Validation failed' && error.validationData.errors) {
+        // Display detailed validation errors
+        const errorData = error.validationData;
+        message.error({
+          content: (
             <div>
-              <p>Import failed with validation errors:</p>
-              <ul style={{ margin: 0, paddingLeft: 16 }}>
-                {errorData.errors?.slice(0, 5).map((err: string, index: number) => (
-                  <li key={index}>{err}</li>
+              <p><strong>Import failed with validation errors:</strong></p>
+              <ul style={{ margin: '8px 0 0 0', paddingLeft: 16, maxHeight: '200px', overflowY: 'auto' }}>
+                {errorData.errors.slice(0, 10).map((err: string, index: number) => (
+                  <li key={index} style={{ marginBottom: '4px' }}>{err}</li>
                 ))}
-                {errorData.errors?.length > 5 && <li>... and {errorData.errors.length - 5} more</li>}
+                {errorData.errors.length > 10 && (
+                  <li style={{ marginTop: '8px', fontStyle: 'italic', color: '#666' }}>
+                    ... and {errorData.errors.length - 10} more errors
+                  </li>
+                )}
               </ul>
+              <p style={{ marginTop: '12px', fontSize: '12px', color: '#666' }}>
+                Total rows: {errorData.totalRows} | Valid: {errorData.validRows} | Errors: {errorData.errorRows}
+              </p>
             </div>
-          );
-        } catch {
-          message.error('Import failed with validation errors');
-        }
+          ),
+          duration: 8
+        });
       } else {
-        message.error('Error importing stalls');
+        // Generic error message
+        message.error(error.message || 'Import failed. Please check your data and try again.');
       }
     } finally {
       setImportLoading(false);
@@ -754,6 +762,11 @@ const ServiceChargeStallsPage: React.FC = () => {
               Required columns: Stall Number, Exhibitor Company Name, Stall Area (sqm)
             </Text>
           </Space>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+            <Text type="secondary">
+              💡 <strong>Tips:</strong> Ensure stall numbers are unique, area values are numeric, and no duplicate entries exist in your file.
+            </Text>
+          </div>
         </div>
 
         <Upload

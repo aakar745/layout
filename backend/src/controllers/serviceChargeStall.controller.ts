@@ -313,27 +313,28 @@ export const importServiceChargeStalls = async (req: Request, res: Response) => 
       }
 
       // Check for duplicate stall numbers in the same exhibition
+      const stallNumberStr = String(stall.stallNumber).trim();
       const existingStall = await ServiceChargeStall.findOne({
         exhibitionId,
-        stallNumber: stall.stallNumber
+        stallNumber: stallNumberStr
       });
 
       if (existingStall) {
-        validationErrors.push(`Row ${rowNum}: Stall number ${stall.stallNumber} already exists for this exhibition`);
+        validationErrors.push(`Row ${rowNum}: Stall number ${stallNumberStr} already exists for this exhibition`);
         continue;
       }
 
       // Check for duplicate stall numbers in current import
-      const duplicateInImport = validatedStalls.find(s => s.stallNumber === stall.stallNumber);
+      const duplicateInImport = validatedStalls.find(s => s.stallNumber === stallNumberStr);
       if (duplicateInImport) {
-        validationErrors.push(`Row ${rowNum}: Duplicate stall number ${stall.stallNumber} in import data`);
+        validationErrors.push(`Row ${rowNum}: Duplicate stall number ${stallNumberStr} in import data`);
         continue;
       }
 
       validatedStalls.push({
         exhibitionId,
-        stallNumber: stall.stallNumber.trim(),
-        exhibitorCompanyName: stall.exhibitorCompanyName.trim(),
+        stallNumber: stallNumberStr,
+        exhibitorCompanyName: String(stall.exhibitorCompanyName).trim(),
         stallArea: parseFloat(stall.stallArea),
         dimensions: stall.dimensions && stall.dimensions.width && stall.dimensions.height ? {
           width: parseFloat(stall.dimensions.width),
