@@ -59,7 +59,7 @@ export const getServiceCharges = async (req: Request, res: Response) => {
     // Build query based on permissions and filters
     let query: any = {};
 
-    // If user doesn't have view all access, filter by exhibitions they have access to
+    // Handle exhibition access control and filtering
     if (!hasViewAllAccess) {
       const accessibleExhibitions = await Exhibition.find({
         $or: [
@@ -68,12 +68,30 @@ export const getServiceCharges = async (req: Request, res: Response) => {
         ]
       }).select('_id');
       
-      query.exhibitionId = { $in: accessibleExhibitions.map(ex => ex._id) };
-    }
-
-    // Apply filters
-    if (exhibitionId) {
-      query.exhibitionId = exhibitionId;
+      const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
+      
+      if (exhibitionId) {
+        // Check if the requested exhibition is in the user's accessible list
+        const isAccessible = accessibleExhibitionIds.some(id => 
+          id.toString() === exhibitionId.toString()
+        );
+        
+        if (isAccessible) {
+          query.exhibitionId = exhibitionId;
+        } else {
+          // User trying to access an exhibition they don't have permission for
+          // Return empty results by setting an impossible condition
+          query.exhibitionId = new mongoose.Types.ObjectId('000000000000000000000000');
+        }
+      } else {
+        // No specific exhibition requested, show all accessible ones
+        query.exhibitionId = { $in: accessibleExhibitionIds };
+      }
+    } else {
+      // User has full access, apply exhibition filter if provided
+      if (exhibitionId) {
+        query.exhibitionId = exhibitionId;
+      }
     }
 
     if (paymentStatus) {
@@ -356,13 +374,31 @@ export const getServiceChargeStats = async (req: Request, res: Response) => {
   try {
     const { exhibitionId, period } = req.query;
 
-    // Build base query
+    // Check if user has admin access
+    let hasViewAllAccess = false;
+    
+    if (req.user) {
+      const user = await User.findById(req.user._id).populate('role');
+      
+      if (user && user.role) {
+        const userRole = user.role as unknown as IRole;
+        
+        if (userRole.permissions) {
+          hasViewAllAccess = userRole.permissions.some(permission => 
+            permission === 'view_service_charges' || 
+            permission === 'service_charges_view' ||
+            permission === 'admin' ||
+            permission === '*'
+          );
+        }
+      }
+    }
+
+    // Build base query with proper access control
     let matchQuery: any = {};
 
-    if (exhibitionId && mongoose.Types.ObjectId.isValid(exhibitionId as string)) {
-      matchQuery.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
-    } else {
-      // If no specific exhibition, filter by exhibitions user has access to
+    // Handle exhibition access control and filtering
+    if (!hasViewAllAccess) {
       const accessibleExhibitions = await Exhibition.find({
         $or: [
           { createdBy: req.user?._id },
@@ -370,7 +406,30 @@ export const getServiceChargeStats = async (req: Request, res: Response) => {
         ]
       }).select('_id');
       
-      matchQuery.exhibitionId = { $in: accessibleExhibitions.map(ex => ex._id) };
+      const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
+      
+      if (exhibitionId && mongoose.Types.ObjectId.isValid(exhibitionId as string)) {
+        // Check if the requested exhibition is in the user's accessible list
+        const isAccessible = accessibleExhibitionIds.some(id => 
+          id.toString() === exhibitionId.toString()
+        );
+        
+        if (isAccessible) {
+          matchQuery.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
+        } else {
+          // User trying to access an exhibition they don't have permission for
+          // Return empty stats by setting an impossible condition
+          matchQuery.exhibitionId = new mongoose.Types.ObjectId('000000000000000000000000');
+        }
+      } else {
+        // No specific exhibition requested, show stats for all accessible ones
+        matchQuery.exhibitionId = { $in: accessibleExhibitionIds };
+      }
+    } else {
+      // User has full access, apply exhibition filter if provided
+      if (exhibitionId && mongoose.Types.ObjectId.isValid(exhibitionId as string)) {
+        matchQuery.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
+      }
     }
 
     // Add date filter based on period

@@ -157,7 +157,11 @@ const ServiceChargesPage: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setExhibitions(data.data || []);
+        console.log('Fetched exhibitions:', data);
+        // Backend returns exhibitions array directly, not wrapped in data property
+        const exhibitions = Array.isArray(data) ? data : data.data || [];
+        console.log('Setting exhibitions:', exhibitions.length, 'items');
+        setExhibitions(exhibitions);
       }
     } catch (error) {
       console.error('Error fetching exhibitions:', error);
@@ -307,13 +311,17 @@ const ServiceChargesPage: React.FC = () => {
         // Define CSV headers matching the table columns
         const csvHeaders = [
           'Receipt Number',
+          'Exhibition Name',
+          'Exhibition Venue',
           'Vendor Name',
           'Company Name',
           'Exhibitor Company',
           'Mobile',
+          'Service Type',
           'Uploaded Image',
           'Stall Number',
           'Stall Area (sqm)',
+          'Transaction ID',
           'Base Amount (₹) - Excl. GST',
           'GST Amount (₹) - 18%',
           'Total Amount (₹) - Incl. GST',
@@ -331,12 +339,23 @@ const ServiceChargesPage: React.FC = () => {
           const baseAmount = calculateBaseAmountFromInclusive(charge.amount);
           const gstAmount = calculateGSTFromInclusive(charge.amount);
           
+          // Determine transaction ID to export
+          let transactionId = '';
+          if (charge.phonePeTransactionId && charge.paymentStatus === 'paid') {
+            transactionId = `PhonePe: ${charge.phonePeTransactionId}`;
+          } else if (charge.phonePeMerchantTransactionId) {
+            transactionId = `Merchant: ${charge.phonePeMerchantTransactionId}`;
+          }
+          
           return [
             charge.receiptNumber,
+            charge.exhibitionId?.name || 'N/A',
+            charge.exhibitionId?.venue || 'N/A',
             charge.vendorName,
             charge.companyName,
             charge.exhibitorCompanyName || '',
             charge.vendorPhone,
+            charge.serviceType || '',
             charge.uploadedImage ? 
               (charge.uploadedImage.toLowerCase().includes('heic') ? 
                 `HEIC Image (converted): ${charge.uploadedImage}` : 
@@ -344,6 +363,7 @@ const ServiceChargesPage: React.FC = () => {
               'No image',
             charge.stallNumber || '',
             charge.stallArea || '',
+            transactionId,
             baseAmount,
             gstAmount,
             charge.amount,
@@ -534,11 +554,12 @@ const ServiceChargesPage: React.FC = () => {
       label: 'View Details',
       icon: <EyeOutlined />,
     },
-    {
-      key: 'status',
-      label: 'Update Status',
-      icon: <EditOutlined />,
-    },
+    // Hidden: Update Status action removed
+    // {
+    //   key: 'status',
+    //   label: 'Update Status',
+    //   icon: <EditOutlined />,
+    // },
     {
       key: 'receipt',
       label: 'Download Receipt',
@@ -561,14 +582,15 @@ const ServiceChargesPage: React.FC = () => {
         setSelectedServiceCharge(record);
         setDetailsVisible(true);
         break;
-      case 'status':
-        setSelectedServiceCharge(record);
-        setStatusModalVisible(true);
-        form.setFieldsValue({
-          status: record.status,
-          adminNotes: record.adminNotes
-        });
-        break;
+      // Removed: status update case
+      // case 'status':
+      //   setSelectedServiceCharge(record);
+      //   setStatusModalVisible(true);
+      //   form.setFieldsValue({
+      //     status: record.status,
+      //     adminNotes: record.adminNotes
+      //   });
+      //   break;
       case 'receipt':
         handleDownloadReceipt(record._id, record.receiptNumber);
         break;
