@@ -105,9 +105,13 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
                     size="large"
                     onChange={onStallSelection}
                     showSearch
-                    filterOption={(input, option) =>
-                      (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
+                    filterOption={(input, option) => {
+                      const stall = stalls.find(s => s.stallNumber === option?.value);
+                      if (!stall) return false;
+                      
+                      const searchText = `${stall.stallNumber} ${stall.exhibitorCompanyName || ''} ${stall.stallArea || ''}`.toLowerCase();
+                      return searchText.includes(input.toLowerCase());
+                    }}
                   >
                     {stalls.map(stall => (
                       <Option key={stall._id} value={stall.stallNumber}>
@@ -168,7 +172,7 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
                 fontWeight: 500,
                 fontSize: '14px'
               }}>
-                Upload Image
+                Upload Cheque Image
                 <span style={{ 
                   color: '#666', 
                   fontWeight: 400, 
