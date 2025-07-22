@@ -864,3 +864,106 @@ export const getPaymentQueueStatus = async (req: Request, res: Response) => {
     });
   }
 }; 
+
+/**
+ * Lookup service charge by phone or stall number
+ */
+export const lookupServiceCharge = async (req: Request, res: Response) => {
+  try {
+    const { exhibitionId } = req.params;
+    const { phone, stallNumber } = req.body;
+
+    console.log('🔍 [LOOKUP] ===== SERVICE CHARGE LOOKUP =====');
+    console.log('🔍 [LOOKUP] Exhibition ID:', exhibitionId);
+    console.log('🔍 [LOOKUP] Phone:', phone);
+    console.log('🔍 [LOOKUP] Stall Number:', stallNumber);
+
+    // Validate input
+    if (!exhibitionId || !mongoose.Types.ObjectId.isValid(exhibitionId)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid exhibition ID' 
+      });
+    }
+
+    if (!phone && !stallNumber) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Please provide either phone number or stall number' 
+      });
+    }
+
+    // Build search query
+    const searchQuery: any = { exhibitionId };
+    
+    if (phone && stallNumber) {
+      // If both are provided, search for either match
+      searchQuery.$or = [
+        { vendorPhone: phone },
+        { stallNumber: stallNumber }
+      ];
+      console.log('🔍 [LOOKUP] Searching by phone OR stall number');
+    } else if (phone) {
+      searchQuery.vendorPhone = phone;
+      console.log('🔍 [LOOKUP] Searching by phone number only');
+    } else if (stallNumber) {
+      searchQuery.stallNumber = stallNumber;
+      console.log('🔍 [LOOKUP] Searching by stall number only');
+    }
+
+    console.log('🔍 [LOOKUP] Search query:', JSON.stringify(searchQuery, null, 2));
+
+    // Find service charges
+    const serviceCharges = await ServiceCharge.find(searchQuery)
+      .populate('exhibitionId', 'name venue')
+      .sort({ createdAt: -1 })
+      .limit(10); // Limit results for safety
+
+    console.log('🔍 [LOOKUP] Found', serviceCharges.length, 'service charges');
+
+    if (serviceCharges.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No service charges found for the provided information'
+      });
+    }
+
+    // Format results
+    const results = serviceCharges.map(charge => ({
+      id: charge._id,
+      receiptNumber: charge.receiptNumber,
+      vendorName: charge.vendorName,
+      companyName: charge.companyName,
+      exhibitorCompanyName: charge.exhibitorCompanyName,
+      stallNumber: charge.stallNumber,
+      stallArea: charge.stallArea,
+      serviceType: charge.serviceType,
+      amount: charge.amount,
+      paymentStatus: charge.paymentStatus,
+      status: charge.status,
+      paidAt: charge.paidAt,
+      createdAt: charge.createdAt,
+      receiptGenerated: charge.receiptGenerated,
+      exhibition: {
+        name: (charge.exhibitionId as any).name,
+        venue: (charge.exhibitionId as any).venue
+      }
+    }));
+
+    console.log('✅ [LOOKUP] Returning', results.length, 'formatted results');
+
+    return res.status(200).json({
+      success: true,
+      data: results,
+      message: `Found ${results.length} service charge(s)`
+    });
+
+  } catch (error) {
+    console.error('❌ [LOOKUP] Error looking up service charge:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error looking up service charge',
+      error: (error as Error).message
+    });
+  }
+}; 

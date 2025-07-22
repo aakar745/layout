@@ -47,6 +47,7 @@ const AnalyticsPage = lazy(() => import('./pages/analytics'));
 const ServiceChargesPage = lazy(() => import('./pages/service-charges/index'));
 const ServiceChargeSettings = lazy(() => import('./pages/service-charges/settings'));
 const ServiceChargeForm = lazy(() => import('./pages/service-charges/public'));
+const PaymentLookup = lazy(() => import('./pages/service-charges/public/PaymentLookup'));
 const ServiceChargeStallsPage = lazy(() => import('./pages/service-charge-stalls/index'));
 
 // Static Pages
@@ -114,6 +115,7 @@ function App() {
               
               {/* Public Service Charge Route */}
               <Route path="/exhibitions/:exhibitionId/service-charge" element={<ServiceChargeForm />} />
+              <Route path="/exhibitions/:exhibitionId/service-charge/check-payment" element={<PaymentLookup />} />
               <Route path="/service-charge/payment-success" element={<ServiceChargeForm />} />
               <Route path="/service-charge/payment-result" element={<ServiceChargeForm />} />
               

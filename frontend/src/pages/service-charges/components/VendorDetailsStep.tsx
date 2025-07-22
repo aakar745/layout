@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Form, 
   Input, 
@@ -7,11 +8,13 @@ import {
   Card, 
   Row, 
   Col, 
-  Typography 
+  Typography,
+  Divider
 } from 'antd';
 import { 
   ShoppingCartOutlined, 
-  PhoneOutlined 
+  PhoneOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 import { ExhibitionConfig, ServiceChargeStall, FormData } from '../types';
 import ImageUpload from './ImageUpload';
@@ -44,6 +47,13 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
   onStallSelection,
   onNext
 }) => {
+  const navigate = useNavigate();
+
+  const handleCheckPayment = () => {
+    if (exhibition) {
+      navigate(`/exhibitions/${exhibition._id}/service-charge/check-payment`);
+    }
+  };
   return (
     <Card className="step-card">
       <div className="step-header">
@@ -297,37 +307,37 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
         {/* Show pricing information for stall-based system when no stall selected */}
         {stalls.length > 0 && !selectedStall && exhibition?.config?.pricingRules && (
           <div style={{ 
-            marginTop: '16px', 
-            padding: '20px', 
+            marginTop: '12px', 
+            padding: '12px', 
             backgroundColor: '#f0f9ff', 
             border: '1px solid #bfdbfe', 
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)'
+            borderRadius: '6px',
+            boxShadow: '0 1px 4px rgba(0, 0, 0, 0.04)'
           }}>
             {/* Header */}
-            <div style={{ marginBottom: '16px', borderBottom: '1px solid #bfdbfe', paddingBottom: '8px' }}>
-              <Text strong style={{ fontSize: '16px', color: '#1e40af' }}>
+            <div style={{ marginBottom: '8px', borderBottom: '1px solid #bfdbfe', paddingBottom: '4px' }}>
+              <Text strong style={{ fontSize: '13px', color: '#1e40af' }}>
                 💰 Service Charge Pricing
               </Text>
             </div>
             
             {/* Pricing Grid - Mobile Responsive */}
-            <Row gutter={[16, 12]}>
+            <Row gutter={[8, 6]}>
               <Col xs={24} sm={12}>
                 <div style={{ 
                   textAlign: 'center',
                   backgroundColor: '#ffffff',
-                  padding: '16px',
-                  borderRadius: '8px',
+                  padding: '8px',
+                  borderRadius: '4px',
                   border: '1px solid #e0e7ff'
                 }}>
-                  <Text strong style={{ fontSize: '15px', color: '#374151', display: 'block', marginBottom: '4px' }}>
+                  <Text strong style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '2px' }}>
                     Small Stalls
                   </Text>
-                  <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: '8px' }}>
+                  <Text type="secondary" style={{ fontSize: '10px', display: 'block', marginBottom: '4px' }}>
                     (≤{exhibition.config.pricingRules.smallStallThreshold || 50} sqm)
                   </Text>
-                  <Text strong style={{ fontSize: '20px', color: '#1e40af' }}>
+                  <Text strong style={{ fontSize: '16px', color: '#1e40af' }}>
                     ₹{(exhibition.config.pricingRules.smallStallPrice || 2000).toLocaleString()}
                   </Text>
                 </div>
@@ -337,17 +347,17 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
                 <div style={{ 
                   textAlign: 'center',
                   backgroundColor: '#ffffff',
-                  padding: '16px',
-                  borderRadius: '8px',
+                  padding: '8px',
+                  borderRadius: '4px',
                   border: '1px solid #e0e7ff'
                 }}>
-                  <Text strong style={{ fontSize: '15px', color: '#374151', display: 'block', marginBottom: '4px' }}>
+                  <Text strong style={{ fontSize: '12px', color: '#374151', display: 'block', marginBottom: '2px' }}>
                     Large Stalls
                   </Text>
-                  <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: '8px' }}>
+                  <Text type="secondary" style={{ fontSize: '10px', display: 'block', marginBottom: '4px' }}>
                     (&gt;{exhibition.config.pricingRules.smallStallThreshold || 50} sqm)
                   </Text>
-                  <Text strong style={{ fontSize: '20px', color: '#1e40af' }}>
+                  <Text strong style={{ fontSize: '16px', color: '#1e40af' }}>
                     ₹{(exhibition.config.pricingRules.largeStallPrice || 2500).toLocaleString()}
                   </Text>
                 </div>
@@ -355,8 +365,8 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
             </Row>
             
             <Text type="secondary" style={{ 
-              fontSize: '12px', 
-              marginTop: '12px', 
+              fontSize: '10px', 
+              marginTop: '6px', 
               display: 'block', 
               textAlign: 'center',
               fontStyle: 'italic'
@@ -366,6 +376,40 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
           </div>
         )}
       </Form>
+
+      {/* Check Payment Link */}
+      <Divider style={{ margin: '32px 0 24px 0' }}>
+        <Text type="secondary" style={{ fontSize: '14px' }}>
+          Already made a payment?
+        </Text>
+      </Divider>
+
+      <div style={{ 
+        textAlign: 'center',
+        padding: '16px', 
+        backgroundColor: '#fafbfc', 
+        border: '1px solid #e1e5e9', 
+        borderRadius: '8px',
+        marginBottom: '24px'
+      }}>
+        <Button
+          type="link"
+          icon={<SearchOutlined />}
+          onClick={handleCheckPayment}
+          style={{ 
+            fontSize: '14px',
+            padding: 0,
+            height: 'auto'
+          }}
+        >
+          Check Payment Status & Download Receipt
+        </Button>
+        <div style={{ marginTop: '4px' }}>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            Search by mobile number or stall number
+          </Text>
+        </div>
+      </div>
 
       <div className="step-actions" style={{ textAlign: 'center', marginTop: '32px' }}>
         <Button 

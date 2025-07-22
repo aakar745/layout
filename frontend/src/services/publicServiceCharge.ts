@@ -50,6 +50,10 @@ const publicServiceChargeService = {
   // Get service charge status by ID
   getServiceChargeStatus: (serviceChargeId: string) =>
     publicApi.get(`/public/service-charge/status/${serviceChargeId}`),
+    
+  // Lookup service charges by phone or stall number
+  lookupServiceCharges: (exhibitionId: string, searchData: { phone?: string; stallNumber?: string }) =>
+    publicApi.post(`/public/service-charge/lookup/${exhibitionId}`, searchData),
 };
 
 export default publicServiceChargeService; 

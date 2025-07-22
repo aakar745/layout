@@ -7,7 +7,8 @@ import {
   getServiceChargeStatus,
   downloadReceipt,
   handlePaymentFailure,
-  getPaymentQueueStatus
+  getPaymentQueueStatus,
+  lookupServiceCharge
 } from '../controllers/publicServiceCharge.controller';
 import { getActiveServiceChargeStalls } from '../controllers/serviceChargeStall.controller';
 import { upload, optimizeImage } from '../config/upload';
@@ -181,5 +182,12 @@ router.get('/receipt/:serviceChargeId', downloadReceipt);
  * @access  Public
  */
 router.get('/queue-status', getPaymentQueueStatus);
+
+/**
+ * @route   POST /api/public/service-charge/lookup/:exhibitionId
+ * @desc    Lookup service charge by phone number or stall number
+ * @access  Public
+ */
+router.post('/lookup/:exhibitionId', lookupServiceCharge);
 
 export default router; 

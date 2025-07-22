@@ -1548,4 +1548,73 @@
     height: 44px;
     font-size: 14px;
   }
+  
+  /* Mobile payment table improvements */
+  .mobile-payment-table .ant-table-thead > tr > th {
+    padding: 8px 4px;
+    font-size: 12px;
+    background: #fafafa;
+  }
+  
+  .mobile-payment-table .ant-table-tbody > tr > td {
+    padding: 8px 4px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .mobile-payment-table .ant-btn {
+    font-size: 11px;
+    height: 28px;
+    padding: 0 8px;
+    min-width: 60px;
+  }
+  
+  .mobile-payment-table .ant-table-container {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+}
+
+/* Extra small mobile screens */
+@media (max-width: 576px) {
+  .mobile-payment-table .ant-table-thead > tr > th {
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+  
+  .mobile-payment-table .ant-table-tbody > tr > td {
+    padding: 6px 2px;
+  }
+  
+  .mobile-payment-table .ant-btn {
+    font-size: 10px;
+    height: 26px;
+    padding: 0 6px;
+    min-width: 50px;
+  }
+  
+  /* Make payment details text smaller on very small screens */
+  .mobile-payment-table .ant-typography {
+    font-size: 12px !important;
+  }
+  
+  .mobile-payment-table .ant-tag {
+    font-size: 10px;
+    padding: 0 4px;
+    line-height: 16px;
+  }
+  
+  /* Mobile help section */
+  .public-service-charge-form .ant-card {
+    margin-bottom: 16px;
+  }
+  
+  .public-service-charge-form ul {
+    padding-left: 16px;
+  }
+  
+  .public-service-charge-form li {
+    margin-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
 }
