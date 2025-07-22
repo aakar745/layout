@@ -89,6 +89,12 @@ export const getExhibitionServiceChargeConfig = async (req: Request, res: Respon
  * Create service charge order and initiate payment
  */
 export const createServiceChargeOrder = async (req: Request, res: Response) => {
+  console.log('🏗️ [ORDER CREATION] ===== CREATE ORDER ENDPOINT CALLED =====');
+  console.log('🏗️ [ORDER CREATION] Request Method:', req.method);
+  console.log('🏗️ [ORDER CREATION] Request URL:', req.originalUrl);
+  console.log('🏗️ [ORDER CREATION] Request Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('🏗️ [ORDER CREATION] Request Body:', JSON.stringify(req.body, null, 2));
+  
   try {
     const {
       exhibitionId,
@@ -112,15 +118,18 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
     }
 
     // Find exhibition - support both slug and ID lookups
+    console.log('🔍 [ORDER CREATION] Finding exhibition with ID/slug:', exhibitionId);
     let exhibition;
     if (mongoose.Types.ObjectId.isValid(exhibitionId)) {
       // It's a valid ObjectId, search by _id
+      console.log('🔍 [ORDER CREATION] Valid ObjectId, searching by _id');
       exhibition = await Exhibition.findOne({ 
         _id: exhibitionId,
         isActive: true
       });
     } else {
       // It's likely a slug, search by slug
+      console.log('🔍 [ORDER CREATION] Not an ObjectId, searching by slug');
       exhibition = await Exhibition.findOne({ 
         slug: exhibitionId,
         isActive: true
@@ -128,10 +137,19 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
     }
 
     if (!exhibition) {
+      console.error('❌ [ORDER CREATION] Exhibition not found!');
+      console.error('❌ [ORDER CREATION] Searched for:', exhibitionId);
       return res.status(404).json({ 
         message: 'Exhibition not found or not available' 
       });
     }
+
+    console.log('✅ [ORDER CREATION] Exhibition found:', {
+      id: exhibition._id,
+      name: exhibition.name,
+      slug: exhibition.slug,
+      serviceChargeEnabled: exhibition.serviceChargeConfig?.isEnabled
+    });
 
     if (!exhibition.serviceChargeConfig?.isEnabled) {
       return res.status(403).json({ 
@@ -179,7 +197,8 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
     }
 
     // Create service charge record (PhonePe only)
-    const serviceCharge = new ServiceCharge({
+    console.log('💾 [ORDER CREATION] Creating service charge record...');
+    const serviceChargeData = {
       exhibitionId: exhibition._id,
       vendorName: vendorName.trim(),
       vendorPhone: vendorPhone.trim(),
@@ -193,9 +212,19 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       paymentGateway: 'phonepe',
       paymentStatus: 'pending',
       status: 'submitted'
-    });
-
+    };
+    
+    console.log('💾 [ORDER CREATION] Service charge data:', JSON.stringify(serviceChargeData, null, 2));
+    
+    const serviceCharge = new ServiceCharge(serviceChargeData);
     await serviceCharge.save();
+    
+    console.log('✅ [ORDER CREATION] Service charge saved successfully:', {
+      id: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      amount: serviceCharge.amount,
+      paymentGateway: serviceCharge.paymentGateway
+    });
 
     // Create PhonePe payment order using QUEUE SYSTEM for 100+ users
     try {
@@ -231,12 +260,15 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       });
 
       // Update service charge with PhonePe order details
+      console.log('📱 [ORDER CREATION] Updating service charge with PhonePe order details...');
+      console.log('📱 [ORDER CREATION] PhonePe Order Response:', JSON.stringify(phonePeOrder, null, 2));
+      
       serviceCharge.phonePeMerchantTransactionId = serviceCharge.receiptNumber!;
       if (phonePeOrder.data?.merchantTransactionId) {
         serviceCharge.phonePeOrderId = phonePeOrder.data.merchantTransactionId;
       }
       
-      console.log('[Public Service Charge] Saving PhonePe merchant transaction ID:', {
+      console.log('📱 [ORDER CREATION] Updating service charge fields:', {
         serviceChargeId: serviceCharge._id,
         receiptNumber: serviceCharge.receiptNumber,
         phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
@@ -245,17 +277,11 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       
       await serviceCharge.save();
       
-      console.log('[Public Service Charge] PhonePe merchant transaction ID saved successfully');
+      console.log('✅ [ORDER CREATION] Service charge updated with PhonePe details successfully');
 
-      console.log('[Public Service Charge] PhonePe order created successfully:', {
-        serviceChargeId: serviceCharge._id,
-        receiptNumber: serviceCharge.receiptNumber,
-        merchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
-        amount,
-        redirectUrl: phonePeOrder.data?.instrumentResponse?.redirectInfo?.url
-      });
-
-      return res.status(200).json({
+      console.log('🎯 [ORDER CREATION] PhonePe order creation completed successfully!');
+      
+      const responseData = {
         success: true,
         data: {
           serviceChargeId: serviceCharge._id,
@@ -268,7 +294,12 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
           exhibitionName: exhibition.name,
           description: `Service charge payment for ${exhibition.name}`
         }
-      });
+      };
+      
+      console.log('📤 [ORDER CREATION] Sending response to frontend:', JSON.stringify(responseData, null, 2));
+      console.log('🏗️ [ORDER CREATION] ===== ORDER CREATION COMPLETED =====');
+      
+      return res.status(200).json(responseData);
     } catch (paymentError) {
       console.error('[Public Service Charge] PhonePe order creation failed:', paymentError);
       
@@ -293,10 +324,20 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
  * Handle PhonePe payment callback
  */
 export const handlePhonePeCallback = async (req: Request, res: Response) => {
+  console.log('🎣 [WEBHOOK] ===== PHONEPE WEBHOOK RECEIVED =====');
+  console.log('🎣 [WEBHOOK] Timestamp:', new Date().toISOString());
+  console.log('🎣 [WEBHOOK] Request Method:', req.method);
+  console.log('🎣 [WEBHOOK] Request URL:', req.originalUrl);
+  console.log('🎣 [WEBHOOK] Request IP:', req.ip || req.connection.remoteAddress);
+  
   try {
-    // Verify Basic Authentication from PhonePe webhook
+    // Log all incoming headers for debugging
+    console.log('📋 [WEBHOOK] Headers:', JSON.stringify(req.headers, null, 2));
+    
+    // Verify Basic Authentication from PhonePe webhook (if present)
     const authHeader = req.headers.authorization;
     if (authHeader) {
+      console.log('🔐 [WEBHOOK] Authorization header found, verifying...');
       const [scheme, credentials] = authHeader.split(' ');
       if (scheme === 'Basic' && credentials) {
         const [username, password] = Buffer.from(credentials, 'base64').toString().split(':');
@@ -304,109 +345,196 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
         const WEBHOOK_USERNAME = process.env.PHONEPE_WEBHOOK_USERNAME || 'aakarbooking_webhook';
         const WEBHOOK_PASSWORD = process.env.PHONEPE_WEBHOOK_PASSWORD || 'AAKAr7896';
         
+        console.log('🔐 [WEBHOOK] Auth attempt:', { 
+          providedUsername: username, 
+          expectedUsername: WEBHOOK_USERNAME,
+          passwordMatches: password === WEBHOOK_PASSWORD
+        });
+        
         if (username !== WEBHOOK_USERNAME || password !== WEBHOOK_PASSWORD) {
-          console.error('[PhonePe Callback] Authentication failed:', { username });
+          console.error('❌ [WEBHOOK] Authentication failed:', { username });
           return res.status(401).json({ message: 'Unauthorized' });
         }
         
-        console.log('[PhonePe Callback] Authentication successful');
+        console.log('✅ [WEBHOOK] Authentication successful');
       }
+    } else {
+      console.log('⚠️ [WEBHOOK] No authorization header - proceeding without auth');
     }
     
-    console.log('[PhonePe Callback] Received callback:', req.body);
+    console.log('📥 [WEBHOOK] Raw request body:', JSON.stringify(req.body, null, 2));
     
     const { response } = req.body;
     
     if (!response) {
-      console.error('[PhonePe Callback] Missing response in callback');
+      console.error('❌ [WEBHOOK] Missing response in callback body');
+      console.error('❌ [WEBHOOK] Request body keys:', Object.keys(req.body));
       return res.status(400).json({ message: 'Missing response data' });
     }
+
+    console.log('🔓 [WEBHOOK] Found response field, decoding base64...');
+    console.log('🔓 [WEBHOOK] Base64 response length:', response.length);
+    console.log('🔓 [WEBHOOK] Base64 response (first 100 chars):', response.substring(0, 100));
 
     // PhonePe sends base64 encoded response
     let decodedResponse;
     try {
-      decodedResponse = JSON.parse(Buffer.from(response, 'base64').toString());
-      console.log('[PhonePe Callback] Decoded response:', decodedResponse);
+      const decodedString = Buffer.from(response, 'base64').toString();
+      console.log('🔓 [WEBHOOK] Decoded string:', decodedString);
+      
+      decodedResponse = JSON.parse(decodedString);
+      console.log('✅ [WEBHOOK] Successfully decoded response:', JSON.stringify(decodedResponse, null, 2));
     } catch (decodeError) {
-      console.error('[PhonePe Callback] Failed to decode response:', decodeError);
+      console.error('❌ [WEBHOOK] Failed to decode response:', decodeError);
+      console.error('❌ [WEBHOOK] Raw response:', response);
       return res.status(400).json({ message: 'Invalid response format' });
     }
 
     const { merchantTransactionId, transactionId, amount, state, responseCode } = decodedResponse;
 
+    console.log('🔍 [WEBHOOK] Extracted webhook data:', {
+      merchantTransactionId,
+      transactionId,
+      amount,
+      state,
+      responseCode
+    });
+
     if (!merchantTransactionId) {
-      console.error('[PhonePe Callback] Missing merchant transaction ID');
+      console.error('❌ [WEBHOOK] Missing merchant transaction ID in decoded response');
+      console.error('❌ [WEBHOOK] Available fields:', Object.keys(decodedResponse));
       return res.status(400).json({ message: 'Missing merchant transaction ID' });
     }
 
+    console.log('🔍 [WEBHOOK] Searching for service charge with merchant transaction ID:', merchantTransactionId);
+    
     // Find service charge by merchant transaction ID
-    const serviceCharge = await ServiceCharge.findOne({ 
+    let serviceCharge = await ServiceCharge.findOne({ 
       phonePeMerchantTransactionId: merchantTransactionId 
     });
 
     if (!serviceCharge) {
-      console.error('[PhonePe Callback] Service charge not found for merchant transaction ID:', merchantTransactionId);
-      return res.status(404).json({ message: 'Service charge not found' });
+      console.error('❌ [WEBHOOK] Service charge not found for merchant transaction ID:', merchantTransactionId);
+      
+      // Let's also try searching by receiptNumber as fallback
+      console.log('🔍 [WEBHOOK] Trying fallback search by receiptNumber...');
+      serviceCharge = await ServiceCharge.findOne({ 
+        receiptNumber: merchantTransactionId 
+      });
+      
+      if (serviceCharge) {
+        console.log('✅ [WEBHOOK] Found service charge using receiptNumber fallback:', {
+          id: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber,
+          phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId
+        });
+      } else {
+        console.error('❌ [WEBHOOK] No service charge found with either phonePeMerchantTransactionId or receiptNumber:', merchantTransactionId);
+        return res.status(404).json({ message: 'Service charge not found' });
+      }
     }
+    
+    console.log('✅ [WEBHOOK] Found service charge:', {
+      id: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      currentPaymentStatus: serviceCharge.paymentStatus,
+      currentStatus: serviceCharge.status,
+      amount: serviceCharge.amount
+    });
 
     // Update service charge with callback data
+    console.log('💾 [WEBHOOK] Updating service charge with callback data...');
+    console.log('💾 [WEBHOOK] Setting phonePeTransactionId to:', transactionId);
+    
     serviceCharge.phonePeTransactionId = transactionId;
     
+    console.log('💾 [WEBHOOK] Analyzing payment state and response code:', { state, responseCode });
+    
     if (state === 'COMPLETED' && responseCode === 'SUCCESS') {
+      console.log('✅ [WEBHOOK] Payment successful! Updating status to paid...');
       serviceCharge.paymentStatus = 'paid';
       serviceCharge.status = 'paid';
       serviceCharge.paidAt = new Date();
       
-      console.log('[PhonePe Callback] Payment successful for service charge:', serviceCharge._id);
+      console.log('✅ [WEBHOOK] Payment successful for service charge:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        newStatus: 'paid',
+        paidAt: serviceCharge.paidAt
+      });
     } else {
+      console.log('❌ [WEBHOOK] Payment failed! Updating status to failed...');
       serviceCharge.paymentStatus = 'failed';
       serviceCharge.status = 'cancelled';
       
-      console.log('[PhonePe Callback] Payment failed for service charge:', serviceCharge._id, 'State:', state, 'Code:', responseCode);
+      console.log('❌ [WEBHOOK] Payment failed for service charge:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        state,
+        responseCode,
+        newStatus: 'failed'
+      });
     }
 
+    console.log('💾 [WEBHOOK] Saving updated service charge to database...');
     await serviceCharge.save();
+    console.log('✅ [WEBHOOK] Service charge saved successfully');
 
-    // If payment is successful, handle post-payment processing
-    if (serviceCharge.paymentStatus === 'paid') {
-      try {
-        const exhibition = await Exhibition.findById(serviceCharge.exhibitionId);
+          // If payment is successful, handle post-payment processing
+      if (serviceCharge.paymentStatus === 'paid') {
+        console.log('🎯 [WEBHOOK] Payment successful, starting post-payment processing...');
         
-        if (exhibition) {
-          // Generate receipt PDF
-          try {
-            const receiptPath = await serviceChargeReceiptService.generateReceipt({
-              serviceCharge,
-              exhibition
-            });
+        try {
+          const exhibition = await Exhibition.findById(serviceCharge.exhibitionId);
+          
+          if (exhibition) {
+            console.log('📄 [WEBHOOK] Generating receipt...');
+            // Generate receipt PDF
+            try {
+              const receiptPath = await serviceChargeReceiptService.generateReceipt({
+                serviceCharge,
+                exhibition
+              });
 
-            // Update service charge with receipt path
-            serviceCharge.receiptPath = receiptPath;
-            serviceCharge.receiptGenerated = true;
-            await serviceCharge.save();
+              // Update service charge with receipt path
+              serviceCharge.receiptPath = receiptPath;
+              serviceCharge.receiptGenerated = true;
+              await serviceCharge.save();
 
-            console.log('[PhonePe Callback] Receipt generated successfully:', receiptPath);
-          } catch (receiptError) {
-            console.error('[PhonePe Callback] Receipt generation failed:', receiptError);
+              console.log('✅ [WEBHOOK] Receipt generated successfully:', receiptPath);
+            } catch (receiptError) {
+              console.error('❌ [WEBHOOK] Receipt generation failed:', receiptError);
+            }
+
+            console.log('📧 [WEBHOOK] Processing notifications...');
+            // Send notifications - EMAIL DISABLED for fast payment processing
+            try {
+              // Only notify admin about new payment (no email)
+              await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
+
+              // REMOVED: Receipt email to vendor - no email notifications for fast processing
+              console.log('✅ [WEBHOOK] Admin notifications sent (email disabled for fast processing)');
+            } catch (notificationError) {
+              console.error('❌ [WEBHOOK] Notification sending failed:', notificationError);
+            }
+          } else {
+            console.error('❌ [WEBHOOK] Exhibition not found for post-processing:', serviceCharge.exhibitionId);
           }
-
-          // Send notifications - EMAIL DISABLED for fast payment processing
-          try {
-            // Only notify admin about new payment (no email)
-            await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
-
-            // REMOVED: Receipt email to vendor - no email notifications for fast processing
-            console.log('[PhonePe Callback] Email notifications disabled for fast payment processing');
-          } catch (notificationError) {
-            console.error('[PhonePe Callback] Notification sending failed:', notificationError);
-          }
+        } catch (postProcessingError) {
+          console.error('❌ [WEBHOOK] Post-payment processing failed:', postProcessingError);
         }
-      } catch (postProcessingError) {
-        console.error('[PhonePe Callback] Post-payment processing failed:', postProcessingError);
+      } else {
+        console.log('⚠️ [WEBHOOK] Payment not successful, skipping post-payment processing');
       }
-    }
 
-    return res.status(200).json({ message: 'Callback processed successfully' });
+      console.log('🎯 [WEBHOOK] Webhook processing completed successfully');
+      console.log('🎣 [WEBHOOK] ===== WEBHOOK PROCESSING COMPLETE =====');
+      
+      return res.status(200).json({ 
+        message: 'Callback processed successfully',
+        serviceChargeId: serviceCharge._id,
+        status: serviceCharge.paymentStatus
+      });
   } catch (error) {
     console.error('[PhonePe Callback] Error processing callback:', error);
     return res.status(500).json({ message: 'Internal server error' });

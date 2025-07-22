@@ -64,6 +64,11 @@ export const usePaymentHandler = ({
 
   // Payment processing function
   const handlePayment = async () => {
+    console.log('🚀 [PAYMENT FLOW] ===== STARTING PAYMENT PROCESS =====');
+    console.log('🚀 [PAYMENT FLOW] Exhibition ID:', exhibitionId);
+    console.log('🚀 [PAYMENT FLOW] Form Data:', formData);
+    console.log('🚀 [PAYMENT FLOW] Selected Stall:', selectedStall);
+    
     try {
       setSubmitting(true);
       
@@ -92,25 +97,37 @@ export const usePaymentHandler = ({
         uploadedImage: formData.uploadedImage || ''
       };
 
-      console.log('[Payment] Payment data structure:', {
+      console.log('💰 [PAYMENT FLOW] Payment data structure:', {
         ...paymentData,
         isStallBased: !!(selectedStall || formData.stallArea),
         calculatedAmount: serviceChargeAmount
       });
 
-      console.log('[Payment] Creating PhonePe payment order with data:', paymentData);
+      console.log('📡 [PAYMENT FLOW] Creating PhonePe payment order...');
+      console.log('📡 [PAYMENT FLOW] API Endpoint: /api/public/service-charge/create-order');
+      console.log('📡 [PAYMENT FLOW] Payload:', JSON.stringify(paymentData, null, 2));
       
       const orderResponse = await publicServiceChargeService.createPaymentOrder(paymentData);
       
+      console.log('📡 [PAYMENT FLOW] API Response received:', orderResponse);
+      console.log('📡 [PAYMENT FLOW] Response Status:', orderResponse.status);
+      console.log('📡 [PAYMENT FLOW] Response Data:', JSON.stringify(orderResponse.data, null, 2));
+      
       if (orderResponse.data.success) {
         const orderData = orderResponse.data;
-        console.log('[Payment] PhonePe order created:', orderData);
+        console.log('✅ [PAYMENT FLOW] PhonePe order created successfully!');
         
         // PhonePe redirects to payment page
         if (orderData.data.redirectUrl) {
-          console.log('[Payment] Redirecting to PhonePe payment page:', orderData.data.redirectUrl);
+          console.log('🔄 [PAYMENT FLOW] Service Charge ID:', orderData.data.serviceChargeId);
+          console.log('🔄 [PAYMENT FLOW] Receipt Number:', orderData.data.receiptNumber);
+          console.log('🔄 [PAYMENT FLOW] PhonePe Order ID:', orderData.data.orderId);
+          console.log('🔄 [PAYMENT FLOW] Redirect URL:', orderData.data.redirectUrl);
+          console.log('🔄 [PAYMENT FLOW] ===== REDIRECTING TO PHONEPE =====');
           window.location.href = orderData.data.redirectUrl;
         } else {
+          console.error('❌ [PAYMENT FLOW] PhonePe redirect URL not received!');
+          console.error('❌ [PAYMENT FLOW] Order data:', orderData);
           throw new Error('PhonePe redirect URL not received');
         }
       } else {
@@ -189,9 +206,14 @@ export const usePaymentHandler = ({
 
   // Handle payment redirect
   const handlePaymentRedirect = async () => {
+    console.log('🔄 [PAYMENT REDIRECT] ===== PAYMENT REDIRECT STARTED =====');
+    console.log('🔄 [PAYMENT REDIRECT] URL:', window.location.href);
+    console.log('🔄 [PAYMENT REDIRECT] Pathname:', location.pathname);
+    console.log('🔄 [PAYMENT REDIRECT] Search params:', location.search);
+    
     // Prevent multiple verification attempts
     if (verificationInProgress || paymentVerified) {
-      console.log('[Payment Redirect] Verification already in progress or completed, skipping', {
+      console.log('⚠️ [PAYMENT REDIRECT] Verification already in progress or completed, skipping', {
         verificationInProgress,
         paymentVerified
       });
@@ -213,12 +235,15 @@ export const usePaymentHandler = ({
       // Note: serviceChargeId already extracted above for safeguard check
       const gateway = urlParams.get('gateway');
       
-      console.log('[Payment Redirect] Starting payment verification:', {
+      console.log('🔍 [PAYMENT REDIRECT] Starting payment verification:', {
         serviceChargeId,
         gateway,
         currentPath: location.pathname,
         allUrlParams: Object.fromEntries(urlParams.entries())
       });
+      
+      console.log('📡 [PAYMENT REDIRECT] Fetching service charge status...');
+      console.log('📡 [PAYMENT REDIRECT] API Endpoint: /api/public/service-charge/status/' + serviceChargeId);
       
       if (!serviceChargeId) {
         console.error('[Payment Redirect] Missing service charge ID');
@@ -314,18 +339,28 @@ export const usePaymentHandler = ({
 
       // Handle PhonePe payment verification
       if (gateway === 'phonepe') {
-        console.log('[Payment Redirect] Processing PhonePe payment verification');
+        console.log('📱 [PHONEPE VERIFICATION] Processing PhonePe payment verification');
+        console.log('📱 [PHONEPE VERIFICATION] Service Charge Data:', {
+          id: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber,
+          phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId,
+          paymentStatus: serviceCharge.paymentStatus,
+          status: serviceCharge.status,
+          amount: serviceCharge.amount
+        });
         
         let merchantTransactionId = serviceCharge.phonePeMerchantTransactionId || serviceCharge.receiptNumber;
         
         if (!merchantTransactionId) {
-          console.error('[Payment Redirect] Missing PhonePe merchant transaction ID');
+          console.error('❌ [PHONEPE VERIFICATION] Missing PhonePe merchant transaction ID');
+          console.error('❌ [PHONEPE VERIFICATION] Service charge data:', serviceCharge);
           message.error('Payment verification failed: Missing PhonePe transaction details');
           setCurrentStep(1);
           return;
         }
         
-        console.log('[Payment Redirect] Verifying PhonePe payment for merchant ID:', merchantTransactionId);
+        console.log('📱 [PHONEPE VERIFICATION] Using merchant transaction ID:', merchantTransactionId);
+        console.log('📡 [PHONEPE VERIFICATION] Calling PhonePe verification API...');
         // Only show loading message if no other loading message is active
         message.destroy(); // Clear any existing messages first
         message.loading('Verifying payment with PhonePe...', 0);

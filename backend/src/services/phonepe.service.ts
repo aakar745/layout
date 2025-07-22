@@ -141,10 +141,15 @@ export class PhonePeService {
    * Create a payment order using official PhonePe SDK - OPTIMIZED for high concurrency
    */
   async createOrder(params: CreateOrderParams): Promise<PhonePeOrderResponse> {
-    console.log('[PhonePe] Creating order with params (fast mode):', params);
+    console.log('📱 [PHONEPE SERVICE] ===== CREATING PHONEPE ORDER =====');
+    console.log('📱 [PHONEPE SERVICE] Input params:', JSON.stringify(params, null, 2));
+    console.log('📱 [PHONEPE SERVICE] Environment:', this.env);
+    console.log('📱 [PHONEPE SERVICE] Development mode:', this.isDevelopmentMode);
 
     // Development mode - return mock response FASTER
     if (this.isDevelopmentMode) {
+      console.log('🧪 [PHONEPE SERVICE] Development mode detected, creating mock order...');
+      
       // Minimal delay for faster order creation
       await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
       
@@ -165,23 +170,40 @@ export class PhonePeService {
         }
       };
       
-      console.log('[PhonePe] Mock order created successfully (fast mode):', params.receiptId);
+      console.log('✅ [PHONEPE SERVICE] Mock order created successfully:', {
+        receiptId: params.receiptId,
+        amount: params.amount,
+        redirectUrl: mockResponse.data?.instrumentResponse?.redirectInfo?.url
+      });
+      console.log('📱 [PHONEPE SERVICE] ===== MOCK ORDER CREATION COMPLETE =====');
+      
       return mockResponse;
     }
 
     // Production mode - use official SDK
     try {
-      console.log('[PhonePe] Using official SDK for order creation');
+      console.log('🏭 [PHONEPE SERVICE] Production mode, using official PhonePe SDK...');
+      console.log('🏭 [PHONEPE SERVICE] Merchant ID:', this.clientId);
+      console.log('🏭 [PHONEPE SERVICE] Environment:', this.env);
+      
+      const requestData = {
+        merchantOrderId: params.receiptId,
+        amount: Math.round(params.amount * 100), // Convert to paise
+        redirectUrl: params.redirectUrl
+      };
+      
+      console.log('🏭 [PHONEPE SERVICE] Creating StandardCheckoutPayRequest with:', requestData);
       
       const request = StandardCheckoutPayRequest.builder()
-        .merchantOrderId(params.receiptId)
-        .amount(Math.round(params.amount * 100)) // Convert to paise
-        .redirectUrl(params.redirectUrl)
+        .merchantOrderId(requestData.merchantOrderId)
+        .amount(requestData.amount)
+        .redirectUrl(requestData.redirectUrl)
         .build();
 
+      console.log('📡 [PHONEPE SERVICE] Calling PhonePe SDK pay() method...');
       const response = await this.phonePeClient.pay(request);
       
-      console.log('[PhonePe] SDK order created successfully:', response);
+      console.log('✅ [PHONEPE SERVICE] PhonePe SDK response received:', JSON.stringify(response, null, 2));
       
       // Transform SDK response to our interface format
       const transformedResponse: PhonePeOrderResponse = {
@@ -270,11 +292,17 @@ export class PhonePeService {
    * Check order status using official SDK - OPTIMIZED for high concurrency
    */
   async getOrderStatus(merchantTransactionId: string): Promise<PhonePeOrderStatusResponse> {
+    console.log('🔍 [PHONEPE STATUS] ===== CHECKING PAYMENT STATUS =====');
+    console.log('🔍 [PHONEPE STATUS] Merchant Transaction ID:', merchantTransactionId);
+    console.log('🔍 [PHONEPE STATUS] Environment:', this.env);
+    console.log('🔍 [PHONEPE STATUS] Development mode:', this.isDevelopmentMode);
+    
     try {
-      console.log('[PhonePe] Checking order status for:', merchantTransactionId);
 
       // Development mode - return mock status FASTER
       if (this.isDevelopmentMode) {
+        console.log('🧪 [PHONEPE STATUS] Development mode, returning mock status...');
+        
         // Reduced delay in development mode for faster testing
         await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
         
@@ -295,16 +323,20 @@ export class PhonePeService {
           }
         };
         
-        console.log('[PhonePe] Mock status returned (fast mode)');
+        console.log('✅ [PHONEPE STATUS] Mock status returned:', JSON.stringify(mockStatus, null, 2));
+        console.log('🔍 [PHONEPE STATUS] ===== MOCK STATUS CHECK COMPLETE =====');
         return mockStatus;
       }
 
       // Production mode - use official SDK
-      console.log('[PhonePe] Calling SDK getOrderStatus...');
+      console.log('🏭 [PHONEPE STATUS] Production mode, calling PhonePe SDK...');
+      console.log('📡 [PHONEPE STATUS] Calling getOrderStatus with merchant transaction ID:', merchantTransactionId);
+      
       const response: OrderStatusResponse = await this.phonePeClient.getOrderStatus(merchantTransactionId);
       
       // Log the actual PhonePe response for debugging
-      console.log('[PhonePe] Raw SDK response:', JSON.stringify(response, null, 2));
+      console.log('✅ [PHONEPE STATUS] Raw PhonePe SDK response received:');
+      console.log('📄 [PHONEPE STATUS] Response:', JSON.stringify(response, null, 2));
       
       // According to PhonePe docs, possible states are: PENDING, FAILED, COMPLETED
       const paymentState = response.state || 'PENDING';
@@ -312,8 +344,9 @@ export class PhonePeService {
       const isFailed = paymentState === 'FAILED';
       const isPending = paymentState === 'PENDING';
       
-      console.log('[PhonePe] Payment state analysis:', {
+      console.log('🔍 [PHONEPE STATUS] Payment state analysis:', {
         rawState: response.state,
+        paymentState,
         isCompleted,
         isFailed,
         isPending,
@@ -345,7 +378,8 @@ export class PhonePeService {
         }
       };
       
-      console.log('[PhonePe] Transformed response:', transformedResponse);
+      console.log('✅ [PHONEPE STATUS] Transformed response for application:', JSON.stringify(transformedResponse, null, 2));
+      console.log('🔍 [PHONEPE STATUS] ===== STATUS CHECK COMPLETE =====');
       return transformedResponse;
     } catch (error: any) {
       console.error('[PhonePe] SDK order status check failed:', error);

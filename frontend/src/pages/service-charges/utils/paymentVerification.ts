@@ -10,22 +10,34 @@ export const verifyPaymentWithRetry = async (
   maxRetries = 3,
   retryDelay = 2000
 ): Promise<{ success: boolean; data?: PaymentResult; error?: string }> => {
+  console.log('🔄 [VERIFICATION] ===== STARTING PAYMENT VERIFICATION =====');
+  console.log('🔄 [VERIFICATION] Merchant Transaction ID:', merchantTransactionId);
+  console.log('🔄 [VERIFICATION] Max retries:', maxRetries);
+  console.log('🔄 [VERIFICATION] Retry delay:', retryDelay);
+  
   const verifyPayment = async (retryCount = 0): Promise<{ success: boolean; data?: PaymentResult; error?: string }> => {
     try {
-      console.log(`[Payment Verification] Attempt ${retryCount + 1}/${maxRetries + 1} for merchant ID:`, merchantTransactionId);
+      console.log(`📡 [VERIFICATION] Attempt ${retryCount + 1}/${maxRetries + 1} for merchant ID:`, merchantTransactionId);
+      console.log('📡 [VERIFICATION] Calling API: /api/public/service-charge/verify-phonepe-payment');
+      console.log('📡 [VERIFICATION] Payload:', { merchantTransactionId });
       
       const verifyResponse = await publicServiceChargeService.verifyPhonePePayment({
         merchantTransactionId: merchantTransactionId
       });
 
-      console.log('[Payment Verification] Full response:', verifyResponse);
-      console.log('[Payment Verification] Response data:', verifyResponse.data);
-      console.log('[Payment Verification] Response success:', verifyResponse.data?.success);
+      console.log('📡 [VERIFICATION] API response received:', {
+        status: verifyResponse.status,
+        statusText: verifyResponse.statusText
+      });
+      console.log('📡 [VERIFICATION] Full response:', verifyResponse);
+      console.log('📡 [VERIFICATION] Response data:', verifyResponse.data);
+      console.log('📡 [VERIFICATION] Response success:', verifyResponse.data?.success);
       
       // Check if verification was successful
       if (verifyResponse.data && verifyResponse.data.success) {
-        console.log('[Payment Verification] PhonePe payment verified successfully');
-        console.log('[Payment Verification] Payment result data:', verifyResponse.data.data);
+        console.log('✅ [VERIFICATION] PhonePe payment verified successfully!');
+        console.log('✅ [VERIFICATION] Payment result data:', verifyResponse.data.data);
+        console.log('🔄 [VERIFICATION] ===== VERIFICATION COMPLETE (SUCCESS) =====');
         
         return { success: true, data: verifyResponse.data.data };
       } 
@@ -33,6 +45,14 @@ export const verifyPaymentWithRetry = async (
       // Check if payment is still pending (might need retry)
       const state = verifyResponse.data?.data?.state;
       const isPending = state === 'PENDING' || state === 'PROCESSING';
+      
+      console.log('⚠️ [VERIFICATION] Payment verification failed or pending:', {
+        success: verifyResponse.data?.success,
+        state,
+        isPending,
+        retryCount,
+        maxRetries
+      });
       
       if (isPending && retryCount < maxRetries) {
         console.log(`[Payment Verification] Payment still pending (${state}), retrying in ${retryDelay}ms...`);
