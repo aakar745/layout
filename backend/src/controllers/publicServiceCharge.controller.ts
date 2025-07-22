@@ -294,6 +294,25 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
  */
 export const handlePhonePeCallback = async (req: Request, res: Response) => {
   try {
+    // Verify Basic Authentication from PhonePe webhook
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const [scheme, credentials] = authHeader.split(' ');
+      if (scheme === 'Basic' && credentials) {
+        const [username, password] = Buffer.from(credentials, 'base64').toString().split(':');
+        
+        const WEBHOOK_USERNAME = process.env.PHONEPE_WEBHOOK_USERNAME || 'aakarbooking_webhook';
+        const WEBHOOK_PASSWORD = process.env.PHONEPE_WEBHOOK_PASSWORD || 'AAKAr7896';
+        
+        if (username !== WEBHOOK_USERNAME || password !== WEBHOOK_PASSWORD) {
+          console.error('[PhonePe Callback] Authentication failed:', { username });
+          return res.status(401).json({ message: 'Unauthorized' });
+        }
+        
+        console.log('[PhonePe Callback] Authentication successful');
+      }
+    }
+    
     console.log('[PhonePe Callback] Received callback:', req.body);
     
     const { response } = req.body;
