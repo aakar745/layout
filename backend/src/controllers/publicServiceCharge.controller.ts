@@ -334,29 +334,34 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
     // Log all incoming headers for debugging
     console.log('📋 [WEBHOOK] Headers:', JSON.stringify(req.headers, null, 2));
     
-    // Verify Basic Authentication from PhonePe webhook (if present)
+    // Verify Authentication from PhonePe webhook (if present)
     const authHeader = req.headers.authorization;
     if (authHeader) {
-      console.log('🔐 [WEBHOOK] Authorization header found, verifying...');
-      const [scheme, credentials] = authHeader.split(' ');
-      if (scheme === 'Basic' && credentials) {
+      console.log('🔐 [WEBHOOK] Authorization header found:', authHeader.substring(0, 20) + '...');
+      
+      // Check if it's Basic Auth (old format)
+      if (authHeader.startsWith('Basic ')) {
+        console.log('🔐 [WEBHOOK] Basic Auth detected, verifying...');
+        const [scheme, credentials] = authHeader.split(' ');
         const [username, password] = Buffer.from(credentials, 'base64').toString().split(':');
         
         const WEBHOOK_USERNAME = process.env.PHONEPE_WEBHOOK_USERNAME || 'aakarbooking_webhook';
         const WEBHOOK_PASSWORD = process.env.PHONEPE_WEBHOOK_PASSWORD || 'AAKAr7896';
         
-        console.log('🔐 [WEBHOOK] Auth attempt:', { 
-          providedUsername: username, 
-          expectedUsername: WEBHOOK_USERNAME,
-          passwordMatches: password === WEBHOOK_PASSWORD
-        });
-        
         if (username !== WEBHOOK_USERNAME || password !== WEBHOOK_PASSWORD) {
-          console.error('❌ [WEBHOOK] Authentication failed:', { username });
+          console.error('❌ [WEBHOOK] Basic Auth failed:', { username });
           return res.status(401).json({ message: 'Unauthorized' });
         }
         
-        console.log('✅ [WEBHOOK] Authentication successful');
+        console.log('✅ [WEBHOOK] Basic Authentication successful');
+      } 
+      // PhonePe signature-based auth (new format)
+      else {
+        console.log('🔐 [WEBHOOK] Signature-based auth detected (PhonePe native)');
+        console.log('🔐 [WEBHOOK] Signature length:', authHeader.length);
+        // For now, we'll accept PhonePe's signature-based auth
+        // TODO: Implement proper signature verification if needed
+        console.log('✅ [WEBHOOK] PhonePe signature auth accepted');
       }
     } else {
       console.log('⚠️ [WEBHOOK] No authorization header - proceeding without auth');
@@ -364,30 +369,52 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
     
     console.log('📥 [WEBHOOK] Raw request body:', JSON.stringify(req.body, null, 2));
     
-    const { response } = req.body;
-    
-    if (!response) {
-      console.error('❌ [WEBHOOK] Missing response in callback body');
-      console.error('❌ [WEBHOOK] Request body keys:', Object.keys(req.body));
-      return res.status(400).json({ message: 'Missing response data' });
-    }
-
-    console.log('🔓 [WEBHOOK] Found response field, decoding base64...');
-    console.log('🔓 [WEBHOOK] Base64 response length:', response.length);
-    console.log('🔓 [WEBHOOK] Base64 response (first 100 chars):', response.substring(0, 100));
-
-    // PhonePe sends base64 encoded response
     let decodedResponse;
-    try {
-      const decodedString = Buffer.from(response, 'base64').toString();
-      console.log('🔓 [WEBHOOK] Decoded string:', decodedString);
+    
+    // Handle new PhonePe webhook format (direct JSON)
+    if (req.body.type && req.body.event && req.body.payload) {
+      console.log('🆕 [WEBHOOK] New PhonePe webhook format detected');
+      console.log('🆕 [WEBHOOK] Event type:', req.body.type);
+      console.log('🆕 [WEBHOOK] Event name:', req.body.event);
       
-      decodedResponse = JSON.parse(decodedString);
-      console.log('✅ [WEBHOOK] Successfully decoded response:', JSON.stringify(decodedResponse, null, 2));
-    } catch (decodeError) {
-      console.error('❌ [WEBHOOK] Failed to decode response:', decodeError);
-      console.error('❌ [WEBHOOK] Raw response:', response);
-      return res.status(400).json({ message: 'Invalid response format' });
+      // Extract data from new format
+      const payload = req.body.payload;
+      decodedResponse = {
+        merchantTransactionId: payload.merchantOrderId,
+        transactionId: payload.paymentDetails?.[0]?.transactionId || payload.orderId,
+        amount: payload.amount,
+        state: payload.state,
+        responseCode: payload.state === 'COMPLETED' ? 'SUCCESS' : 'FAILED'
+      };
+      
+      console.log('✅ [WEBHOOK] Converted new format to internal format:', JSON.stringify(decodedResponse, null, 2));
+    }
+    // Handle old PhonePe webhook format (base64 encoded)
+    else if (req.body.response) {
+      console.log('🔓 [WEBHOOK] Old PhonePe webhook format detected, decoding base64...');
+      
+      const response = req.body.response;
+      console.log('🔓 [WEBHOOK] Base64 response length:', response.length);
+      console.log('🔓 [WEBHOOK] Base64 response (first 100 chars):', response.substring(0, 100));
+
+      try {
+        const decodedString = Buffer.from(response, 'base64').toString();
+        console.log('🔓 [WEBHOOK] Decoded string:', decodedString);
+        
+        decodedResponse = JSON.parse(decodedString);
+        console.log('✅ [WEBHOOK] Successfully decoded old format:', JSON.stringify(decodedResponse, null, 2));
+      } catch (decodeError) {
+        console.error('❌ [WEBHOOK] Failed to decode response:', decodeError);
+        console.error('❌ [WEBHOOK] Raw response:', response);
+        return res.status(400).json({ message: 'Invalid response format' });
+      }
+    }
+    // Neither format recognized
+    else {
+      console.error('❌ [WEBHOOK] Unknown webhook format');
+      console.error('❌ [WEBHOOK] Request body keys:', Object.keys(req.body));
+      console.error('❌ [WEBHOOK] Expected either "response" field (old format) or "type/event/payload" fields (new format)');
+      return res.status(400).json({ message: 'Unknown webhook format' });
     }
 
     const { merchantTransactionId, transactionId, amount, state, responseCode } = decodedResponse;
