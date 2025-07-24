@@ -18,7 +18,8 @@ import {
   Upload,
   Divider,
   Tag,
-  Drawer
+  Drawer,
+  Result
 } from 'antd';
 import {
   PlusOutlined,
@@ -31,6 +32,7 @@ import {
   FileTextOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { usePermission } from '../../hooks/reduxHooks';
 import * as XLSX from 'xlsx';
 import dayjs from 'dayjs';
 import {
@@ -54,6 +56,20 @@ interface Exhibition {
 }
 
 const ServiceChargeStallsPage: React.FC = () => {
+  const { hasPermission } = usePermission();
+  
+  // Check if user has permission to view service charges
+  if (!hasPermission('view_service_charges')) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Sorry, you are not authorized to access this page."
+        extra={<Button type="primary" onClick={() => window.location.href = '/dashboard'}>Back to Dashboard</Button>}
+      />
+    );
+  }
+  
   const [stalls, setStalls] = useState<ServiceChargeStall[]>([]);
   const [exhibitions, setExhibitions] = useState<Exhibition[]>([]);
   const [selectedExhibition, setSelectedExhibition] = useState<string>('');
@@ -405,19 +421,21 @@ const ServiceChargeStallsPage: React.FC = () => {
             onClick={() => openEditModal(record)}
             size="small"
           />
-          <Popconfirm
-            title="Are you sure you want to delete this stall?"
-            onConfirm={() => handleDeleteStall(record._id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button
-              type="text"
-              icon={<DeleteOutlined />}
-              danger
-              size="small"
-            />
-          </Popconfirm>
+          {hasPermission('delete_service_charges') && (
+            <Popconfirm
+              title="Are you sure you want to delete this stall?"
+              onConfirm={() => handleDeleteStall(record._id)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button
+                type="text"
+                icon={<DeleteOutlined />}
+                danger
+                size="small"
+              />
+            </Popconfirm>
+          )}
         </Space>
       )
     }

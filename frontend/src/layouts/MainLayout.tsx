@@ -19,6 +19,7 @@ import {
   GiftOutlined,
   MailOutlined,
   CreditCardOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -329,6 +330,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/roles'),
     },
     {
+      key: 'notifications',
+      icon: <BellOutlined />,
+      label: 'Notifications',
+      requiredPermission: 'view_notifications',
+      onClick: () => navigate('/notifications'),
+    },
+    {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Settings',
@@ -401,6 +409,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'analytics': 'analytics_view',
       'index': 'users_view',
       'roles': 'roles_view',
+      'notifications': 'view_notifications',
       'settings': 'settings_view'
     };
     

@@ -27,7 +27,8 @@ import {
   Steps,
   Form,
   InputNumber,
-  Checkbox
+  Checkbox,
+  Result
 } from 'antd';
 import {
   MailOutlined,
@@ -61,6 +62,8 @@ import exhibitionLetterService, {
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../../store/store';
 import { fetchExhibitions } from '../../store/slices/exhibitionSlice';
+import { usePermission } from '../../hooks/reduxHooks';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -70,6 +73,21 @@ const { RangePicker } = DatePicker;
 const { Step } = Steps;
 
 const LettersPage: React.FC = () => {
+  const { hasPermission } = usePermission();
+  const navigate = useNavigate();
+  
+  // Check if user has permission to view letters
+  if (!hasPermission('view_letters')) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Sorry, you are not authorized to access this page."
+        extra={<Button type="primary" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>}
+      />
+    );
+  }
+  
   // Initialize selectedExhibition from localStorage
   const [selectedExhibition, setSelectedExhibition] = useState<string>(() => {
     return localStorage.getItem('letters-selected-exhibition') || '';

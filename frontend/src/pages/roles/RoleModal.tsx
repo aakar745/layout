@@ -32,25 +32,66 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'exhibitions_edit', label: 'Edit Exhibitions', group: 'Exhibitions' },
   { key: 'exhibitions_delete', label: 'Delete Exhibitions', group: 'Exhibitions' },
   
-  { key: 'amenities_view', label: 'View Amenities', group: 'Amenities' },
-  { key: 'amenities_create', label: 'Create Amenities', group: 'Amenities' },
-  { key: 'amenities_edit', label: 'Edit Amenities', group: 'Amenities' },
-  { key: 'amenities_delete', label: 'Delete Amenities', group: 'Amenities' },
+  // Fix format inconsistency and add missing stall permissions
+  { key: 'view_stalls', label: 'View Stalls', group: 'Stalls' },
+  { key: 'create_stalls', label: 'Create Stalls', group: 'Stalls' },
+  { key: 'edit_stalls', label: 'Edit Stalls', group: 'Stalls' },
+  { key: 'delete_stalls', label: 'Delete Stalls', group: 'Stalls' },
   
-  { key: 'bookings_view', label: 'View Bookings', group: 'Bookings' },
-  { key: 'bookings_create', label: 'Create Bookings', group: 'Bookings' },
-  { key: 'bookings_edit', label: 'Edit Bookings', group: 'Bookings' },
-  { key: 'bookings_delete', label: 'Delete Bookings', group: 'Bookings' },
+  { key: 'view_stall_types', label: 'View Stall Types', group: 'Stall Types' },
+  { key: 'create_stall_types', label: 'Create Stall Types', group: 'Stall Types' },
+  { key: 'edit_stall_types', label: 'Edit Stall Types', group: 'Stall Types' },
+  { key: 'delete_stall_types', label: 'Delete Stall Types', group: 'Stall Types' },
   
-  { key: 'invoices_view', label: 'View Invoices', group: 'Invoices' },
-  { key: 'invoices_create', label: 'Create Invoices', group: 'Invoices' },
-  { key: 'invoices_edit', label: 'Edit Invoices', group: 'Invoices' },
-  { key: 'invoices_delete', label: 'Delete Invoices', group: 'Invoices' },
+  // Fix format inconsistency for bookings
+  { key: 'view_bookings', label: 'View Bookings', group: 'Bookings' },
+  { key: 'create_bookings', label: 'Create Bookings', group: 'Bookings' },
+  { key: 'edit_bookings', label: 'Edit Bookings', group: 'Bookings' },
+  { key: 'delete_bookings', label: 'Delete Bookings', group: 'Bookings' },
   
-  { key: 'exhibitors_view', label: 'View Exhibitors', group: 'Exhibitors' },
-  { key: 'exhibitors_create', label: 'Create Exhibitors', group: 'Exhibitors' },
-  { key: 'exhibitors_edit', label: 'Edit Exhibitors', group: 'Exhibitors' },
-  { key: 'exhibitors_delete', label: 'Delete Exhibitors', group: 'Exhibitors' },
+  // Fix format inconsistency for amenities
+  { key: 'view_amenities', label: 'View Amenities', group: 'Amenities' },
+  { key: 'create_amenities', label: 'Create Amenities', group: 'Amenities' },
+  { key: 'edit_amenities', label: 'Edit Amenities', group: 'Amenities' },
+  { key: 'delete_amenities', label: 'Delete Amenities', group: 'Amenities' },
+  
+  // Add missing letters permissions
+  { key: 'view_letters', label: 'View Letters', group: 'Letters' },
+  { key: 'send_letters', label: 'Send Letters', group: 'Letters' },
+  { key: 'delete_letters', label: 'Delete Letters', group: 'Letters' },
+  
+  // Fix format inconsistency for invoices
+  { key: 'view_invoices', label: 'View Invoices', group: 'Invoices' },
+  { key: 'create_invoices', label: 'Create Invoices', group: 'Invoices' },
+  { key: 'edit_invoices', label: 'Edit Invoices', group: 'Invoices' },
+  { key: 'delete_invoices', label: 'Delete Invoices', group: 'Invoices' },
+  
+  // Add missing service charges permissions
+  { key: 'view_service_charges', label: 'View Service Charges', group: 'Service Charges' },
+  { key: 'manage_service_charges', label: 'Manage Service Charges', group: 'Service Charges' },
+  { key: 'create_service_charges', label: 'Create Service Charges', group: 'Service Charges' },
+  { key: 'edit_service_charges', label: 'Edit Service Charges', group: 'Service Charges' },
+  { key: 'delete_service_charges', label: 'Delete Service Charges', group: 'Service Charges' },
+  
+  // Fix format inconsistency for exhibitors
+  { key: 'view_exhibitors', label: 'View Exhibitors', group: 'Exhibitors' },
+  { key: 'create_exhibitors', label: 'Create Exhibitors', group: 'Exhibitors' },
+  { key: 'edit_exhibitors', label: 'Edit Exhibitors', group: 'Exhibitors' },
+  { key: 'delete_exhibitors', label: 'Delete Exhibitors', group: 'Exhibitors' },
+  
+  // Add missing activity permissions
+  { key: 'view_activities', label: 'View Activity Logs', group: 'Activity' },
+  { key: 'manage_activities', label: 'Manage Activity Logs', group: 'Activity' },
+  { key: 'delete_activities', label: 'Delete Activity Logs', group: 'Activity' },
+  
+  // Add missing analytics permissions
+  { key: 'analytics_view', label: 'View Analytics', group: 'Analytics' },
+  { key: 'analytics_export', label: 'Export Analytics', group: 'Analytics' },
+  
+  // Add missing notifications permissions
+  { key: 'view_notifications', label: 'View Notifications', group: 'Notifications' },
+  { key: 'manage_notifications', label: 'Manage Notifications', group: 'Notifications' },
+  { key: 'send_notifications', label: 'Send Notifications', group: 'Notifications' },
   
   { key: 'settings_view', label: 'View Settings', group: 'Settings' },
   { key: 'settings_edit', label: 'Edit Settings', group: 'Settings' },

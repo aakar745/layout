@@ -18,7 +18,8 @@ import {
   Typography,
   Tabs,
   Dropdown,
-  MenuProps
+  MenuProps,
+  Result
 } from 'antd';
 import {
   SearchOutlined,
@@ -39,6 +40,7 @@ import {
   ExclamationCircleOutlined as WarningOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { usePermission } from '../../hooks/reduxHooks';
 import dayjs from 'dayjs';
 import './ServiceCharges.css';
 
@@ -116,6 +118,20 @@ const calculateBaseAmountFromInclusive = (inclusiveAmount: number) => {
 };
 
 const ServiceChargesPage: React.FC = () => {
+  const { hasPermission } = usePermission();
+  
+  // Check if user has permission to view service charges
+  if (!hasPermission('view_service_charges')) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Sorry, you are not authorized to access this page."
+        extra={<Button type="primary" onClick={() => window.location.href = '/dashboard'}>Back to Dashboard</Button>}
+      />
+    );
+  }
+  
   const [serviceCharges, setServiceCharges] = useState<ServiceCharge[]>([]);
   const [stats, setStats] = useState<ServiceChargeStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -565,15 +581,17 @@ const ServiceChargesPage: React.FC = () => {
       label: 'Download Receipt',
       icon: <FileTextOutlined />,
     },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'delete',
-      label: 'Delete',
-      icon: <DeleteOutlined />,
-      danger: true,
-    },
+    ...(hasPermission('delete_service_charges') ? [
+      {
+        type: 'divider' as const,
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: <DeleteOutlined />,
+        danger: true,
+      }
+    ] : [])
   ];
 
   const handleActionClick = (key: string, record: ServiceCharge) => {
@@ -987,14 +1005,16 @@ const ServiceChargesPage: React.FC = () => {
           >
             Settings
           </Button>
-          <Button
-            icon={<DeleteOutlined />}
-            onClick={() => setDeleteAllModalVisible(true)}
-            danger
-            disabled={!stats || stats.totalCharges === 0}
-          >
-            Delete All
-          </Button>
+          {hasPermission('delete_service_charges') && (
+            <Button
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteAllModalVisible(true)}
+              danger
+              disabled={!stats || stats.totalCharges === 0}
+            >
+              Delete All
+            </Button>
+          )}
         </Space>
       </div>
 

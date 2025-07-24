@@ -13,7 +13,9 @@ import {
   Divider,
   Empty,
   Alert,
-  Tooltip
+  Tooltip,
+  Result,
+  Button
 } from 'antd';
 import {
   BarChartOutlined,
@@ -33,7 +35,9 @@ import {
   BankOutlined,
   BuildOutlined
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import analyticsService, { AnalyticsData, ExhibitionOverview } from '../../services/analytics';
+import { usePermission } from '../../hooks/reduxHooks';
 import styled from '@emotion/styled';
 import dayjs from 'dayjs';
 import './Analytics.css';
@@ -141,6 +145,21 @@ const ProgressCard = styled.div`
 `;
 
 const Analytics: React.FC = () => {
+  const { hasPermission } = usePermission();
+  const navigate = useNavigate();
+  
+  // Check if user has permission to view analytics
+  if (!hasPermission('analytics_view')) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Sorry, you are not authorized to access this page."
+        extra={<Button type="primary" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>}
+      />
+    );
+  }
+  
   const [loading, setLoading] = useState(true);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [selectedExhibition, setSelectedExhibition] = useState<string | null>(null);

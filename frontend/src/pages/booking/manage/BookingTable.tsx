@@ -843,7 +843,7 @@ Exhibition Management Team`;
                 >
                   Update Status
                 </Menu.Item>
-                {props.hasPermission('bookings_delete') && (
+                {props.hasPermission('delete_bookings') && (
                   <Menu.Item 
                     key="delete" 
                     icon={<DeleteOutlined />}

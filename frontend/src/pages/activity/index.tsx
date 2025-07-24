@@ -18,7 +18,8 @@ import {
   Alert,
   Spin,
   Empty,
-  Badge
+  Badge,
+  Result
 } from 'antd';
 import {
   SearchOutlined,
@@ -35,8 +36,10 @@ import {
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import activityService, { Activity, ActivityStats, ActivityFilters, GetActivitiesParams } from '../../services/activity.service';
+import { usePermission } from '../../hooks/reduxHooks';
 import './Activity.css';
 
 const { Title, Text } = Typography;
@@ -44,6 +47,21 @@ const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 const ActivityPage: React.FC = () => {
+  const { hasPermission } = usePermission();
+  const navigate = useNavigate();
+  
+  // Check if user has permission to view activities
+  if (!hasPermission('view_activities')) {
+    return (
+      <Result
+        status="403"
+        title="403"
+        subTitle="Sorry, you are not authorized to access this page."
+        extra={<Button type="primary" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>}
+      />
+    );
+  }
+  
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
