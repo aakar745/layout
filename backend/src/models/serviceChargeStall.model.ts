@@ -25,7 +25,7 @@ const serviceChargeStallSchema = new Schema({
     type: String,
     required: true,
     trim: true,
-    maxlength: [20, 'Stall number cannot exceed 20 characters']
+    maxlength: [50, 'Stall number cannot exceed 50 characters']
   },
   exhibitorCompanyName: {
     type: String,
