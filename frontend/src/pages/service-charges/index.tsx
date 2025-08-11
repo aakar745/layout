@@ -37,12 +37,14 @@ import {
   CalendarOutlined,
   FieldTimeOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined as WarningOutlined
+  ExclamationCircleOutlined as WarningOutlined,
+  SyncOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/reduxHooks';
 import dayjs from 'dayjs';
 import './ServiceCharges.css';
+import SyncTransactionModal from './components/SyncTransactionModal';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -149,6 +151,7 @@ const ServiceChargesPage: React.FC = () => {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteAllModalVisible, setDeleteAllModalVisible] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [syncModalVisible, setSyncModalVisible] = useState(false);
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
@@ -1005,6 +1008,14 @@ const ServiceChargesPage: React.FC = () => {
           >
             Settings
           </Button>
+          <Button
+            icon={<SyncOutlined />}
+            onClick={() => setSyncModalVisible(true)}
+            type="dashed"
+            style={{ borderColor: '#52c41a', color: '#52c41a' }}
+          >
+            Sync PhonePe
+          </Button>
           {hasPermission('delete_service_charges') && (
             <Button
               icon={<DeleteOutlined />}
@@ -1669,6 +1680,18 @@ const ServiceChargesPage: React.FC = () => {
           </Space>
         </div>
       </Modal>
+
+      {/* Sync Transaction Modal */}
+      <SyncTransactionModal
+        visible={syncModalVisible}
+        onClose={() => setSyncModalVisible(false)}
+        onSuccess={() => {
+          setSyncModalVisible(false);
+          fetchServiceCharges();
+          fetchStats();
+        }}
+        selectedExhibition={exhibitions.find(ex => ex._id === filters.exhibitionId)}
+      />
     </div>
   );
 };

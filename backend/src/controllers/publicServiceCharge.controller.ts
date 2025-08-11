@@ -379,12 +379,27 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       
       // Extract data from new format
       const payload = req.body.payload;
+      
+      // Enhanced state handling for 2025 compliance
+      const paymentState = payload.state || 'PENDING';
+      let responseCode = 'PENDING';
+      
+      if (paymentState === 'COMPLETED') {
+        responseCode = 'SUCCESS';
+      } else if (paymentState === 'FAILED') {
+        responseCode = 'FAILED';
+      } else if (['PENDING', 'INITIATED', 'PROCESSING'].includes(paymentState)) {
+        responseCode = 'PENDING';
+      } else {
+        responseCode = 'UNKNOWN';
+      }
+      
       decodedResponse = {
         merchantTransactionId: payload.merchantOrderId,
         transactionId: payload.paymentDetails?.[0]?.transactionId || payload.orderId,
         amount: payload.amount,
-        state: payload.state,
-        responseCode: payload.state === 'COMPLETED' ? 'SUCCESS' : 'FAILED'
+        state: paymentState,
+        responseCode: responseCode
       };
       
       console.log('✅ [WEBHOOK] Converted new format to internal format:', JSON.stringify(decodedResponse, null, 2));
@@ -477,6 +492,7 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
     
     console.log('💾 [WEBHOOK] Analyzing payment state and response code:', { state, responseCode });
     
+    // Enhanced state handling for 2025 compliance - handle ALL possible states
     if (state === 'COMPLETED' && responseCode === 'SUCCESS') {
       console.log('✅ [WEBHOOK] Payment successful! Updating status to paid...');
       serviceCharge.paymentStatus = 'paid';
@@ -489,8 +505,8 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
         newStatus: 'paid',
         paidAt: serviceCharge.paidAt
       });
-    } else {
-      console.log('❌ [WEBHOOK] Payment failed! Updating status to failed...');
+    } else if (state === 'FAILED' && responseCode === 'FAILED') {
+      console.log('❌ [WEBHOOK] Payment explicitly failed! Updating status to failed...');
       serviceCharge.paymentStatus = 'failed';
       serviceCharge.status = 'cancelled';
       
@@ -500,6 +516,29 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
         state,
         responseCode,
         newStatus: 'failed'
+      });
+    } else if (['PENDING', 'INITIATED', 'PROCESSING'].includes(state)) {
+      console.log('⏳ [WEBHOOK] Payment is pending/processing! Keeping current status...');
+      // Don't update payment status for pending transactions
+      // They may complete later via another webhook or sync
+      
+      console.log('⏳ [WEBHOOK] Payment pending for service charge:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        state,
+        responseCode,
+        currentStatus: serviceCharge.paymentStatus
+      });
+    } else {
+      console.log('⚠️ [WEBHOOK] Unknown payment state! Logging for investigation...');
+      serviceCharge.adminNotes = `Webhook received unknown state: ${state}, responseCode: ${responseCode}`;
+      
+      console.log('⚠️ [WEBHOOK] Unknown state for service charge:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        state,
+        responseCode,
+        currentStatus: serviceCharge.paymentStatus
       });
     }
 

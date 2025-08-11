@@ -338,11 +338,11 @@ export class PhonePeService {
       console.log('✅ [PHONEPE STATUS] Raw PhonePe SDK response received:');
       console.log('📄 [PHONEPE STATUS] Response:', JSON.stringify(response, null, 2));
       
-      // According to PhonePe docs, possible states are: PENDING, FAILED, COMPLETED
+      // Enhanced for 2025: PhonePe has more states than just PENDING, FAILED, COMPLETED
       const paymentState = response.state || 'PENDING';
       const isCompleted = paymentState === 'COMPLETED';
       const isFailed = paymentState === 'FAILED';
-      const isPending = paymentState === 'PENDING';
+      const isPending = ['PENDING', 'INITIATED', 'PROCESSING'].includes(paymentState);
       
       console.log('🔍 [PHONEPE STATUS] Payment state analysis:', {
         rawState: response.state,
@@ -353,13 +353,14 @@ export class PhonePeService {
         amount: response.amount
       });
       
-      // Transform SDK response to our interface format
+      // Transform SDK response to our interface format with enhanced 2025 state handling
       const transformedResponse: PhonePeOrderStatusResponse = {
         success: isCompleted,
         code: isCompleted ? 'PAYMENT_SUCCESS' : (isFailed ? 'PAYMENT_FAILED' : 'PAYMENT_PENDING'),
         message: isCompleted ? 'Payment completed successfully' : 
                 isFailed ? 'Payment failed' : 
-                'Payment is pending',
+                isPending ? `Payment is ${paymentState.toLowerCase()}` :
+                `Payment status: ${paymentState}`,
         data: {
           merchantId: this.clientId,
           merchantTransactionId: merchantTransactionId,
