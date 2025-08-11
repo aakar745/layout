@@ -27,6 +27,7 @@ import {
 } from '@ant-design/icons';
 import api from '../../../services/api';
 import { formatCurrency } from '../../../utils/format';
+import MissingTransactionDetector from './MissingTransactionDetector';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -49,6 +50,8 @@ interface SyncResult {
     previousStatus: string;
     newStatus: string;
   };
+  phonePeData?: any;
+  suggestion?: string;
 }
 
 const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
@@ -59,10 +62,12 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [syncMode, setSyncMode] = useState<'single' | 'detect' | 'bulk'>('single');
+  const [syncMode, setSyncMode] = useState<'single' | 'detect' | 'bulk' | 'autoDetect'>('single');
   const [result, setResult] = useState<SyncResult | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [detectionResults, setDetectionResults] = useState<any>(null);
+  const [showVendorForm, setShowVendorForm] = useState(false);
+  const [phonePeData, setPhonePeData] = useState<any>(null);
 
   const handleClose = () => {
     form.resetFields();
@@ -78,10 +83,26 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
     setCurrentStep(1);
     
     try {
-      const response = await api.post('/sync/phonepe/transaction', {
+      const requestData: any = {
         receiptNumber: values.receiptNumber,
         phonePeTransactionId: values.phonePeTransactionId
-      });
+      };
+      
+      // Add vendor details if provided
+      if (values.vendorName) {
+        requestData.vendorDetails = {
+          vendorName: values.vendorName,
+          companyName: values.companyName,
+          vendorPhone: values.vendorPhone,
+          stallNumber: values.stallNumber,
+          exhibitionId: values.exhibitionId || selectedExhibition?._id,
+          serviceType: values.serviceType,
+          stallArea: values.stallArea,
+          exhibitorCompanyName: values.exhibitorCompanyName
+        };
+      }
+
+      const response = await api.post('/sync/phonepe/transaction', requestData);
 
       setResult(response.data);
       setCurrentStep(2);
@@ -90,10 +111,22 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         onSuccess();
       }
     } catch (error: any) {
+      const errorData = error.response?.data;
+      
+      // Check if this is a missing record that can be created
+      if (error.response?.status === 404 && errorData?.phonePeData && errorData?.suggestion) {
+        setPhonePeData(errorData.phonePeData);
+        setShowVendorForm(true);
+        setCurrentStep(0); // Go back to form to add vendor details
+        setLoading(false);
+        return;
+      }
+      
       setResult({
         success: false,
-        message: error.response?.data?.message || 'Failed to sync transaction',
-        data: error.response?.data
+        message: errorData?.message || 'Failed to sync transaction',
+        data: errorData,
+        suggestion: errorData?.suggestion
       });
       setCurrentStep(2);
     } finally {
@@ -208,13 +241,33 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
       onFinish={onFinish}
       autoComplete="off"
     >
-      <Alert
-        message="Sync Single Transaction"
-        description="Enter either the receipt number (e.g., SC2025000189) or PhonePe transaction ID to sync a specific transaction."
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      {showVendorForm && phonePeData && (
+        <Alert
+          message="Transaction Found in PhonePe - Missing Record"
+          description={
+            <div>
+              <p>Found successful payment in PhonePe but no record in database:</p>
+              <p><strong>Amount:</strong> ₹{(phonePeData.amount / 100).toLocaleString()}</p>
+              <p><strong>Transaction ID:</strong> {phonePeData.transactionId}</p>
+              <p><strong>Status:</strong> {phonePeData.state}</p>
+              <p>Please provide vendor details to create the missing record:</p>
+            </div>
+          }
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      
+      {!showVendorForm && (
+        <Alert
+          message="Sync Single Transaction"
+          description="Enter either the receipt number (e.g., SC2025000189) or PhonePe transaction ID to sync a specific transaction."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       
       <Form.Item
         name="receiptNumber"
@@ -234,31 +287,107 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         <Input
           placeholder="e.g., SC2025000189"
           prefix={<FileTextOutlined />}
+          disabled={showVendorForm}
         />
       </Form.Item>
 
-      <Divider>OR</Divider>
+      {!showVendorForm && (
+        <>
+          <Divider>OR</Divider>
 
-      <Form.Item
-        name="phonePeTransactionId"
-        label="PhonePe Transaction ID"
-      >
-        <Input
-          placeholder="e.g., OM2507311245055380005375"
-          prefix={<DollarOutlined />}
-        />
-      </Form.Item>
+          <Form.Item
+            name="phonePeTransactionId"
+            label="PhonePe Transaction ID"
+          >
+            <Input
+              placeholder="e.g., OM2507311245055380005375"
+              prefix={<DollarOutlined />}
+            />
+          </Form.Item>
+        </>
+      )}
+
+      {showVendorForm && (
+        <>
+          <Divider>Vendor Details</Divider>
+          
+          <Form.Item
+            name="vendorName"
+            label="Vendor Name"
+            rules={[{ required: true, message: 'Vendor name is required' }]}
+          >
+            <Input placeholder="Enter vendor name" />
+          </Form.Item>
+
+          <Form.Item
+            name="companyName"
+            label="Company Name"
+            rules={[{ required: true, message: 'Company name is required' }]}
+            initialValue="ONEX INDUSTRIES (P) LTD"
+          >
+            <Input placeholder="Enter company name" />
+          </Form.Item>
+
+          <Form.Item
+            name="vendorPhone"
+            label="Vendor Phone"
+          >
+            <Input placeholder="Enter phone number (optional)" />
+          </Form.Item>
+
+          <Form.Item
+            name="stallNumber"
+            label="Stall Number"
+            rules={[{ required: true, message: 'Stall number is required' }]}
+          >
+            <Select placeholder="Select stall number">
+              <Option value="111A (16x8)">111A (16x8)</Option>
+              <Option value="111 (17x13)">111 (17x13)</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="serviceType"
+            label="Service Type"
+            initialValue="Service Charge"
+          >
+            <Input placeholder="Service type" />
+          </Form.Item>
+
+          <Form.Item
+            name="exhibitorCompanyName"
+            label="Exhibitor Company Name"
+            initialValue="ONEX INDUSTRIES (P) LTD"
+          >
+            <Input placeholder="Exhibitor company name" />
+          </Form.Item>
+        </>
+      )}
 
       <Form.Item>
-        <Button
-          type="primary"
-          htmlType="submit"
-          loading={loading}
-          icon={<SyncOutlined />}
-          block
-        >
-          Sync Transaction
-        </Button>
+        <Space style={{ width: '100%' }}>
+          {showVendorForm && (
+            <Button
+              onClick={() => {
+                setShowVendorForm(false);
+                setPhonePeData(null);
+                form.resetFields();
+              }}
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={loading}
+            icon={<SyncOutlined />}
+            block={!showVendorForm}
+            style={showVendorForm ? { flex: 1 } : {}}
+          >
+            {showVendorForm ? 'Create & Sync Transaction' : 'Sync Transaction'}
+          </Button>
+        </Space>
       </Form.Item>
     </Form>
   );
@@ -522,12 +651,28 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
                       Bulk Sync Transactions
                     </Space>
                   </Option>
+                  <Option value="autoDetect">
+                    <Space>
+                      <SearchOutlined />
+                      Auto-Detect Missing
+                    </Space>
+                  </Option>
                 </Select>
               </Space>
             </Card>
 
             {syncMode === 'single' && renderSingleSyncForm()}
             {syncMode === 'detect' && renderDetectMissingForm()}
+            {syncMode === 'autoDetect' && (
+              <MissingTransactionDetector
+                selectedExhibition={selectedExhibition}
+                onTransactionFound={(receiptNumber) => {
+                  setSyncMode('single');
+                  form.setFieldsValue({ receiptNumber });
+                  setShowVendorForm(false);
+                }}
+              />
+            )}
             {syncMode === 'bulk' && renderBulkSyncForm()}
           </>
         )}

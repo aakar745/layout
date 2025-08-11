@@ -82,12 +82,64 @@ export const syncPhonePeTransaction = async (req: Request, res: Response) => {
       
       previousStatus = serviceCharge.paymentStatus;
     } else {
-      console.log('❌ [SYNC] No existing service charge found, cannot create from PhonePe data alone');
-      return res.status(404).json({
-        success: false,
-        message: 'Service charge record not found in system. Cannot create from PhonePe data alone.',
-        suggestion: 'The original order was never created in our system. Please check if the order creation failed initially.'
-      });
+      console.log('❌ [SYNC] No existing service charge found');
+      
+      // Check if we have vendor details to create missing record
+      const { vendorDetails } = req.body;
+      
+      if (!vendorDetails || !vendorDetails.vendorName || !vendorDetails.companyName || !vendorDetails.stallNumber) {
+        console.log('❌ [SYNC] Cannot create record - missing vendor details');
+        return res.status(404).json({
+          success: false,
+          message: 'Service charge record not found in system.',
+          suggestion: 'To create missing record, provide vendorDetails: { vendorName, companyName, vendorPhone, stallNumber, exhibitionId }',
+          phonePeData: phonePeData // Return PhonePe data for reference
+        });
+      }
+      
+      console.log('🔧 [SYNC] Creating missing service charge record from PhonePe data...');
+      
+      // Create missing service charge record
+      try {
+        const newServiceChargeData = {
+          exhibitionId: vendorDetails.exhibitionId,
+          vendorName: vendorDetails.vendorName,
+          vendorPhone: vendorDetails.vendorPhone || 'Unknown',
+          companyName: vendorDetails.companyName,
+          exhibitorCompanyName: vendorDetails.exhibitorCompanyName,
+          stallNumber: vendorDetails.stallNumber,
+          stallArea: vendorDetails.stallArea,
+          serviceType: vendorDetails.serviceType || 'Service Charge',
+          amount: phonePeData.amount / 100, // Convert from paise to rupees
+          paymentGateway: 'phonepe',
+          paymentStatus: 'pending', // Will be updated below based on PhonePe status
+          status: 'submitted',
+          receiptNumber: merchantTransactionId,
+          phonePeMerchantTransactionId: merchantTransactionId,
+          phonePeTransactionId: phonePeData.transactionId,
+          adminNotes: `Created from PhonePe sync on ${new Date().toISOString()} - Original order was missing from database`
+        };
+        
+        serviceCharge = new ServiceCharge(newServiceChargeData);
+        await serviceCharge.save();
+        
+        console.log('✅ [SYNC] Created missing service charge record:', {
+          id: serviceCharge._id,
+          receiptNumber: serviceCharge.receiptNumber,
+          amount: serviceCharge.amount
+        });
+        
+        wasCreated = true;
+        previousStatus = 'missing';
+        
+      } catch (createError) {
+        console.error('❌ [SYNC] Failed to create missing service charge:', createError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create missing service charge record',
+          error: (createError as Error).message
+        });
+      }
     }
 
     // Update service charge based on PhonePe status
