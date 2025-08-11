@@ -111,9 +111,10 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         onSuccess();
       }
     } catch (error: any) {
-      const errorData = error.response?.data;
+      console.log('🔍 [SYNC DEBUG] Full error object:', error);
+      console.log('🔍 [SYNC DEBUG] Error response object:', error.response);
       
-      console.log('🔍 [SYNC DEBUG] Error response:', error.response?.status, errorData);
+      const errorData = error.response?.data;
       
       // Check if this is a missing record that can be created
       if (error.response?.status === 404 && errorData?.phonePeData && errorData?.suggestion) {
