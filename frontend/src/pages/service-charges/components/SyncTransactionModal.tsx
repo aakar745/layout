@@ -49,14 +49,12 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
   const [result, setResult] = useState<SyncResult | null>(null);
 
   const handleClose = () => {
-    console.log('🔍 [SYNC MODAL] Modal closing...');
     form.resetFields();
     setResult(null);
     onClose();
   };
 
   const handleSingleSync = async (values: any) => {
-    console.log('🔍 [SYNC MODAL] Starting sync with values:', values);
     setLoading(true);
     
     try {
@@ -65,17 +63,12 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         phonePeTransactionId: values.phonePeTransactionId
       };
 
-      console.log('🔍 [SYNC MODAL] Making API call...');
       const response = await api.post('/sync/phonepe/transaction', requestData);
-      console.log('🔍 [SYNC MODAL] API response received:', response.data);
-      
       setResult(response.data);
-      console.log('🔍 [SYNC MODAL] Result set, modal should show result');
       
       // Don't call onSuccess() for status checks - we just want to display the result
       // The modal should only close when user manually closes it
     } catch (error: any) {
-      console.log('🔍 [SYNC MODAL] API call failed:', error);
       const errorData = error.response?.data;
       
       setResult({
@@ -84,7 +77,6 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         data: errorData,
         phonePeData: errorData?.phonePeData // Include PhonePe data for status display
       });
-      console.log('🔍 [SYNC MODAL] Error result set, modal should show error');
     } finally {
       setLoading(false);
     }
