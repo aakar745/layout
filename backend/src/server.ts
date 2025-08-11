@@ -42,7 +42,6 @@ import serviceChargeRoutes from './routes/serviceCharge.routes';
 import publicServiceChargeRoutes from './routes/publicServiceCharge.routes';
 import serviceChargeStallRoutes from './routes/serviceChargeStall.routes';
 import syncRoutes from './routes/sync.routes';
-import detectorRoutes from './routes/detector.routes';
 
 // Load environment variables
 dotenv.config();
@@ -342,7 +341,6 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/service-charges', serviceChargeRoutes);
 app.use('/api/service-charge-stalls', serviceChargeStallRoutes);
 app.use('/api/sync', syncRoutes);
-app.use('/api/detector', detectorRoutes);
 
 // Direct endpoint for exhibitor booking that doesn't rely on the global middleware order
 app.post('/api/test-booking', authenticateExhibitor, async (req, res) => {
