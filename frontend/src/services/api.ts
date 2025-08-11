@@ -117,6 +117,12 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    
+    // For sync endpoints, preserve the full error response for better error handling
+    if (error.config?.url?.includes('/sync/')) {
+      return Promise.reject(error);
+    }
+    
     const message = error.response?.data?.message || error.message;
     return Promise.reject(new Error(message));
   }

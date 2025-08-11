@@ -111,26 +111,15 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
         onSuccess();
       }
     } catch (error: any) {
-      console.log('🔍 [SYNC DEBUG] Full error object:', error);
-      console.log('🔍 [SYNC DEBUG] Error response object:', error.response);
-      
       const errorData = error.response?.data;
       
       // Check if this is a missing record that can be created
       if (error.response?.status === 404 && errorData?.phonePeData && errorData?.suggestion) {
-        console.log('✅ [SYNC DEBUG] Conditions met - showing vendor form');
-        console.log('📋 [SYNC DEBUG] PhonePe Data:', errorData.phonePeData);
         setPhonePeData(errorData.phonePeData);
         setShowVendorForm(true);
         setCurrentStep(0); // Go back to form to add vendor details
         setLoading(false);
         return;
-      } else {
-        console.log('❌ [SYNC DEBUG] Conditions not met:', {
-          status: error.response?.status,
-          hasPhonePeData: !!errorData?.phonePeData,
-          hasSuggestion: !!errorData?.suggestion
-        });
       }
       
       setResult({
