@@ -81,7 +81,7 @@ const notificationSchema = new Schema(
     },
     entityType: {
       type: String,
-      enum: ['Booking', 'Exhibition', 'Invoice', 'User', 'Exhibitor']
+      enum: ['Booking', 'Exhibition', 'Invoice', 'User', 'Exhibitor', 'ServiceCharge']
     },
     data: {
       type: Schema.Types.Mixed
