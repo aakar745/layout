@@ -46,6 +46,35 @@ import syncRoutes from './routes/sync.routes';
 // Load environment variables
 dotenv.config();
 
+// ✅ SECURITY: Validate critical environment variables at startup
+const validateEnvironmentVariables = () => {
+  const requiredVars = {
+    'PHONEPE_WEBHOOK_USERNAME': process.env.PHONEPE_WEBHOOK_USERNAME,
+    'PHONEPE_WEBHOOK_PASSWORD': process.env.PHONEPE_WEBHOOK_PASSWORD,
+    'JWT_SECRET': process.env.JWT_SECRET,
+    'MONGODB_URI': process.env.MONGODB_URI
+  };
+
+  const missingVars = Object.entries(requiredVars)
+    .filter(([key, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingVars.length > 0) {
+    console.error('❌ [STARTUP] Critical environment variables missing:');
+    missingVars.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error('❌ [STARTUP] Application cannot start without these variables.');
+    console.error('💡 [STARTUP] Please check your .env file and ensure all required variables are set.');
+    process.exit(1);
+  }
+
+  console.log('✅ [STARTUP] All critical environment variables validated successfully');
+};
+
+// Validate environment variables before starting the application
+validateEnvironmentVariables();
+
 const app: Express = express();
 const port = process.env.PORT || 5000;
 

@@ -174,10 +174,16 @@ serviceChargeSchema.index({ createdAt: -1 });
 serviceChargeSchema.index({ uploadedImage: 1 });
 serviceChargeSchema.index({ phonePeMerchantTransactionId: 1 });
 
+// 🔒 RACE CONDITION FIX: Index for atomic receipt generation operations
+serviceChargeSchema.index({ receiptGenerated: 1 });
+
 // Compound indexes for common query combinations
 serviceChargeSchema.index({ exhibitionId: 1, paymentStatus: 1 });
 serviceChargeSchema.index({ exhibitionId: 1, status: 1 });
 serviceChargeSchema.index({ exhibitionId: 1, createdAt: -1 });
+
+// 🔒 ATOMIC OPERATIONS: Compound index for receipt generation race condition prevention
+serviceChargeSchema.index({ _id: 1, receiptGenerated: 1 });
 
 // Generate receipt number before saving using atomic counter
 serviceChargeSchema.pre('save', async function(next) {

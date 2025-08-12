@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import ServiceCharge from '../models/serviceCharge.model';
 import Exhibition from '../models/exhibition.model';
 import { phonePeService } from '../services/phonepe.service';
 import { serviceChargeReceiptService } from '../services/serviceChargeReceipt.service';
 import { serviceChargeNotificationService } from '../services/serviceChargeNotification.service';
 import { paymentQueueService } from '../services/paymentQueue.service';
+import { webhookDeduplicationService } from '../services/webhookDeduplication.service';
 
 /**
  * Get exhibition service charge configuration
@@ -321,6 +323,92 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
 };
 
 /**
+ * Validate PhonePe webhook authentication
+ * Implements both Basic Auth and SHA256 signature verification for 2025 compliance
+ */
+const validateWebhookAuthentication = (authHeader: string | undefined, requestBody: any): boolean => {
+  // ✅ SECURITY FIX: Require authentication header
+  if (!authHeader) {
+    console.error('❌ [WEBHOOK] No authorization header provided - webhook rejected');
+    return false;
+  }
+
+  // ✅ SECURITY FIX: Require environment variables (no hardcoded fallbacks)
+  const webhookUsername = process.env.PHONEPE_WEBHOOK_USERNAME;
+  const webhookPassword = process.env.PHONEPE_WEBHOOK_PASSWORD;
+  
+  if (!webhookUsername || !webhookPassword) {
+    console.error('❌ [WEBHOOK] Webhook credentials not configured in environment variables');
+    return false;
+  }
+
+  console.log('🔐 [WEBHOOK] Authorization header found:', authHeader.substring(0, 20) + '...');
+  
+  // Handle Basic Auth (legacy format)
+  if (authHeader.startsWith('Basic ')) {
+    console.log('🔐 [WEBHOOK] Basic Auth detected, verifying...');
+    
+    try {
+      const [scheme, credentials] = authHeader.split(' ');
+      const [username, password] = Buffer.from(credentials, 'base64').toString().split(':');
+      
+      const isValidBasicAuth = username === webhookUsername && password === webhookPassword;
+      
+      if (!isValidBasicAuth) {
+        console.error('❌ [WEBHOOK] Basic Auth validation failed:', { 
+          providedUsername: username,
+          expectedUsername: webhookUsername 
+        });
+        return false;
+      }
+      
+      console.log('✅ [WEBHOOK] Basic Authentication successful');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ [WEBHOOK] Basic Auth parsing error:', error);
+      return false;
+    }
+  }
+  
+  // Handle SHA256 signature-based auth (PhonePe 2025 format)
+  else {
+    console.log('🔐 [WEBHOOK] SHA256 signature-based auth detected (PhonePe 2025)');
+    
+    try {
+      // Create expected signature using SHA256(username:password)
+      const expectedSignature = crypto
+        .createHash('sha256')
+        .update(`${webhookUsername}:${webhookPassword}`)
+        .digest('hex');
+      
+      // Remove any 'SHA256=' prefix if present
+      const providedSignature = authHeader.replace(/^SHA256=/, '').toLowerCase();
+      const normalizedExpected = expectedSignature.toLowerCase();
+      
+      const isValidSignature = providedSignature === normalizedExpected;
+      
+      if (!isValidSignature) {
+        console.error('❌ [WEBHOOK] SHA256 signature validation failed:', {
+          providedLength: providedSignature.length,
+          expectedLength: normalizedExpected.length,
+          providedStart: providedSignature.substring(0, 10),
+          expectedStart: normalizedExpected.substring(0, 10)
+        });
+        return false;
+      }
+      
+      console.log('✅ [WEBHOOK] SHA256 signature authentication successful');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ [WEBHOOK] SHA256 signature parsing error:', error);
+      return false;
+    }
+  }
+};
+
+/**
  * Handle PhonePe payment callback
  */
 export const handlePhonePeCallback = async (req: Request, res: Response) => {
@@ -330,42 +418,25 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
   console.log('🎣 [WEBHOOK] Request URL:', req.originalUrl);
   console.log('🎣 [WEBHOOK] Request IP:', req.ip || req.connection.remoteAddress);
   
+  // Declare variables in function scope for error handling
+  let eventData: any;
+  let deduplicationResult: any;
+  
   try {
-    // Log all incoming headers for debugging
-    console.log('📋 [WEBHOOK] Headers:', JSON.stringify(req.headers, null, 2));
-    
-    // Verify Authentication from PhonePe webhook (if present)
+    // ✅ SECURITY FIX: Validate webhook authentication FIRST
     const authHeader = req.headers.authorization;
-    if (authHeader) {
-      console.log('🔐 [WEBHOOK] Authorization header found:', authHeader.substring(0, 20) + '...');
-      
-      // Check if it's Basic Auth (old format)
-      if (authHeader.startsWith('Basic ')) {
-        console.log('🔐 [WEBHOOK] Basic Auth detected, verifying...');
-        const [scheme, credentials] = authHeader.split(' ');
-        const [username, password] = Buffer.from(credentials, 'base64').toString().split(':');
-        
-        const WEBHOOK_USERNAME = process.env.PHONEPE_WEBHOOK_USERNAME || 'aakarbooking_webhook';
-        const WEBHOOK_PASSWORD = process.env.PHONEPE_WEBHOOK_PASSWORD || 'AAKAr7896';
-        
-        if (username !== WEBHOOK_USERNAME || password !== WEBHOOK_PASSWORD) {
-          console.error('❌ [WEBHOOK] Basic Auth failed:', { username });
-          return res.status(401).json({ message: 'Unauthorized' });
-        }
-        
-        console.log('✅ [WEBHOOK] Basic Authentication successful');
-      } 
-      // PhonePe signature-based auth (new format)
-      else {
-        console.log('🔐 [WEBHOOK] Signature-based auth detected (PhonePe native)');
-        console.log('🔐 [WEBHOOK] Signature length:', authHeader.length);
-        // For now, we'll accept PhonePe's signature-based auth
-        // TODO: Implement proper signature verification if needed
-        console.log('✅ [WEBHOOK] PhonePe signature auth accepted');
-      }
-    } else {
-      console.log('⚠️ [WEBHOOK] No authorization header - proceeding without auth');
+    const isAuthenticated = validateWebhookAuthentication(authHeader, req.body);
+    
+    if (!isAuthenticated) {
+      console.error('❌ [WEBHOOK] Webhook authentication failed - request rejected');
+      return res.status(401).json({ 
+        message: 'Unauthorized',
+        error: 'Webhook authentication failed'
+      });
     }
+    
+    // Log headers only after authentication (avoid logging sensitive data from invalid requests)
+    console.log('📋 [WEBHOOK] Authentication successful, processing webhook...');
     
     console.log('📥 [WEBHOOK] Raw request body:', JSON.stringify(req.body, null, 2));
     
@@ -447,6 +518,47 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       console.error('❌ [WEBHOOK] Available fields:', Object.keys(decodedResponse));
       return res.status(400).json({ message: 'Missing merchant transaction ID' });
     }
+
+    // 🔒 IDEMPOTENCY CHECK: Prevent duplicate webhook processing
+    console.log('🔍 [WEBHOOK] Checking for duplicate webhook events...');
+    eventData = {
+      merchantTransactionId,
+      transactionId,
+      state,
+      responseCode,
+      rawPayload: req.body,
+      eventType: 'phonepe_callback' as const,
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.headers['user-agent']
+    };
+    
+    deduplicationResult = await webhookDeduplicationService.checkDuplication(eventData);
+    
+    if (!deduplicationResult.shouldProcess) {
+      console.log('🔄 [WEBHOOK] Duplicate webhook detected - skipping processing');
+      console.log('🔄 [WEBHOOK] Reason:', deduplicationResult.reason);
+      
+      // Record the duplicate event
+      await webhookDeduplicationService.recordEvent(
+        eventData,
+        deduplicationResult.eventId,
+        'skipped'
+      );
+      
+      // Update retry count if it's a retry
+      if (deduplicationResult.existingEvent) {
+        await webhookDeduplicationService.updateEventRetry(deduplicationResult.eventId);
+      }
+      
+      return res.status(200).json({ 
+        message: 'Webhook already processed',
+        eventId: deduplicationResult.eventId,
+        reason: deduplicationResult.reason
+      });
+    }
+    
+    console.log('✅ [WEBHOOK] New webhook event confirmed - proceeding with processing');
+    console.log('✅ [WEBHOOK] Event ID:', deduplicationResult.eventId);
 
     console.log('🔍 [WEBHOOK] Searching for service charge with merchant transaction ID:', merchantTransactionId);
     
@@ -554,22 +666,52 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
           const exhibition = await Exhibition.findById(serviceCharge.exhibitionId);
           
           if (exhibition) {
-            console.log('📄 [WEBHOOK] Generating receipt...');
-            // Generate receipt PDF
-            try {
-              const receiptPath = await serviceChargeReceiptService.generateReceipt({
-                serviceCharge,
-                exhibition
-              });
+            console.log('📄 [WEBHOOK] Checking receipt generation status...');
+            
+            // 🔒 ATOMIC OPERATION: Use findOneAndUpdate to prevent race conditions
+            // Only ONE webhook will successfully set receiptGenerated = true
+            const updatedServiceCharge = await ServiceCharge.findOneAndUpdate(
+              { 
+                _id: serviceCharge._id,
+                receiptGenerated: { $ne: true }  // Only if receipt not already generated
+              },
+              { 
+                $set: { receiptGenerated: true }  // Atomic flag set
+              },
+              { new: true }
+            );
+            
+            if (updatedServiceCharge) {
+              console.log('🏆 [WEBHOOK] This webhook won the race - generating receipt');
+              
+              try {
+                const receiptPath = await serviceChargeReceiptService.generateReceipt({
+                  serviceCharge: updatedServiceCharge,
+                  exhibition
+                });
 
-              // Update service charge with receipt path
-              serviceCharge.receiptPath = receiptPath;
-              serviceCharge.receiptGenerated = true;
-              await serviceCharge.save();
+                // Update service charge with receipt path
+                updatedServiceCharge.receiptPath = receiptPath;
+                await updatedServiceCharge.save();
 
-              console.log('✅ [WEBHOOK] Receipt generated successfully:', receiptPath);
-            } catch (receiptError) {
-              console.error('❌ [WEBHOOK] Receipt generation failed:', receiptError);
+                console.log('✅ [WEBHOOK] Receipt generated successfully:', receiptPath);
+                
+                // Update the serviceCharge object for notification processing
+                serviceCharge.receiptPath = receiptPath;
+                serviceCharge.receiptGenerated = true;
+                
+              } catch (receiptError) {
+                console.error('❌ [WEBHOOK] Receipt generation failed:', receiptError);
+                
+                // 🔄 ROLLBACK: Reset the flag so another webhook can try
+                await ServiceCharge.findByIdAndUpdate(serviceCharge._id, {
+                  $set: { receiptGenerated: false }
+                });
+                
+                console.log('🔄 [WEBHOOK] Receipt flag reset due to generation failure');
+              }
+            } else {
+              console.log('🏃 [WEBHOOK] Another webhook already generating receipt - skipping duplicate generation');
             }
 
             console.log('📧 [WEBHOOK] Processing notifications...');
@@ -594,15 +736,39 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       }
 
       console.log('🎯 [WEBHOOK] Webhook processing completed successfully');
+      
+      // 📝 IDEMPOTENCY: Record successful webhook processing
+      await webhookDeduplicationService.recordEvent(
+        eventData,
+        deduplicationResult.eventId,
+        'processed',
+        serviceCharge._id.toString()
+      );
+      
       console.log('🎣 [WEBHOOK] ===== WEBHOOK PROCESSING COMPLETE =====');
       
       return res.status(200).json({ 
         message: 'Callback processed successfully',
         serviceChargeId: serviceCharge._id,
-        status: serviceCharge.paymentStatus
+        status: serviceCharge.paymentStatus,
+        eventId: deduplicationResult.eventId
       });
   } catch (error) {
     console.error('[PhonePe Callback] Error processing callback:', error);
+    
+    // 📝 IDEMPOTENCY: Record failed webhook processing
+    try {
+      if (typeof eventData !== 'undefined' && typeof deduplicationResult !== 'undefined') {
+        await webhookDeduplicationService.recordEvent(
+          eventData,
+          deduplicationResult.eventId,
+          'failed'
+        );
+      }
+    } catch (recordError) {
+      console.error('[PhonePe Callback] Error recording failed webhook:', recordError);
+    }
+    
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -666,23 +832,47 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
 
           console.log('[PhonePe Verify] Payment status updated to paid');
 
-          // Generate receipt if not already generated
-          if (!serviceCharge.receiptGenerated) {
+          // 🔒 ATOMIC OPERATION: Generate receipt if not already generated
+          const updatedServiceCharge = await ServiceCharge.findOneAndUpdate(
+            { 
+              _id: serviceCharge._id,
+              receiptGenerated: { $ne: true }  // Only if receipt not already generated
+            },
+            { 
+              $set: { receiptGenerated: true }  // Atomic flag set
+            },
+            { new: true }
+          );
+          
+          if (updatedServiceCharge) {
+            console.log('🏆 [PhonePe Verify] This request won the race - generating receipt');
+            
             try {
               const receiptPath = await serviceChargeReceiptService.generateReceipt({
-                serviceCharge,
+                serviceCharge: updatedServiceCharge,
                 exhibition
               });
 
-              serviceCharge.receiptPath = receiptPath;
-              serviceCharge.receiptGenerated = true;
-              await serviceCharge.save();
+              updatedServiceCharge.receiptPath = receiptPath;
+              await updatedServiceCharge.save();
 
               console.log('[PhonePe Verify] Receipt generated successfully:', receiptPath);
+              
+              // Update the serviceCharge object for notification processing
+              serviceCharge.receiptPath = receiptPath;
+              serviceCharge.receiptGenerated = true;
+              
             } catch (receiptError) {
               console.error('[PhonePe Verify] Receipt generation failed:', receiptError);
+              
+              // 🔄 ROLLBACK: Reset the flag so another request can try
+              await ServiceCharge.findByIdAndUpdate(serviceCharge._id, {
+                $set: { receiptGenerated: false }
+              });
+              
+              console.log('🔄 [PhonePe Verify] Receipt flag reset due to generation failure');
             }
-
+            
             // Send notifications - EMAIL DISABLED for fast payment processing
             try {
               // Only notify admin about new payment (no email)
@@ -693,6 +883,8 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
             } catch (notificationError) {
               console.error('[PhonePe Verify] Notification sending failed:', notificationError);
             }
+          } else {
+            console.log('🏃 [PhonePe Verify] Receipt already generated by another process - skipping');
           }
         }
 
@@ -937,17 +1129,21 @@ export const lookupServiceCharge = async (req: Request, res: Response) => {
     
     if (phone && stallNumber) {
       // If both are provided, search for either match
+      // Escape special regex characters in stall number for safe regex matching
+      const escapedStallNumber = stallNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       searchQuery.$or = [
         { vendorPhone: phone },
-        { stallNumber: stallNumber }
+        { stallNumber: { $regex: escapedStallNumber, $options: 'i' } } // Case-insensitive partial match for stall number
       ];
-      console.log('🔍 [LOOKUP] Searching by phone OR stall number');
+      console.log('🔍 [LOOKUP] Searching by phone OR stall number (partial match)');
     } else if (phone) {
       searchQuery.vendorPhone = phone;
       console.log('🔍 [LOOKUP] Searching by phone number only');
     } else if (stallNumber) {
-      searchQuery.stallNumber = stallNumber;
-      console.log('🔍 [LOOKUP] Searching by stall number only');
+      // Escape special regex characters in stall number for safe regex matching
+      const escapedStallNumber = stallNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      searchQuery.stallNumber = { $regex: escapedStallNumber, $options: 'i' }; // Case-insensitive partial match for stall number
+      console.log('🔍 [LOOKUP] Searching by stall number only (partial match)');
     }
 
     console.log('🔍 [LOOKUP] Search query:', JSON.stringify(searchQuery, null, 2));

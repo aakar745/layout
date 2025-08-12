@@ -351,7 +351,7 @@ const PaymentLookup: React.FC = () => {
               >
                 <Alert
                   message="Search Options"
-                  description="You can search using either your mobile number OR stall number. You don't need to provide both."
+                  description="You can search using either your mobile number OR stall number. For stall numbers, you can enter partial matches (e.g., 'A2' will find 'A2 (5x5)', 'A2-B', etc.). You don't need to provide both."
                   type="info"
                   showIcon
                   style={{ marginBottom: '24px' }}
@@ -360,11 +360,37 @@ const PaymentLookup: React.FC = () => {
                 <Form.Item
                   name="phone"
                   label="Mobile Number"
+                  rules={[
+                    {
+                      validator: (_, value) => {
+                        if (!value) return Promise.resolve(); // Optional field
+                        if (!/^\d+$/.test(value)) {
+                          return Promise.reject(new Error('Mobile number must contain only numbers'));
+                        }
+                        if (value.length !== 10) {
+                          return Promise.reject(new Error('Mobile number must be exactly 10 digits'));
+                        }
+                        return Promise.resolve();
+                      }
+                    }
+                  ]}
                 >
                   <Input
                     prefix={<PhoneOutlined />}
-                    placeholder="Enter your mobile number"
+                    placeholder="Enter 10-digit mobile number"
                     size="large"
+                    maxLength={10}
+                    onKeyPress={(e) => {
+                      // Allow only numbers
+                      if (!/[0-9]/.test(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={(e) => {
+                      // Remove any non-numeric characters
+                      const numericValue = e.target.value.replace(/\D/g, '');
+                      e.target.value = numericValue;
+                    }}
                   />
                 </Form.Item>
 
@@ -378,7 +404,7 @@ const PaymentLookup: React.FC = () => {
                 >
                   <Input
                     prefix={<ShopOutlined />}
-                    placeholder="Enter your stall number"
+                    placeholder="Enter stall number (e.g., A2, B15, etc.)"
                     size="large"
                   />
                 </Form.Item>
@@ -441,7 +467,9 @@ const PaymentLookup: React.FC = () => {
                 <Text strong>Can't find your payment?</Text>
               </Paragraph>
               <ul>
-                <li>Make sure you're using the same mobile number or stall number used during payment</li>
+                <li>Make sure you're using the same mobile number used during payment</li>
+                <li>For stall numbers, you can use partial matches (e.g., 'A2' will find 'A2 (5x5)', 'A2-Block1', etc.)</li>
+                <li>Search is case-insensitive, so 'a2' and 'A2' will both work</li>
                 <li>Check if you're searching in the correct exhibition</li>
                 <li>If you just made a payment, please wait a few minutes for it to be processed</li>
                 <li>For technical support, please contact the exhibition organizers</li>

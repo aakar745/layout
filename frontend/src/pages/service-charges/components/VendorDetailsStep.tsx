@@ -90,16 +90,40 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
           <Col xs={24} sm={24} md={12}>
             <Form.Item
               name="vendorPhone"
-              label="Phone Number"
+              label="Mobile Number"
               rules={[
-                { required: true, message: 'Please enter phone number' },
-                { 
-                  pattern: /^[+]?[0-9\s\-()]{10,15}$/, 
-                  message: 'Please enter a valid phone number (10-15 digits)' 
+                { required: true, message: 'Please enter mobile number' },
+                {
+                  validator: (_, value) => {
+                    if (!value) return Promise.resolve();
+                    if (!/^\d+$/.test(value)) {
+                      return Promise.reject(new Error('Mobile number must contain only numbers'));
+                    }
+                    if (value.length !== 10) {
+                      return Promise.reject(new Error('Mobile number must be exactly 10 digits'));
+                    }
+                    return Promise.resolve();
+                  }
                 }
               ]}
             >
-              <Input prefix={<PhoneOutlined />} placeholder="Enter phone number" size="large" />
+              <Input 
+                prefix={<PhoneOutlined />} 
+                placeholder="Enter 10-digit mobile number" 
+                size="large"
+                maxLength={10}
+                onKeyPress={(e) => {
+                  // Allow only numbers
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                onChange={(e) => {
+                  // Remove any non-numeric characters
+                  const numericValue = e.target.value.replace(/\D/g, '');
+                  e.target.value = numericValue;
+                }}
+              />
             </Form.Item>
           </Col>
           <Col xs={24} sm={24} md={12}>
