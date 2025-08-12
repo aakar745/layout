@@ -8,6 +8,10 @@ import { serviceChargeReceiptService } from '../services/serviceChargeReceipt.se
 import { serviceChargeNotificationService } from '../services/serviceChargeNotification.service';
 import { paymentQueueService } from '../services/paymentQueue.service';
 import { webhookDeduplicationService } from '../services/webhookDeduplication.service';
+import { logSystemActivity } from '../services/activity.service';
+import { createNotification } from './notification.controller';
+import { NotificationType, NotificationPriority } from '../models/notification.model';
+import { emitToAdmins } from '../services/socket.service';
 
 /**
  * Get exhibition service charge configuration
@@ -448,6 +452,12 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
       console.log('🆕 [WEBHOOK] Event type:', req.body.type);
       console.log('🆕 [WEBHOOK] Event name:', req.body.event);
       
+      // 💰 REFUND WEBHOOK HANDLING - Detect and route refund events
+      if (req.body.type && req.body.type.startsWith('pg.refund')) {
+        console.log('💰 [REFUND WEBHOOK] Refund event detected - routing to refund handler');
+        return handleRefundWebhook(req, res);
+      }
+      
       // Extract data from new format
       const payload = req.body.payload;
       
@@ -720,8 +730,67 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
               // Only notify admin about new payment (no email)
               await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
 
+              // 🚀 REAL-TIME: Send targeted notification to exhibition owner/assigned users
+              if (exhibition.createdBy) {
+                await createNotification(
+                  exhibition.createdBy,
+                  'admin',
+                  'Service Charge Payment Received',
+                  `Payment of ₹${serviceCharge.amount.toLocaleString('en-IN')} received from ${serviceCharge.vendorName} for ${exhibition.name}`,
+                  NotificationType.SERVICE_CHARGE_PAYMENT,
+                  {
+                    priority: NotificationPriority.HIGH,
+                    entityId: serviceCharge._id,
+                    entityType: 'ServiceCharge',
+                    data: {
+                      receiptNumber: serviceCharge.receiptNumber,
+                      amount: serviceCharge.amount,
+                      vendorName: serviceCharge.vendorName,
+                      companyName: serviceCharge.companyName,
+                      stallNumber: serviceCharge.stallNumber,
+                      exhibitionName: exhibition.name,
+                      paymentStatus: serviceCharge.paymentStatus,
+                      paidAt: serviceCharge.paidAt
+                    }
+                  }
+                );
+              }
+
+              // 🚀 REAL-TIME: Emit Socket.IO event for immediate table updates
+              console.log('🔄 [WEBHOOK] Emitting real-time service charge update...');
+              emitToAdmins('service_charge_updated', {
+                serviceCharge: {
+                  _id: serviceCharge._id,
+                  receiptNumber: serviceCharge.receiptNumber,
+                  vendorName: serviceCharge.vendorName,
+                  vendorPhone: serviceCharge.vendorPhone,
+                  companyName: serviceCharge.companyName,
+                  stallNumber: serviceCharge.stallNumber,
+                  serviceType: serviceCharge.serviceType,
+                  amount: serviceCharge.amount,
+                  paymentStatus: serviceCharge.paymentStatus,
+                  status: serviceCharge.status,
+                  paidAt: serviceCharge.paidAt,
+                  createdAt: serviceCharge.createdAt,
+                  updatedAt: new Date(),
+                  exhibitionId: {
+                    _id: exhibition._id,
+                    name: exhibition.name,
+                    venue: exhibition.venue
+                  },
+                  receiptGenerated: serviceCharge.receiptGenerated,
+                  receiptPath: serviceCharge.receiptPath
+                },
+                action: 'payment_received',
+                exhibition: {
+                  _id: exhibition._id,
+                  name: exhibition.name,
+                  venue: exhibition.venue
+                }
+              });
+
               // REMOVED: Receipt email to vendor - no email notifications for fast processing
-              console.log('✅ [WEBHOOK] Admin notifications sent (email disabled for fast processing)');
+              console.log('✅ [WEBHOOK] Admin notifications and real-time updates sent (email disabled for fast processing)');
             } catch (notificationError) {
               console.error('❌ [WEBHOOK] Notification sending failed:', notificationError);
             }
@@ -878,8 +947,67 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
               // Only notify admin about new payment (no email)
               await serviceChargeNotificationService.notifyNewServiceCharge(serviceCharge, exhibition);
 
+              // 🚀 REAL-TIME: Send targeted notification to exhibition owner/assigned users
+              if (exhibition.createdBy) {
+                await createNotification(
+                  exhibition.createdBy,
+                  'admin',
+                  'Service Charge Payment Received',
+                  `Payment of ₹${serviceCharge.amount.toLocaleString('en-IN')} received from ${serviceCharge.vendorName} for ${exhibition.name}`,
+                  NotificationType.SERVICE_CHARGE_PAYMENT,
+                  {
+                    priority: NotificationPriority.HIGH,
+                    entityId: serviceCharge._id,
+                    entityType: 'ServiceCharge',
+                    data: {
+                      receiptNumber: serviceCharge.receiptNumber,
+                      amount: serviceCharge.amount,
+                      vendorName: serviceCharge.vendorName,
+                      companyName: serviceCharge.companyName,
+                      stallNumber: serviceCharge.stallNumber,
+                      exhibitionName: exhibition.name,
+                      paymentStatus: serviceCharge.paymentStatus,
+                      paidAt: serviceCharge.paidAt
+                    }
+                  }
+                );
+              }
+
+              // 🚀 REAL-TIME: Emit Socket.IO event for immediate table updates
+              console.log('[PhonePe Verify] Emitting real-time service charge update...');
+              emitToAdmins('service_charge_updated', {
+                serviceCharge: {
+                  _id: serviceCharge._id,
+                  receiptNumber: serviceCharge.receiptNumber,
+                  vendorName: serviceCharge.vendorName,
+                  vendorPhone: serviceCharge.vendorPhone,
+                  companyName: serviceCharge.companyName,
+                  stallNumber: serviceCharge.stallNumber,
+                  serviceType: serviceCharge.serviceType,
+                  amount: serviceCharge.amount,
+                  paymentStatus: serviceCharge.paymentStatus,
+                  status: serviceCharge.status,
+                  paidAt: serviceCharge.paidAt,
+                  createdAt: serviceCharge.createdAt,
+                  updatedAt: new Date(),
+                  exhibitionId: {
+                    _id: exhibition._id,
+                    name: exhibition.name,
+                    venue: exhibition.venue
+                  },
+                  receiptGenerated: serviceCharge.receiptGenerated,
+                  receiptPath: serviceCharge.receiptPath
+                },
+                action: 'payment_received',
+                exhibition: {
+                  _id: exhibition._id,
+                  name: exhibition.name,
+                  venue: exhibition.venue
+                }
+              });
+
               // REMOVED: Receipt email to vendor - no email notifications for fast processing
-              console.log('[PhonePe Verify] Email notifications disabled for fast payment processing');
+              console.log('[PhonePe Verify] Admin notifications and real-time updates sent (email disabled for fast processing)');
             } catch (notificationError) {
               console.error('[PhonePe Verify] Notification sending failed:', notificationError);
             }
@@ -1198,6 +1326,261 @@ export const lookupServiceCharge = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Error looking up service charge',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * Handle PhonePe refund webhook events
+ * Processes pg.refund.completed, pg.refund.failed, and pg.refund.accepted events
+ */
+const handleRefundWebhook = async (req: Request, res: Response) => {
+  console.log('💰 [REFUND WEBHOOK] ===== PHONEPE REFUND WEBHOOK RECEIVED =====');
+  console.log('💰 [REFUND WEBHOOK] Timestamp:', new Date().toISOString());
+  console.log('💰 [REFUND WEBHOOK] Event Type:', req.body.type);
+  console.log('💰 [REFUND WEBHOOK] Event Name:', req.body.event);
+  
+  // Declare variables for error handling
+  let eventData: any;
+  let deduplicationResult: any;
+  
+  try {
+    const { type, event, payload } = req.body;
+    
+    console.log('💰 [REFUND WEBHOOK] Refund payload:', JSON.stringify(payload, null, 2));
+    
+    // Extract refund data from payload
+    const {
+      refundId,
+      originalMerchantOrderId,
+      amount: refundAmount,
+      state,
+      timestamp,
+      errorCode,
+      detailedErrorCode
+    } = payload;
+    
+    console.log('💰 [REFUND WEBHOOK] Extracted refund data:', {
+      refundId,
+      originalMerchantOrderId,
+      refundAmount,
+      state,
+      timestamp,
+      errorCode,
+      detailedErrorCode
+    });
+    
+    if (!originalMerchantOrderId) {
+      console.error('❌ [REFUND WEBHOOK] Missing originalMerchantOrderId in refund payload');
+      return res.status(400).json({ 
+        message: 'Missing originalMerchantOrderId in refund payload' 
+      });
+    }
+    
+    // 🔒 IDEMPOTENCY CHECK: Prevent duplicate refund webhook processing
+    console.log('🔍 [REFUND WEBHOOK] Checking for duplicate refund webhook events...');
+    eventData = {
+      merchantTransactionId: originalMerchantOrderId,
+      transactionId: refundId,
+      state: state,
+      responseCode: state === 'COMPLETED' ? 'SUCCESS' : state === 'FAILED' ? 'FAILED' : 'PENDING',
+      rawPayload: req.body,
+      eventType: 'phonepe_refund_callback' as const,
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.headers['user-agent']
+    };
+    
+    deduplicationResult = await webhookDeduplicationService.checkDuplication(eventData);
+    
+    if (!deduplicationResult.shouldProcess) {
+      console.log('🔄 [REFUND WEBHOOK] Duplicate refund webhook detected - skipping processing');
+      console.log('🔄 [REFUND WEBHOOK] Reason:', deduplicationResult.reason);
+      
+      // Record the duplicate event
+      await webhookDeduplicationService.recordEvent(
+        eventData,
+        deduplicationResult.eventId,
+        'skipped'
+      );
+      
+      return res.status(200).json({ 
+        message: 'Refund webhook already processed',
+        eventId: deduplicationResult.eventId,
+        reason: deduplicationResult.reason
+      });
+    }
+    
+    console.log('✅ [REFUND WEBHOOK] New refund webhook event confirmed - proceeding with processing');
+    console.log('✅ [REFUND WEBHOOK] Event ID:', deduplicationResult.eventId);
+    
+    // Find service charge by original merchant transaction ID
+    console.log('🔍 [REFUND WEBHOOK] Searching for service charge with merchant transaction ID:', originalMerchantOrderId);
+    
+    const serviceCharge = await ServiceCharge.findOne({ 
+      phonePeMerchantTransactionId: originalMerchantOrderId 
+    });
+    
+    if (!serviceCharge) {
+      console.error('❌ [REFUND WEBHOOK] Service charge not found for merchant transaction ID:', originalMerchantOrderId);
+      
+      // Record failed event
+      await webhookDeduplicationService.recordEvent(
+        eventData,
+        deduplicationResult.eventId,
+        'failed'
+      );
+      
+      return res.status(404).json({ 
+        message: 'Service charge not found for refund',
+        originalMerchantOrderId
+      });
+    }
+    
+    console.log('✅ [REFUND WEBHOOK] Service charge found:', {
+      id: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      currentPaymentStatus: serviceCharge.paymentStatus,
+      currentStatus: serviceCharge.status
+    });
+    
+    // Process refund based on state
+    if (type === 'pg.refund.completed' && state === 'COMPLETED') {
+      console.log('✅ [REFUND WEBHOOK] Refund completed successfully - updating status');
+      
+      // Update service charge status to refunded
+      serviceCharge.paymentStatus = 'refunded';
+      // Keep the main status as 'paid' but mark payment as refunded
+      // This maintains the service completion status while showing refund
+      
+      // Add refund information to admin notes
+      const refundNote = `Refund processed via PhonePe webhook. Refund ID: ${refundId}, Amount: ₹${(refundAmount / 100).toFixed(2)}, Timestamp: ${new Date(timestamp * 1000).toISOString()}`;
+      serviceCharge.adminNotes = serviceCharge.adminNotes 
+        ? `${serviceCharge.adminNotes}\n\n${refundNote}`
+        : refundNote;
+      
+      await serviceCharge.save();
+      
+      console.log('✅ [REFUND WEBHOOK] Service charge updated with refund status:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        paymentStatus: serviceCharge.paymentStatus,
+        refundAmount: refundAmount / 100
+      });
+      
+    } else if (type === 'pg.refund.failed' && state === 'FAILED') {
+      console.log('❌ [REFUND WEBHOOK] Refund failed - logging failure details');
+      
+      // Add refund failure information to admin notes
+      const failureNote = `Refund failed via PhonePe webhook. Refund ID: ${refundId}, Error: ${errorCode} - ${detailedErrorCode}, Timestamp: ${new Date(timestamp * 1000).toISOString()}`;
+      serviceCharge.adminNotes = serviceCharge.adminNotes 
+        ? `${serviceCharge.adminNotes}\n\n${failureNote}`
+        : failureNote;
+      
+      await serviceCharge.save();
+      
+      console.log('❌ [REFUND WEBHOOK] Service charge updated with refund failure info:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        errorCode,
+        detailedErrorCode
+      });
+      
+    } else if (type === 'pg.refund.accepted') {
+      console.log('⏳ [REFUND WEBHOOK] Refund accepted and processing - logging acceptance');
+      
+      // Add refund acceptance information to admin notes
+      const acceptanceNote = `Refund accepted and processing via PhonePe webhook. Refund ID: ${refundId}, Amount: ₹${(refundAmount / 100).toFixed(2)}, Timestamp: ${new Date(timestamp * 1000).toISOString()}`;
+      serviceCharge.adminNotes = serviceCharge.adminNotes 
+        ? `${serviceCharge.adminNotes}\n\n${acceptanceNote}`
+        : acceptanceNote;
+      
+      await serviceCharge.save();
+      
+      console.log('⏳ [REFUND WEBHOOK] Service charge updated with refund acceptance info:', {
+        id: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        refundId,
+        refundAmount: refundAmount / 100
+      });
+      
+    } else {
+      console.log('⚠️ [REFUND WEBHOOK] Unknown refund event type or state - logging for investigation');
+      
+      // Log unknown refund event
+      const unknownNote = `Unknown refund webhook received. Type: ${type}, State: ${state}, Refund ID: ${refundId}, Timestamp: ${new Date(timestamp * 1000).toISOString()}`;
+      serviceCharge.adminNotes = serviceCharge.adminNotes 
+        ? `${serviceCharge.adminNotes}\n\n${unknownNote}`
+        : unknownNote;
+      
+      await serviceCharge.save();
+    }
+    
+    // 📝 LOG ACTIVITY: Record refund webhook processing
+    await logSystemActivity(
+      'refund_webhook_processed',
+      'service_charge',
+      `Refund webhook processed for service charge ${serviceCharge.receiptNumber}`,
+      {
+        serviceChargeId: serviceCharge._id.toString(),
+        receiptNumber: serviceCharge.receiptNumber,
+        refundType: type,
+        refundState: state,
+        refundId,
+        refundAmount: refundAmount ? refundAmount / 100 : null,
+        originalMerchantOrderId,
+        eventId: deduplicationResult.eventId
+      }
+    );
+    
+    // Record successful event processing
+    await webhookDeduplicationService.recordEvent(
+      eventData,
+      deduplicationResult.eventId,
+      'processed',
+      serviceCharge._id.toString()
+    );
+    
+    console.log('🎉 [REFUND WEBHOOK] Refund webhook processed successfully');
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Refund webhook processed successfully',
+      serviceChargeId: serviceCharge._id,
+      receiptNumber: serviceCharge.receiptNumber,
+      refundType: type,
+      refundState: state,
+      eventId: deduplicationResult.eventId
+    });
+    
+  } catch (error) {
+    console.error('❌ [REFUND WEBHOOK] Error processing refund webhook:', error);
+    
+    // Record failed event if we have eventData
+    if (eventData && deduplicationResult) {
+      await webhookDeduplicationService.recordEvent(
+        eventData,
+        deduplicationResult.eventId,
+        'failed'
+      );
+    }
+    
+    // 📝 LOG ACTIVITY: Record refund webhook error
+    await logSystemActivity(
+      'refund_webhook_error',
+      'service_charge',
+      `Refund webhook processing failed: ${(error as Error).message}`,
+      {
+        error: (error as Error).message,
+        eventType: req.body.type,
+        originalMerchantOrderId: req.body.payload?.originalMerchantOrderId,
+        refundId: req.body.payload?.refundId
+      }
+    );
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Error processing refund webhook',
       error: (error as Error).message
     });
   }

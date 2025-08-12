@@ -27,7 +27,7 @@ const webhookEventSchema = new Schema({
   },
   eventType: {
     type: String,
-    enum: ['phonepe_callback', 'phonepe_verify'],
+    enum: ['phonepe_callback', 'phonepe_verify', 'phonepe_refund_callback'],
     required: true
   },
   merchantTransactionId: {

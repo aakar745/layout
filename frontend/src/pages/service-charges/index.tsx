@@ -45,6 +45,7 @@ import { usePermission } from '../../hooks/reduxHooks';
 import dayjs from 'dayjs';
 import './ServiceCharges.css';
 import SyncTransactionModal from './components/SyncTransactionModal';
+import notificationService from '../../services/notification';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -165,6 +166,66 @@ const ServiceChargesPage: React.FC = () => {
     fetchServiceCharges();
     fetchStats();
   }, [pagination.current, pagination.pageSize, filters]);
+
+  // 🚀 REAL-TIME: Setup Socket.IO listener for service charge updates
+  useEffect(() => {
+    const handleServiceChargeUpdate = (data: any) => {
+      console.log('🔄 [REAL-TIME] Service charge update received:', data);
+      
+      const { serviceCharge, action, exhibition } = data;
+      
+      if (action === 'payment_received') {
+        // Update the table data with the new service charge
+        setServiceCharges(prevCharges => {
+          const existingIndex = prevCharges.findIndex(sc => sc._id === serviceCharge._id);
+          
+          if (existingIndex >= 0) {
+            // Update existing service charge
+            const updatedCharges = [...prevCharges];
+            updatedCharges[existingIndex] = {
+              ...updatedCharges[existingIndex],
+              ...serviceCharge,
+              updatedAt: new Date().toISOString()
+            };
+            console.log('✅ [REAL-TIME] Updated existing service charge in table');
+            return updatedCharges;
+          } else {
+            // Add new service charge if not found (shouldn't happen for payment updates)
+            console.log('⚠️ [REAL-TIME] Service charge not found in current table, adding new entry');
+            return [serviceCharge, ...prevCharges];
+          }
+        });
+
+        // Refresh stats to show updated totals
+        fetchStats();
+
+        // Show success notification to admin
+        message.success({
+          content: (
+            <div>
+              <strong>Payment Received!</strong>
+              <br />
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                {serviceCharge.receiptNumber} - ₹{serviceCharge.amount.toLocaleString('en-IN')} from {serviceCharge.vendorName}
+              </span>
+            </div>
+          ),
+          duration: 6,
+          style: { marginTop: '60px' }
+        });
+
+        console.log('🎉 [REAL-TIME] Service charge payment update processed successfully');
+      }
+    };
+
+    // Register the Socket.IO listener
+    notificationService.addEventListener('service_charge_updated', handleServiceChargeUpdate);
+
+    // Cleanup on component unmount
+    return () => {
+      notificationService.removeEventListener('service_charge_updated', handleServiceChargeUpdate);
+    };
+  }, []); // Empty dependency array - setup once
 
   const fetchExhibitions = async () => {
     try {
@@ -1093,54 +1154,6 @@ const ServiceChargesPage: React.FC = () => {
               />
               <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
                 (Inclusive of GST)
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      )}
-
-      {/* GST Breakdown Row */}
-      {stats && (
-        <Row gutter={16} className="stats-row" style={{ marginTop: '16px' }}>
-          <Col span={8}>
-            <Card style={{ background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)', border: '1px solid #91d5ff' }}>
-              <Statistic
-                title="Total Base Amount"
-                value={calculateBaseAmountFromInclusive(stats.totalAmount || 0)}
-                prefix={<span style={{ color: '#1890ff' }}>💰</span>}
-                formatter={(value) => `₹${value?.toLocaleString('en-IN')}`}
-                valueStyle={{ color: '#1890ff' }}
-              />
-              <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-                (Exclusive of GST)
-              </div>
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card style={{ background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)', border: '1px solid #b7eb8f' }}>
-              <Statistic
-                title="Paid GST Amount"
-                value={calculateGSTFromInclusive(stats.paidAmount || 0)}
-                prefix={<span style={{ color: '#52c41a' }}>✅</span>}
-                formatter={(value) => `₹${value?.toLocaleString('en-IN')}`}
-                valueStyle={{ color: '#52c41a' }}
-              />
-              <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-                (Collected GST)
-              </div>
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card style={{ background: 'linear-gradient(135deg, #fff2e8 0%, #ffd8bf 100%)', border: '1px solid #ffbb96' }}>
-              <Statistic
-                title="Pending GST Amount"
-                value={calculateGSTFromInclusive(stats.pendingAmount || 0)}
-                prefix={<span style={{ color: '#fa8c16' }}>⏳</span>}
-                formatter={(value) => `₹${value?.toLocaleString('en-IN')}`}
-                valueStyle={{ color: '#fa8c16' }}
-              />
-              <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-                (Pending GST)
               </div>
             </Card>
           </Col>

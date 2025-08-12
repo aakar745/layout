@@ -173,6 +173,90 @@ app.use((req, res, next) => {
 app.use(morgan('dev'));
 app.use(requestLogger);
 
+// 🔒 SECURITY HEADERS MIDDLEWARE - Fix all missing security headers
+// Optimized for EasyPanel Docker deployment
+app.use((req, res, next) => {
+  // Detect if we're behind a proxy (EasyPanel/Docker environment)
+  const isProxied = req.headers['x-forwarded-proto'] || req.headers['x-forwarded-for'];
+  const isHTTPS = req.secure || req.headers['x-forwarded-proto'] === 'https' || req.protocol === 'https';
+  
+  // Strict Transport Security (HSTS) - Force HTTPS
+  // Apply in production or when behind HTTPS proxy (EasyPanel)
+  if (process.env.NODE_ENV === 'production' || isHTTPS) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  }
+  
+  // Content Security Policy (CSP) - Prevent XSS and other injection attacks
+  const cspPolicy = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.google-analytics.com",
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+    "img-src 'self' data: blob: https: http:",
+    "connect-src 'self' https://api.phonepe.com https://mercury-uat.phonepe.com https://www.google-analytics.com",
+    "frame-src 'self' https://www.youtube.com https://player.vimeo.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "upgrade-insecure-requests"
+  ].join('; ');
+  
+  res.setHeader('Content-Security-Policy', cspPolicy);
+  
+  // X-Frame-Options - Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  
+  // X-Content-Type-Options - Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Referrer Policy - Control referrer information
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Permissions Policy - Control browser features
+  const permissionsPolicy = [
+    'camera=()',
+    'microphone=()',
+    'geolocation=(self)',
+    'payment=(self)',
+    'usb=()',
+    'magnetometer=()',
+    'accelerometer=()',
+    'gyroscope=()',
+    'bluetooth=()',
+    'ambient-light-sensor=()',
+    'autoplay=(self)'
+  ].join(', ');
+  
+  res.setHeader('Permissions-Policy', permissionsPolicy);
+  
+  // X-XSS-Protection - Enable XSS filtering (legacy browsers)
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // X-DNS-Prefetch-Control - Control DNS prefetching
+  res.setHeader('X-DNS-Prefetch-Control', 'off');
+  
+  // X-Download-Options - Prevent IE from executing downloads in site's context
+  res.setHeader('X-Download-Options', 'noopen');
+  
+  // Cross-Origin-Embedder-Policy - Control embedding of cross-origin resources
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  
+  // Cross-Origin-Opener-Policy - Isolate browsing context
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  
+  // Cross-Origin-Resource-Policy - Control cross-origin resource sharing
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  
+  // 🐳 DOCKER/EASYPANEL: Add debug logging for deployment verification
+  if (process.env.NODE_ENV === 'production' && req.path === '/') {
+    console.log('🔒 [SECURITY] Security headers applied for production request');
+    console.log('🔒 [SECURITY] HTTPS detected:', isHTTPS);
+    console.log('🔒 [SECURITY] Behind proxy:', !!isProxied);
+  }
+  
+  next();
+});
+
 // Add URL rewrite middleware to translate slug URLs to IDs
 app.use(urlRewriteMiddleware);
 

@@ -8,6 +8,7 @@ export enum NotificationType {
   BOOKING_CONFIRMED = 'BOOKING_CONFIRMED',
   BOOKING_CANCELLED = 'BOOKING_CANCELLED',
   PAYMENT_RECEIVED = 'PAYMENT_RECEIVED',
+  SERVICE_CHARGE_PAYMENT = 'SERVICE_CHARGE_PAYMENT',
   INVOICE_GENERATED = 'INVOICE_GENERATED',
   EXHIBITION_UPDATE = 'EXHIBITION_UPDATE',
   SYSTEM_MESSAGE = 'SYSTEM_MESSAGE',
@@ -123,6 +124,7 @@ class NotificationService {
       this.socket.on('new_notification', this.handleNewNotification);
       this.socket.on('notification_update', this.handleNotificationUpdate);
       this.socket.on('user_deactivated', this.handleUserDeactivated);
+      this.socket.on('service_charge_updated', this.handleServiceChargeUpdate);
     } catch (error) {
       console.error('Error initializing notification socket:', error);
       this.scheduleReconnect();
@@ -246,6 +248,14 @@ class NotificationService {
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
+  };
+
+  // Handle service charge updates
+  private handleServiceChargeUpdate = (data: any) => {
+    console.log('🔄 [SOCKET] Service charge update received:', data);
+    
+    // Trigger service charge update event for any listeners
+    this.triggerEvent('service_charge_updated', data);
   };
 
   // Subscribe to notifications
