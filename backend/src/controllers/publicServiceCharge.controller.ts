@@ -765,7 +765,10 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
                   vendorName: serviceCharge.vendorName,
                   vendorPhone: serviceCharge.vendorPhone,
                   companyName: serviceCharge.companyName,
+                  exhibitorCompanyName: serviceCharge.exhibitorCompanyName, // ✅ MISSING FIELD
                   stallNumber: serviceCharge.stallNumber,
+                  stallArea: serviceCharge.stallArea, // ✅ MISSING FIELD
+                  uploadedImage: serviceCharge.uploadedImage, // ✅ MISSING FIELD
                   serviceType: serviceCharge.serviceType,
                   amount: serviceCharge.amount,
                   paymentStatus: serviceCharge.paymentStatus,
@@ -776,10 +779,17 @@ export const handlePhonePeCallback = async (req: Request, res: Response) => {
                   exhibitionId: {
                     _id: exhibition._id,
                     name: exhibition.name,
-                    venue: exhibition.venue
+                    venue: exhibition.venue,
+                    startDate: exhibition.startDate,
+                    endDate: exhibition.endDate
                   },
+                  adminNotes: serviceCharge.adminNotes, // ✅ ADDITIONAL FIELD
                   receiptGenerated: serviceCharge.receiptGenerated,
-                  receiptPath: serviceCharge.receiptPath
+                  receiptPath: serviceCharge.receiptPath,
+                  // ✅ PHONEPE TRANSACTION DETAILS
+                  phonePeOrderId: serviceCharge.phonePeOrderId,
+                  phonePeTransactionId: serviceCharge.phonePeTransactionId,
+                  phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId
                 },
                 action: 'payment_received',
                 exhibition: {
@@ -982,7 +992,10 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
                   vendorName: serviceCharge.vendorName,
                   vendorPhone: serviceCharge.vendorPhone,
                   companyName: serviceCharge.companyName,
+                  exhibitorCompanyName: serviceCharge.exhibitorCompanyName, // ✅ MISSING FIELD
                   stallNumber: serviceCharge.stallNumber,
+                  stallArea: serviceCharge.stallArea, // ✅ MISSING FIELD
+                  uploadedImage: serviceCharge.uploadedImage, // ✅ MISSING FIELD
                   serviceType: serviceCharge.serviceType,
                   amount: serviceCharge.amount,
                   paymentStatus: serviceCharge.paymentStatus,
@@ -993,10 +1006,17 @@ export const verifyPhonePePayment = async (req: Request, res: Response) => {
                   exhibitionId: {
                     _id: exhibition._id,
                     name: exhibition.name,
-                    venue: exhibition.venue
+                    venue: exhibition.venue,
+                    startDate: exhibition.startDate,
+                    endDate: exhibition.endDate
                   },
+                  adminNotes: serviceCharge.adminNotes, // ✅ ADDITIONAL FIELD
                   receiptGenerated: serviceCharge.receiptGenerated,
-                  receiptPath: serviceCharge.receiptPath
+                  receiptPath: serviceCharge.receiptPath,
+                  // ✅ PHONEPE TRANSACTION DETAILS
+                  phonePeOrderId: serviceCharge.phonePeOrderId,
+                  phonePeTransactionId: serviceCharge.phonePeTransactionId,
+                  phonePeMerchantTransactionId: serviceCharge.phonePeMerchantTransactionId
                 },
                 action: 'payment_received',
                 exhibition: {
