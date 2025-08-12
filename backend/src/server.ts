@@ -186,20 +186,21 @@ app.use((req, res, next) => {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
   
-  // Content Security Policy (CSP) - Prevent XSS and other injection attacks
-  const cspPolicy = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.google-analytics.com",
-    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
-    "img-src 'self' data: blob: https: http:",
-    "connect-src 'self' https://api.phonepe.com https://mercury-uat.phonepe.com https://www.google-analytics.com",
-    "frame-src 'self' https://www.youtube.com https://player.vimeo.com",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "upgrade-insecure-requests"
-  ].join('; ');
+          // Content Security Policy (CSP) - Prevent XSS and other injection attacks
+        const cspPolicy = [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.google-analytics.com",
+          "worker-src 'self' blob:",
+          "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
+          "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+          "img-src 'self' data: blob: https: http:",
+          "connect-src 'self' blob: https://api.phonepe.com https://mercury-uat.phonepe.com https://www.google-analytics.com",
+          "frame-src 'self' https://www.youtube.com https://player.vimeo.com",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "upgrade-insecure-requests"
+        ].join('; ');
   
   res.setHeader('Content-Security-Policy', cspPolicy);
   
