@@ -81,7 +81,6 @@ const PublicServiceChargeForm: React.FC = () => {
     handleNext,
     handlePrevious,
     handleCancelPayment,
-    handleManualPaymentCheck,
   } = useServiceChargeForm();
 
   // Use payment handler hook
@@ -141,7 +140,6 @@ const PublicServiceChargeForm: React.FC = () => {
           submitting={submitting}
           onPayment={handlePayment}
           onPrevious={handlePrevious}
-          onManualPaymentCheck={handleManualPaymentCheck}
           onCancelPayment={handleCancelPayment}
         />
       ),

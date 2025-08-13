@@ -108,10 +108,15 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
               ]}
             >
               <Input 
-                prefix={<PhoneOutlined />} 
+                prefix={<PhoneOutlined style={{ color: '#bfbfbf' }} />} 
                 placeholder="Enter 10-digit mobile number" 
                 size="large"
                 maxLength={10}
+                style={{ 
+                  lineHeight: 'normal',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
                 onKeyPress={(e) => {
                   // Allow only numbers
                   if (!/[0-9]/.test(e.key)) {
@@ -435,7 +440,11 @@ const VendorDetailsStep: React.FC<VendorDetailsStepProps> = ({
         </div>
       </div>
 
-      <div className="step-actions" style={{ textAlign: 'center', marginTop: '32px' }}>
+      <div className="step-actions" style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        marginTop: '32px' 
+      }}>
         <Button 
           type="primary" 
           onClick={onNext} 

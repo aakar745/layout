@@ -182,63 +182,7 @@ export const useServiceChargeForm = () => {
     message.destroy();
   };
 
-  // Check if payment already completed manually
-  const handleManualPaymentCheck = async () => {
-    try {
-      setSubmitting(true);
-      message.loading('Checking payment status...', 0);
-      
-      // Check if we have a service charge ID in the URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const serviceChargeId = urlParams.get('serviceChargeId');
-      
-      if (!serviceChargeId) {
-        message.destroy();
-        message.error('No payment ID found. Please initiate payment first.');
-        return;
-      }
 
-      // Fetch the service charge status
-      const statusResponse = await publicServiceChargeService.getServiceChargeStatus(serviceChargeId);
-      
-      if (statusResponse.data.success) {
-        const serviceCharge = statusResponse.data.data;
-        
-        if (serviceCharge.paymentStatus === 'paid') {
-          message.destroy();
-          message.success('Payment found! Redirecting to success page...');
-          
-                     // Prepare payment result data
-           const paymentData = {
-             serviceChargeId: serviceCharge._id,
-             receiptNumber: serviceCharge.receiptNumber,
-             paymentId: serviceCharge.phonePeTransactionId,
-             amount: serviceCharge.amount,
-             paidAt: serviceCharge.paidAt,
-             receiptGenerated: serviceCharge.receiptGenerated,
-             receiptDownloadUrl: serviceCharge.receiptPath ? `/api/public/service-charge/receipt/${serviceCharge._id}` : undefined,
-             state: 'COMPLETED'
-           };
-          
-          setPaymentResult(paymentData);
-          setCurrentStep(2);
-          setPaymentVerified(true); // Mark payment as verified
-        } else {
-          message.destroy();
-          message.info(`Payment status: ${serviceCharge.paymentStatus}. Please try again if you have completed the payment.`);
-        }
-      } else {
-        message.destroy();
-        message.error('Could not check payment status. Please try again.');
-      }
-    } catch (error) {
-      message.destroy();
-      console.error('Error checking payment status:', error);
-      message.error('Error checking payment status. Please try again later.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // Initialize form on mount
   useEffect(() => {
@@ -314,6 +258,5 @@ export const useServiceChargeForm = () => {
     handleNext,
     handlePrevious,
     handleCancelPayment,
-    handleManualPaymentCheck,
   };
 }; 

@@ -43,7 +43,6 @@ interface PaymentStepProps {
   submitting: boolean;
   onPayment: () => Promise<void>;
   onPrevious: () => void;
-  onManualPaymentCheck: () => Promise<void>;
   onCancelPayment: () => void;
 }
 
@@ -56,7 +55,6 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
   submitting,
   onPayment,
   onPrevious,
-  onManualPaymentCheck,
   onCancelPayment
 }) => {
   // Show loading if exhibition data is not loaded yet
@@ -311,29 +309,6 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
               : `Pay via PhonePe ₹${serviceChargeAmount.toLocaleString()} (Incl. GST)`}
           </Button>
         </Space>
-      </div>
-      
-      <div className="payment-help" style={{ marginTop: '16px', textAlign: 'center' }}>
-        <Alert
-          message="Already completed payment?"
-          description={
-            <div>
-              If you've completed the payment but it's not reflecting, click the button below to check your payment status.
-              <br />
-              <Button 
-                type="link" 
-                size="small" 
-                onClick={onManualPaymentCheck}
-                loading={submitting}
-                style={{ marginTop: '8px' }}
-              >
-                Check Payment Status
-              </Button>
-            </div>
-          }
-          type="info"
-          showIcon
-        />
       </div>
     </Card>
   );
