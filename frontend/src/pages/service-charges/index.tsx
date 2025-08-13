@@ -229,7 +229,7 @@ const ServiceChargesPage: React.FC = () => {
 
   const fetchExhibitions = async () => {
     try {
-      const response = await fetch('/api/exhibitions', {
+      const response = await fetch('/api/exhibitions/active', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -237,14 +237,14 @@ const ServiceChargesPage: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched exhibitions:', data);
+        console.log('Fetched active exhibitions:', data);
         // Backend returns exhibitions array directly, not wrapped in data property
         const exhibitions = Array.isArray(data) ? data : data.data || [];
-        console.log('Setting exhibitions:', exhibitions.length, 'items');
+        console.log('Setting active exhibitions:', exhibitions.length, 'items');
         setExhibitions(exhibitions);
       }
     } catch (error) {
-      console.error('Error fetching exhibitions:', error);
+      console.error('Error fetching active exhibitions:', error);
     }
   };
 

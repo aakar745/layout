@@ -65,7 +65,8 @@ export const getServiceCharges = async (req: Request, res: Response) => {
         $or: [
           { createdBy: req.user._id },
           { assignedUsers: req.user._id }
-        ]
+        ],
+        isActive: true
       }).select('_id');
       
       const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
@@ -90,7 +91,19 @@ export const getServiceCharges = async (req: Request, res: Response) => {
     } else {
       // User has full access, apply exhibition filter if provided
       if (exhibitionId) {
-        query.exhibitionId = exhibitionId;
+        // Verify the exhibition is active before allowing access
+        const exhibition = await Exhibition.findOne({ _id: exhibitionId, isActive: true });
+        if (exhibition) {
+          query.exhibitionId = exhibitionId;
+        } else {
+          // Exhibition is inactive, return no results
+          query.exhibitionId = new mongoose.Types.ObjectId('000000000000000000000000');
+        }
+      } else {
+        // No specific exhibition requested, get all active exhibitions for filtering
+        const activeExhibitions = await Exhibition.find({ isActive: true }).select('_id');
+        const activeExhibitionIds = activeExhibitions.map(ex => ex._id);
+        query.exhibitionId = { $in: activeExhibitionIds };
       }
     }
 
@@ -403,7 +416,8 @@ export const getServiceChargeStats = async (req: Request, res: Response) => {
         $or: [
           { createdBy: req.user?._id },
           { assignedUsers: req.user?._id }
-        ]
+        ],
+        isActive: true
       }).select('_id');
       
       const accessibleExhibitionIds = accessibleExhibitions.map(ex => ex._id);
@@ -428,7 +442,19 @@ export const getServiceChargeStats = async (req: Request, res: Response) => {
     } else {
       // User has full access, apply exhibition filter if provided
       if (exhibitionId && mongoose.Types.ObjectId.isValid(exhibitionId as string)) {
-        matchQuery.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
+        // Verify the exhibition is active before allowing access
+        const exhibition = await Exhibition.findOne({ _id: exhibitionId, isActive: true });
+        if (exhibition) {
+          matchQuery.exhibitionId = new mongoose.Types.ObjectId(exhibitionId as string);
+        } else {
+          // Exhibition is inactive, return no results
+          matchQuery.exhibitionId = new mongoose.Types.ObjectId('000000000000000000000000');
+        }
+      } else {
+        // No specific exhibition requested, get all active exhibitions for filtering
+        const activeExhibitions = await Exhibition.find({ isActive: true }).select('_id');
+        const activeExhibitionIds = activeExhibitions.map(ex => ex._id);
+        matchQuery.exhibitionId = { $in: activeExhibitionIds };
       }
     }
 

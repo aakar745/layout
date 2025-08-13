@@ -76,7 +76,7 @@ const ServiceChargeSettings: React.FC = () => {
   const fetchExhibitions = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/exhibitions', {
+      const response = await fetch('/api/exhibitions/active', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -86,11 +86,11 @@ const ServiceChargeSettings: React.FC = () => {
         const data = await response.json();
         setExhibitions(Array.isArray(data) ? data : data.data || []);
       } else {
-        message.error('Failed to fetch exhibitions');
+        message.error('Failed to fetch active exhibitions');
       }
     } catch (error) {
-      console.error('Error fetching exhibitions:', error);
-      message.error('Error fetching exhibitions');
+      console.error('Error fetching active exhibitions:', error);
+      message.error('Error fetching active exhibitions');
     } finally {
       setLoading(false);
     }
