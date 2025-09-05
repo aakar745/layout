@@ -23,6 +23,22 @@ export const publicApi = axios.create({
   },
 });
 
+// Add a response interceptor for public API
+publicApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // For booking endpoints, preserve the full error response for conflict handling
+    if (error.config?.url?.includes('/book') || 
+        error.config?.url?.includes('/booking') ||
+        error.config?.url?.includes('/stalls/')) {
+      return Promise.reject(error);
+    }
+    
+    const message = error.response?.data?.message || error.message;
+    return Promise.reject(new Error(message));
+  }
+);
+
 // Create a separate instance for exhibitor-specific routes
 export const exhibitorApi = axios.create({
   baseURL,
@@ -123,6 +139,13 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     
+    // For booking endpoints, preserve the full error response for conflict handling
+    if (error.config?.url?.includes('/book') || 
+        error.config?.url?.includes('/booking') ||
+        error.config?.url?.includes('/stalls/')) {
+      return Promise.reject(error);
+    }
+    
     const message = error.response?.data?.message || error.message;
     return Promise.reject(new Error(message));
   }
@@ -136,6 +159,14 @@ exhibitorApi.interceptors.response.use(
       // Clear token if unauthorized
       localStorage.removeItem('exhibitor_token');
     }
+    
+    // For booking endpoints, preserve the full error response for conflict handling
+    if (error.config?.url?.includes('/book') || 
+        error.config?.url?.includes('/booking') ||
+        error.config?.url?.includes('/stalls/')) {
+      return Promise.reject(error);
+    }
+    
     const message = error.response?.data?.message || error.message;
     return Promise.reject(new Error(message));
   }

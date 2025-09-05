@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { logActivity } from '../services/activity.service';
 import { calculateStallArea } from '../utils/stallUtils';
+import AtomicBookingService from '../services/atomicBooking.service';
 
 export const getPublicExhibitions = async (req: Request, res: Response) => {
   try {
@@ -282,103 +283,77 @@ export const bookPublicStall = async (req: Request, res: Response) => {
     const totalTaxAmount = taxes.reduce((sum, tax) => sum + tax.amount, 0);
     const totalAmount = amountAfterDiscount + totalTaxAmount;
 
-    // Create booking
-    const booking = await Booking.create({
-      exhibitionId,
+    console.log(`📝 [PUBLIC BOOKING] Using atomic service for stall ${stallId}`);
+
+    // Use atomic booking service for race condition protection
+    const result = await AtomicBookingService.createBooking({
       stallIds: [stallId],
+      exhibitionId: exhibition._id.toString(),
+      userId: 'public-user', // No specific user for public bookings
       customerName,
       customerEmail,
       customerPhone,
+      customerAddress: 'N/A', // Public bookings don't require address
       companyName,
-      amount: totalAmount,
-      calculations: {
-        stalls: [{
-          stallId: stall._id,
-          number: stall.number,
-          baseAmount,
-          discount: selectedDiscount ? {
-            name: selectedDiscount.name,
-            type: selectedDiscount.type,
-            value: selectedDiscount.value,
-            amount: discountAmount
-          } : null,
-          amountAfterDiscount
-        }],
-        totalBaseAmount: baseAmount,
-        totalDiscountAmount: discountAmount,
-        totalAmountAfterDiscount: amountAfterDiscount,
-        taxes,
-        totalTaxAmount,
-        totalAmount
-      },
-      status: 'pending'
+      discount: selectedDiscount,
+      bookingSource: 'exhibitor' // Use exhibitor source to get public discounts
     });
 
-    // Update stall status
-    await Stall.findByIdAndUpdate(stallId, { status: 'booked' });
+    if (!result.success) {
+      // Handle different types of errors
+      if (result.conflictingStalls) {
+        return res.status(409).json({ 
+          message: 'This stall is no longer available due to concurrent booking',
+          error: result.error,
+          conflictingStalls: result.conflictingStalls,
+          action: 'refresh_and_retry'
+        });
+      }
+      
+      return res.status(400).json({ 
+        message: result.error || 'Failed to create booking',
+        error: result.error
+      });
+    }
 
-    // Generate invoice number
-    const prefix = exhibition.invoicePrefix || 'INV';
-    const year = new Date().getFullYear();
-    
-    // Find the count of existing invoices for this exhibition in this year to generate sequence
-    const invoiceCount = await Invoice.countDocuments({
-      invoiceNumber: new RegExp(`^${prefix}/${year}/`)
-    });
-    
-    // Generate sequence number (1-based, padded to 2 digits)
-    const sequence = (invoiceCount + 1).toString().padStart(2, '0');
-    
-    // Create the invoice number
-    const invoiceNumber = `${prefix}/${year}/${sequence}`;
+    const { booking } = result;
 
-    // Create invoice
-    await Invoice.create({
-      bookingId: booking._id,
-      customerName,
-      customerEmail,
-      amount: totalAmount,
-      invoiceNumber,
-      items: [{
-        description: `Stall ${stall.number} Booking`,
-        amount: baseAmount,
-        discount: selectedDiscount ? {
-          name: selectedDiscount.name,
-          type: selectedDiscount.type,
-          value: selectedDiscount.value,
-          amount: discountAmount
-        } : null,
-        taxes: taxes.map(tax => ({
-          name: tax.name,
-          rate: tax.rate,
-          amount: (amountAfterDiscount * tax.rate) / 100
-        }))
-      }],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      status: 'pending'
-    });
+    // For public bookings, set status to pending and stalls to reserved
+    await Booking.findByIdAndUpdate(booking._id, { status: 'pending' });
+    await Stall.updateMany(
+      { _id: { $in: [stallId] } },
+      { status: 'reserved' }
+    );
+
+    // Invoice is automatically created by the atomic booking service
 
     // Log activity
     await logActivity(req, {
       action: 'booking_created',
       resource: 'booking',
       resourceId: booking._id.toString(),
-      description: `Public booking created for stall ${stall.number} in exhibition "${exhibition.name}" by ${customerName}`,
+      description: `Public booking created for stall in exhibition "${exhibition.name}" by ${customerName}`,
       newValues: {
         exhibitionName: exhibition.name,
         customerName,
         companyName,
-        stallNumber: stall.number,
-        amount: totalAmount,
-        status: booking.status,
+        stallCount: 1,
+        amount: booking.amount,
+        status: 'pending',
         bookingSource: 'public'
       },
       success: true
     });
 
-    res.status(201).json(booking);
+    console.log(`✅ [PUBLIC BOOKING] Successfully created single stall booking ${booking._id}`);
+
+    res.status(201).json({ 
+      ...booking, 
+      status: 'pending',
+      message: 'Booking request submitted successfully and is pending approval'
+    });
   } catch (error) {
-    console.error('Error booking stall:', error);
+    console.error('💥 [PUBLIC BOOKING] Error booking stall:', error);
     
     // Log failed booking attempt
     await logActivity(req, {
@@ -534,75 +509,49 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
     const totalTaxAmount = taxes.reduce((sum, tax) => sum + tax.amount, 0);
     const totalAmount = totalAmountAfterDiscount + totalTaxAmount;
 
-    // Create booking
-    const booking = await Booking.create({
-      exhibitionId,
-      stallIds: stalls.map(s => s._id),
+    console.log(`📝 [PUBLIC BOOKING] Using atomic service for ${stallIds.length} stalls`);
+
+    // Use atomic booking service for race condition protection
+    const result = await AtomicBookingService.createBooking({
+      stallIds,
+      exhibitionId: exhibition._id.toString(),
+      userId: 'public-user', // No specific user for public bookings
       customerName,
       customerEmail,
       customerPhone,
-      customerAddress,
+      customerAddress: customerAddress || 'N/A',
       companyName,
-      amount: totalAmount,
-      calculations: {
-        stalls: stallCalculations,
-        totalBaseAmount,
-        totalDiscountAmount,
-        totalAmountAfterDiscount,
-        taxes,
-        totalTaxAmount,
-        totalAmount
-      },
-      status: 'pending'
+      discount: selectedDiscount,
+      bookingSource: 'exhibitor' // Use exhibitor source to get public discounts
     });
 
-    // Update all stall statuses to booked
+    if (!result.success) {
+      // Handle different types of errors
+      if (result.conflictingStalls) {
+        return res.status(409).json({ 
+          message: 'One or more stalls are no longer available due to concurrent booking',
+          error: result.error,
+          conflictingStalls: result.conflictingStalls,
+          action: 'refresh_and_retry'
+        });
+      }
+      
+      return res.status(400).json({ 
+        message: result.error || 'Failed to create booking',
+        error: result.error
+      });
+    }
+
+    const { booking } = result;
+
+    // For public bookings, set status to pending and stalls to reserved
+    await Booking.findByIdAndUpdate(booking._id, { status: 'pending' });
     await Stall.updateMany(
-      { _id: { $in: stalls.map(s => s._id) } },
-      { status: 'booked' }
+      { _id: { $in: stallIds } },
+      { status: 'reserved' }
     );
 
-    // Generate invoice number
-    const prefix = exhibition.invoicePrefix || 'INV';
-    const year = new Date().getFullYear();
-    
-    // Find the count of existing invoices for this exhibition in this year to generate sequence
-    const invoiceCount = await Invoice.countDocuments({
-      invoiceNumber: new RegExp(`^${prefix}/${year}/`)
-    });
-    
-    // Generate sequence number (1-based, padded to 2 digits)
-    const sequence = (invoiceCount + 1).toString().padStart(2, '0');
-    
-    // Create the invoice number
-    const invoiceNumber = `${prefix}/${year}/${sequence}`;
-
-    // Create invoice
-    await Invoice.create({
-      bookingId: booking._id,
-      customerName,
-      customerEmail,
-      amount: totalAmount,
-      invoiceNumber,
-      items: stalls.map(stall => {
-        const calculation = stallCalculations.find(calc => 
-          calc.stallId.toString() === stall._id.toString()
-        );
-        
-        return {
-          description: `Stall ${stall.number} Booking`,
-          amount: calculation?.baseAmount || 0,
-          discount: calculation?.discount || null,
-          taxes: taxes.map(tax => ({
-            name: tax.name,
-            rate: tax.rate,
-            amount: ((calculation?.amountAfterDiscount || 0) * tax.rate) / 100
-          }))
-        };
-      }),
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      status: 'pending'
-    });
+    // Invoice is automatically created by the atomic booking service
 
     // Log activity
     await logActivity(req, {
@@ -615,23 +564,26 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
         customerName,
         companyName,
         stallCount: stallIds.length,
-        stallNumbers: stallCalculations.map(s => s.number).join(', '),
-        amount: totalAmount,
-        status: booking.status,
+        amount: booking.amount,
+        status: 'pending',
         bookingSource: 'public'
       },
       success: true
     });
 
+    console.log(`✅ [PUBLIC BOOKING] Successfully created multiple stalls booking ${booking._id}`);
+
     // Return booking data with reference ID
     res.status(201).json({
       success: true,
       bookingId: booking._id,
-      stalls: stalls.map(s => s.number).join(', '),
-      amount: totalAmount
+      stallCount: stallIds.length,
+      amount: booking.amount,
+      status: 'pending',
+      message: 'Booking request submitted successfully and is pending approval'
     });
   } catch (error) {
-    console.error('Error booking multiple stalls:', error);
+    console.error('💥 [PUBLIC BOOKING] Error booking multiple stalls:', error);
     
     // Log failed booking attempt
     await logActivity(req, {

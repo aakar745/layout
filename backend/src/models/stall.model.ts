@@ -21,6 +21,11 @@ export interface IStall extends Document {
   };
   ratePerSqm: number;
   status: 'available' | 'reserved' | 'booked';
+  // Atomic booking lock fields for race condition prevention
+  lockId?: string;
+  lockExpiry?: Date;
+  lockedBy?: string;
+  lockType?: 'admin' | 'exhibitor';
 }
 
 const stallSchema = new Schema({
@@ -91,6 +96,26 @@ const stallSchema = new Schema({
     enum: ['available', 'reserved', 'booked'],
     default: 'available',
   },
+  // Atomic booking lock fields for preventing race conditions
+  lockId: {
+    type: String,
+    sparse: true, // Allow multiple nulls but unique non-null values
+    index: true
+  },
+  lockExpiry: {
+    type: Date,
+    sparse: true,
+    index: true
+  },
+  lockedBy: {
+    type: String,
+    sparse: true
+  },
+  lockType: {
+    type: String,
+    enum: ['admin', 'exhibitor'],
+    sparse: true
+  },
 }, {
   timestamps: true,
 });
@@ -113,5 +138,11 @@ stallSchema.index({ exhibitionId: 1, status: 1, stallTypeId: 1 }); // Complex fi
 
 // Spatial/dimensional queries (for layout positioning)
 stallSchema.index({ 'dimensions.x': 1, 'dimensions.y': 1 }); // Position-based queries
+
+// Atomic booking lock indexes for race condition prevention
+stallSchema.index({ lockExpiry: 1 }); // For cleanup of expired locks
+stallSchema.index({ lockId: 1 }, { sparse: true, unique: true }); // Ensure unique locks
+stallSchema.index({ status: 1, lockExpiry: 1 }); // For finding available/expired stalls
+stallSchema.index({ lockedBy: 1, lockType: 1 }); // For user-specific lock queries
 
 export default mongoose.model<IStall>('Stall', stallSchema); 

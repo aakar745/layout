@@ -32,6 +32,11 @@ const StallForm: React.FC<StallFormProps> = ({
   const [shapeType, setShapeType] = useState<'rectangle' | 'l-shape'>('rectangle');
   const [previewArea, setPreviewArea] = useState<number>(0);
 
+  // Helper function to snap to half-grid positions (0.5m intervals)
+  const snapToHalfGrid = (value: number) => {
+    return Math.round(value * 2) / 2;
+  };
+
   // Function to find next available position for a new stall
   const findNextAvailablePosition = (
     width: number,
@@ -40,8 +45,8 @@ const StallForm: React.FC<StallFormProps> = ({
     hallWidth: number,
     hallHeight: number
   ) => {
-    // Grid size for snapping
-    const GRID_SIZE = 5;
+    // Grid size for snapping - use 2.5m to align with half-grid system
+    const GRID_SIZE = 2.5;
     
     // Sort existing stalls by position for efficient placement
     const sortedStalls = [...existingStalls].sort((a, b) => {
@@ -77,26 +82,28 @@ const StallForm: React.FC<StallFormProps> = ({
 
     // Try to place next to existing stalls first
     for (const stall of sortedStalls) {
-      // Try right side
-      const rightX = stall.dimensions.x + stall.dimensions.width + 1;
-      const rightY = stall.dimensions.y;
+      // Try right side with half-grid snapping
+      const rightX = snapToHalfGrid(stall.dimensions.x + stall.dimensions.width + 0.5);
+      const rightY = snapToHalfGrid(stall.dimensions.y);
       if (isPositionValid(rightX, rightY)) {
         return { x: rightX, y: rightY };
       }
 
-      // Try below
-      const bottomX = stall.dimensions.x;
-      const bottomY = stall.dimensions.y + stall.dimensions.height + 1;
+      // Try below with half-grid snapping
+      const bottomX = snapToHalfGrid(stall.dimensions.x);
+      const bottomY = snapToHalfGrid(stall.dimensions.y + stall.dimensions.height + 0.5);
       if (isPositionValid(bottomX, bottomY)) {
         return { x: bottomX, y: bottomY };
       }
     }
 
-    // If no position found next to existing stalls, try grid positions
-    for (let y = 0; y < hallHeight; y += GRID_SIZE) {
-      for (let x = 0; x < hallWidth; x += GRID_SIZE) {
-        if (isPositionValid(x, y)) {
-          return { x, y };
+    // If no position found next to existing stalls, try grid positions with half-grid increments
+    for (let y = 0; y < hallHeight; y += 0.5) {
+      for (let x = 0; x < hallWidth; x += 0.5) {
+        const snappedX = snapToHalfGrid(x);
+        const snappedY = snapToHalfGrid(y);
+        if (isPositionValid(snappedX, snappedY)) {
+          return { x: snappedX, y: snappedY };
         }
       }
     }

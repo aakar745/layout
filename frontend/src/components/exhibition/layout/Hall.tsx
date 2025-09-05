@@ -29,17 +29,18 @@ const Hall: React.FC<HallProps> = ({
   const shapeRef = React.useRef<Konva.Group>(null);
   const transformerRef = React.useRef<Konva.Transformer>(null);
 
-  // Create grid lines
+  // Create grid lines with half-meter intervals for stall snapping
   const gridLines = React.useMemo(() => {
     const lines: JSX.Element[] = [];
     const { width, height } = hall.dimensions;
-    const gridSize = 1; // 1 meter grid size
+    const majorGridSize = 1; // 1 meter major grid
+    const minorGridSize = 0.5; // 0.5 meter minor grid for stall snapping
 
-    // Vertical lines
-    for (let x = 0; x <= width; x += gridSize) {
+    // Major vertical lines (1m intervals)
+    for (let x = 0; x <= width; x += majorGridSize) {
       lines.push(
         <Line
-          key={`v${x}`}
+          key={`v-major-${x}`}
           points={[x, 0, x, height]}
           stroke="#ddd"
           strokeWidth={1 / scale}
@@ -49,15 +50,43 @@ const Hall: React.FC<HallProps> = ({
       );
     }
 
-    // Horizontal lines
-    for (let y = 0; y <= height; y += gridSize) {
+    // Minor vertical lines (0.5m intervals)
+    for (let x = minorGridSize; x < width; x += majorGridSize) {
       lines.push(
         <Line
-          key={`h${y}`}
+          key={`v-minor-${x}`}
+          points={[x, 0, x, height]}
+          stroke="#e8e8e8"
+          strokeWidth={0.5 / scale}
+          dash={[1 / scale, 3 / scale]}
+          listening={false}
+        />
+      );
+    }
+
+    // Major horizontal lines (1m intervals)
+    for (let y = 0; y <= height; y += majorGridSize) {
+      lines.push(
+        <Line
+          key={`h-major-${y}`}
           points={[0, y, width, y]}
           stroke="#ddd"
           strokeWidth={1 / scale}
           dash={[2 / scale, 2 / scale]}
+          listening={false}
+        />
+      );
+    }
+
+    // Minor horizontal lines (0.5m intervals)
+    for (let y = minorGridSize; y < height; y += majorGridSize) {
+      lines.push(
+        <Line
+          key={`h-minor-${y}`}
+          points={[0, y, width, y]}
+          stroke="#e8e8e8"
+          strokeWidth={0.5 / scale}
+          dash={[1 / scale, 3 / scale]}
           listening={false}
         />
       );

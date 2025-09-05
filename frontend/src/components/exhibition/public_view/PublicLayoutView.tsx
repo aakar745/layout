@@ -37,6 +37,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../../../store/store';
 import { showLoginModal } from '../../../store/slices/exhibitorAuthSlice';
 import api from '../../../services/api';
+import { useAtomicBooking } from '../../../hooks/useAtomicBooking';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -93,6 +94,40 @@ const PublicLayoutView: React.FC = () => {
   
   // Get exhibitor auth state from Redux
   const { isAuthenticated } = useSelector((state: RootState) => state.exhibitorAuth);
+  
+  // Define callback first before using in hook
+  const handleBookingSuccess = useCallback((bookingData: any) => {
+    setShowBookingModal(false);
+    setSelectedStalls([]);
+    
+    // Refresh the layout data to get updated stall statuses
+    if (id) {
+      publicExhibitionService.getLayout(id)
+        .then(response => {
+          setLayout(response.data);
+        })
+        .catch(error => {
+          console.error('Error refreshing layout data:', error);
+        });
+    }
+  }, [id]);
+  
+  // Atomic booking hook for race condition protection
+  const atomicBooking = useAtomicBooking({
+    onSuccess: handleBookingSuccess,
+    onError: (error) => {
+      if (error.type === 'conflict') {
+        // Refresh layout data when there's a conflict
+        if (id) {
+          publicExhibitionService.getLayout(id)
+            .then(response => setLayout(response.data))
+            .catch(err => console.error('Error refreshing layout:', err));
+        }
+      }
+    },
+    debounceMs: 750, // Longer debounce for public users
+    cooldownMs: 3000 // Longer cooldown for public users
+  });
 
   // Detect mobile devices
   useEffect(() => {
@@ -261,44 +296,24 @@ const PublicLayoutView: React.FC = () => {
   }, [isStallBooked, isAuthenticated, dispatch]);
 
   const handleBookStall = async (values: any) => {
-    try {
-      setBookingLoading(true);
-      
-      const bookingData = {
-        ...values,
-        exhibitionId: layout?.exhibition._id,
-        stallIds: values.selectedStalls // Add stallIds property which the backend expects
-      };
-      
+    const bookingData = {
+      ...values,
+      exhibitionId: layout?.exhibition._id,
+      stallIds: values.selectedStalls // Add stallIds property which the backend expects
+    };
+    
+    // Use atomic booking hook for race condition protection
+    await atomicBooking.executeBooking(async () => {
       // If user is authenticated as an exhibitor, use the authenticated booking endpoint
       if (isAuthenticated) {
         const response = await publicExhibitionService.exhibitorBookStalls(bookingData);
-        message.success('Your booking request has been submitted successfully! It is pending review by the admin.');
+        return response.data;
       } else {
         // Use the public/guest booking endpoint
         const response = await publicExhibitionService.bookMultipleStalls(id!, bookingData);
-        message.success('Your booking request has been submitted successfully!');
+        return response.data;
       }
-      
-      // Close modal and clear selection
-      setShowBookingModal(false);
-      setSelectedStalls([]);
-      
-      // Refresh the layout data to get updated stall statuses
-      if (id) {
-        try {
-          const response = await publicExhibitionService.getLayout(id);
-          setLayout(response.data);
-        } catch (error) {
-          console.error('Error refreshing layout data:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error booking stall', error);
-      message.error('Failed to book stall. Please try again.');
-    } finally {
-      setBookingLoading(false);
-    }
+    });
   };
 
   // Book stall modal visibility and handlers
@@ -366,23 +381,6 @@ const PublicLayoutView: React.FC = () => {
       message.error('Failed to open booking form');
     } finally {
       setBookingLoading(false);
-    }
-  };
-
-  const handleBookingSuccess = (bookingData: any) => {
-    setShowBookingModal(false);
-    setSelectedStalls([]);
-    message.success('Booking submitted successfully!');
-    
-    // Refresh the layout data to get updated stall statuses
-    if (id) {
-      publicExhibitionService.getLayout(id)
-        .then(response => {
-          setLayout(response.data);
-        })
-        .catch(error => {
-          console.error('Error refreshing layout data:', error);
-        });
     }
   };
 
@@ -869,7 +867,8 @@ const PublicLayoutView: React.FC = () => {
               size="large"
               icon={<ShoppingCartOutlined />}
               onClick={openBookingModal}
-              loading={bookingLoading}
+              loading={atomicBooking.isBooking || bookingLoading}
+              disabled={atomicBooking.isDisabled}
               style={{
                 borderRadius: '30px',
                 boxShadow: '0 6px 16px rgba(24, 144, 255, 0.25)',
@@ -880,12 +879,21 @@ const PublicLayoutView: React.FC = () => {
                 height: '48px',
                 fontSize: '16px',
                 fontWeight: 500,
-                background: 'linear-gradient(145deg, #1890ff, #40a9ff)',
+                background: atomicBooking.isDisabled 
+                  ? 'linear-gradient(145deg, #d9d9d9, #f0f0f0)'
+                  : 'linear-gradient(145deg, #1890ff, #40a9ff)',
                 border: 'none',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.3s ease',
+                opacity: atomicBooking.isDisabled ? 0.7 : 1
               }}
+              title={atomicBooking.getStatusMessage() || undefined}
             >
-              Book Selected Stalls ({selectedStalls.length})
+              {atomicBooking.isBooking 
+                ? 'Processing...' 
+                : atomicBooking.shouldShowCooldown 
+                  ? `Wait ${Math.ceil(atomicBooking.remainingCooldownMs / 1000)}s`
+                  : `Book Selected Stalls (${selectedStalls.length})`
+              }
             </Button>
           </div>
         </Affix>
@@ -896,7 +904,7 @@ const PublicLayoutView: React.FC = () => {
         stallDetails={selectedStallDetails}
         selectedStallId={selectedStall}
         selectedStallIds={selectedStalls}
-        loading={bookingLoading}
+        loading={atomicBooking.isBooking || bookingLoading}
         exhibition={layout?.exhibition}
         onCancel={() => {
           setShowBookingModal(false);

@@ -15,6 +15,7 @@ import { urlRewriteMiddleware } from './middleware/url-rewrite.middleware';
 import { initializeSocket } from './services/socket.service';
 import { initializeCleanupService } from './services/cleanup.service';
 import { initializeLetterScheduler } from './services/letterScheduler.service';
+import LockCleanupService from './services/lockCleanup.service';
 
 // Initialize critical models first
 import Counter from './models/counter.model';
@@ -573,6 +574,10 @@ initializeDatabase().then(() => {
   
   // Initialize letter scheduler service
   initializeLetterScheduler();
+  
+  // Start atomic booking lock cleanup service
+  LockCleanupService.start();
+  console.log('🔒 Atomic booking lock cleanup service started');
 }).catch(err => {
   console.error('Error connecting to MongoDB:', err);
 });

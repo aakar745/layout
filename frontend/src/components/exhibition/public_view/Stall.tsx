@@ -127,6 +127,11 @@ const Stall: React.FC<StallProps> = ({
     }
   }, []);
 
+  // Helper function to snap to half-grid positions (0.5m intervals)
+  const snapToHalfGrid = useCallback((value: number) => {
+    return Math.round(value * 2) / 2;
+  }, []);
+
   const handleDragMove = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
     
@@ -140,10 +145,14 @@ const Stall: React.FC<StallProps> = ({
     const boundedX = Math.max(0, Math.min(localX, hallWidth - stall.dimensions.width));
     const boundedY = Math.max(0, Math.min(localY, hallHeight - stall.dimensions.height));
 
+    // Snap to half-grid positions (0.5m intervals)
+    const snappedX = snapToHalfGrid(boundedX);
+    const snappedY = snapToHalfGrid(boundedY);
+
     // Update node position immediately
-    node.x(Math.round(boundedX + hallX));
-    node.y(Math.round(boundedY + hallY));
-  }, [hallX, hallY, hallWidth, hallHeight, stall.dimensions.width, stall.dimensions.height]);
+    node.x(snappedX + hallX);
+    node.y(snappedY + hallY);
+  }, [hallX, hallY, hallWidth, hallHeight, stall.dimensions.width, stall.dimensions.height, snapToHalfGrid]);
 
   const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
@@ -160,6 +169,10 @@ const Stall: React.FC<StallProps> = ({
     const boundedX = Math.max(0, Math.min(localX, hallWidth - stall.dimensions.width));
     const boundedY = Math.max(0, Math.min(localY, hallHeight - stall.dimensions.height));
 
+    // Snap to half-grid positions (0.5m intervals)
+    const snappedX = snapToHalfGrid(boundedX);
+    const snappedY = snapToHalfGrid(boundedY);
+
     // Preserve both id and _id in the update
     onChange({
       ...stall,
@@ -167,11 +180,11 @@ const Stall: React.FC<StallProps> = ({
       _id: stall._id || stall.id,
       dimensions: {
         ...stall.dimensions,
-        x: Math.round(boundedX),
-        y: Math.round(boundedY)
+        x: snappedX,
+        y: snappedY
       }
     });
-  }, [onChange, hallX, hallY, hallWidth, hallHeight, stall]);
+  }, [onChange, hallX, hallY, hallWidth, hallHeight, stall, snapToHalfGrid]);
 
   const handleDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     e.cancelBubble = true;
