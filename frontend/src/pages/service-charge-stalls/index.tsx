@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config';
 import {
   Card,
   Table,
@@ -113,7 +114,7 @@ const ServiceChargeStallsPage: React.FC = () => {
 
   const fetchExhibitions = async () => {
     try {
-      const response = await fetch('/api/exhibitions', {
+      const response = await fetch(`${apiUrl}/exhibitions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

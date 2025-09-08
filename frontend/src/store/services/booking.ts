@@ -36,9 +36,11 @@ export interface CreateBookingData {
   };
 }
 
+import { apiUrl } from '../../config';
+
 export const bookingApi = createApi({
   reducerPath: 'bookingApi',
-  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  baseQuery: fetchBaseQuery({ baseUrl: apiUrl }),
   endpoints: (builder) => ({
     getBookings: builder.query<Booking[], void>({
       query: () => '/bookings',
