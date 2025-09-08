@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config';
 import {
   Card,
   Form,
@@ -76,7 +77,7 @@ const ServiceChargeSettings: React.FC = () => {
   const fetchExhibitions = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/exhibitions/active', {
+      const response = await fetch(`${apiUrl}/exhibitions/active`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -148,7 +149,7 @@ const ServiceChargeSettings: React.FC = () => {
         }
       };
 
-      const response = await fetch(`/api/service-charges/config/${selectedExhibition._id}`, {
+      const response = await fetch(`${apiUrl}/service-charges/config/${selectedExhibition._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

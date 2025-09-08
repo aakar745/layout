@@ -1,4 +1,5 @@
 import api from './api';
+import { apiUrl } from '../config';
 
 export interface ServiceChargeStall {
   _id: string;
@@ -122,7 +123,7 @@ export const importServiceChargeStalls = async (
   data: ImportServiceChargeStallRequest
 ): Promise<ImportResult> => {
   // Use fetch directly to get better error handling for validation errors
-  const response = await fetch(`/api/service-charge-stalls/${exhibitionId}/import`, {
+  const response = await fetch(`${apiUrl}/service-charge-stalls/${exhibitionId}/import`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

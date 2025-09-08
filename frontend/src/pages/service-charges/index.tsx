@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config';
 import {
   Card,
   Table,
@@ -229,7 +230,7 @@ const ServiceChargesPage: React.FC = () => {
 
   const fetchExhibitions = async () => {
     try {
-      const response = await fetch('/api/exhibitions/active', {
+      const response = await fetch(`${apiUrl}/exhibitions/active`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -271,7 +272,7 @@ const ServiceChargesPage: React.FC = () => {
 
       const params = new URLSearchParams(queryParams);
 
-      const response = await fetch(`/api/service-charges?${params}`, {
+      const response = await fetch(`${apiUrl}/service-charges?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -307,7 +308,7 @@ const ServiceChargesPage: React.FC = () => {
 
       const params = new URLSearchParams(queryParams);
 
-      const response = await fetch(`/api/service-charges/stats?${params}`, {
+      const response = await fetch(`${apiUrl}/service-charges/stats?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -326,7 +327,7 @@ const ServiceChargesPage: React.FC = () => {
     if (!selectedServiceCharge) return;
 
     try {
-      const response = await fetch(`/api/service-charges/${selectedServiceCharge._id}/status`, {
+      const response = await fetch(`${apiUrl}/service-charges/${selectedServiceCharge._id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -371,7 +372,7 @@ const ServiceChargesPage: React.FC = () => {
 
       const params = new URLSearchParams(queryParams);
 
-      const response = await fetch(`/api/service-charges?${params}`, {
+      const response = await fetch(`${apiUrl}/service-charges?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -498,7 +499,7 @@ const ServiceChargesPage: React.FC = () => {
     try {
       message.loading({ content: 'Preparing receipt for download...', key: 'receipt-download' });
       
-      const response = await fetch(`/api/service-charges/${serviceChargeId}/receipt`, {
+      const response = await fetch(`${apiUrl}/service-charges/${serviceChargeId}/receipt`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -540,7 +541,7 @@ const ServiceChargesPage: React.FC = () => {
 
     setDeleteLoading(true);
     try {
-      const response = await fetch(`/api/service-charges/${selectedServiceCharge._id}`, {
+      const response = await fetch(`${apiUrl}/service-charges/${selectedServiceCharge._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -570,7 +571,7 @@ const ServiceChargesPage: React.FC = () => {
   const handleDeleteAllServiceCharges = async () => {
     setDeleteLoading(true);
     try {
-      const response = await fetch('/api/service-charges', {
+      const response = await fetch(`${apiUrl}/service-charges`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`

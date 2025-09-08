@@ -2,9 +2,8 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { Invoice } from '../../types/booking';
 
 // Get the base URL from environment or use default
-const baseUrl = process.env.NODE_ENV === 'production' 
-  ? '/api'
-  : 'http://localhost:5000/api';
+import { apiUrl } from '../../config';
+const baseUrl = apiUrl;
 
 export const exhibitorInvoiceApi = createApi({
   reducerPath: 'exhibitorInvoiceApi',

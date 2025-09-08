@@ -1,7 +1,9 @@
 import { publicApi } from './api';
 import api from './api';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Use the same configuration as our main API
+import { apiUrl } from '../config';
+const API_BASE_URL = apiUrl;
 
 export interface PublicDiscount {
   name: string;

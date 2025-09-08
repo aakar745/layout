@@ -14,9 +14,8 @@ interface PaginatedResponse<T> {
 }
 
 // Get the base URL from environment or use default
-const baseUrl = process.env.NODE_ENV === 'production' 
-  ? '/api'
-  : 'http://localhost:5000/api';
+import { apiUrl } from '../../config';
+const baseUrl = apiUrl;
 
 export const invoiceApi = createApi({
   reducerPath: 'invoiceApi',

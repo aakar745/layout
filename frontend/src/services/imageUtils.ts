@@ -1,4 +1,5 @@
 import api from './api';
+import { apiUrl } from '../config';
 
 /**
  * Constructs an image URL pointing directly to the backend (with authentication if needed)
@@ -9,8 +10,9 @@ export const getDirectBackendUrl = (path: string): string => {
   if (!path) return '';
   
   // Use direct backend URL instead of relying on proxy
+  const backendBaseUrl = apiUrl.replace('/api', ''); // Remove /api suffix to get base backend URL
   const backendDirectUrl = process.env.NODE_ENV === 'production' 
-    ? window.location.origin 
+    ? backendBaseUrl
     : 'http://localhost:5000';
   
   // Clean the path - remove any leading slashes and /api/uploads/ prefix

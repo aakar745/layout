@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Form, App } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import publicServiceChargeService from '../../../services/publicServiceCharge';
+import { apiUrl } from '../../../config';
 import { 
   ExhibitionConfig, 
   ServiceChargeStall, 
@@ -63,7 +64,7 @@ export const useServiceChargeForm = () => {
   // Fetch available stalls for the exhibition
   const fetchStalls = async () => {
     try {
-      const response = await fetch(`/api/public/service-charge/stalls/${exhibitionId}`);
+      const response = await fetch(`${apiUrl}/public/service-charge/stalls/${exhibitionId}`);
       if (response.ok) {
         const data = await response.json();
         setStalls(data.data || []);

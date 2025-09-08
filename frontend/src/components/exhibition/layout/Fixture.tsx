@@ -3,14 +3,16 @@ import { Group, Rect, Text, Transformer, Image } from 'react-konva';
 import Konva from 'konva';
 import { Fixture as FixtureType } from '../../../services/exhibition';
 import useImage from 'use-image';
+import { apiUrl } from '../../../config';
 
 // Helper function to get image URL (with or without authentication)
 const getAuthenticatedImageUrl = (path: string): string => {
   if (!path) return '';
   
   // Use direct backend URL instead of relying on proxy
+  const backendBaseUrl = apiUrl.replace('/api', ''); // Remove /api suffix to get base backend URL
   const backendUrl = process.env.NODE_ENV === 'production' 
-    ? window.location.origin 
+    ? backendBaseUrl
     : 'http://localhost:5000';
   
   // Clean the path - remove any leading slashes and /api/uploads/ prefix
