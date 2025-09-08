@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // Base URL for API requests
-const baseURL = process.env.NODE_ENV === 'production' 
-  ? '/api'
+const baseURL = import.meta.env.PROD
+  ? import.meta.env.VITE_API_URL || '/api'  // Use environment variable for backend URL
   : 'http://localhost:5000/api';
 
 // Create the authenticated API instance

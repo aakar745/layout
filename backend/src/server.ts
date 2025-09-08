@@ -123,8 +123,10 @@ app.use(cors({
       'https://aakarbooking.com',
       'https://www.aakarbooking.com',
       'http://aakarbooking.com',
-      'http://www.aakarbooking.com'
-    ];
+      'http://www.aakarbooking.com',
+      // Add frontend service URL environment variable support
+      process.env.FRONTEND_URL
+    ].filter(Boolean); // Remove undefined values
     
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
@@ -587,10 +589,4 @@ server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
 
-// Serve static files from the React frontend app
-app.use(express.static(path.join(__dirname, '../../frontend/dist')));
-
-// Anything that doesn't match the above routes, send back the index.html file
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
-  }); 
+// Backend API only - frontend is served separately 
