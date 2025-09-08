@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Base URL for API requests
 const baseURL = import.meta.env.PROD
-  ? import.meta.env.VITE_API_URL || '/api'  // Use environment variable for backend URL
+  ? import.meta.env.VITE_API_URL || 'https://layout-backend.84x421.easypanel.host/api'  // Correct backend URL
   : 'http://localhost:5000/api';
 
 // Create the authenticated API instance
