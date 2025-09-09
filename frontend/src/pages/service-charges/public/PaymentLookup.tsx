@@ -36,6 +36,7 @@ import GlobalFooter from '../../../components/layout/GlobalFooter';
 
 // Services
 import publicServiceChargeService from '../../../services/publicServiceCharge';
+import { apiUrl } from '../../../config';
 
 // Styles
 import '../ServiceCharges.css';
@@ -159,15 +160,42 @@ const PaymentLookup: React.FC = () => {
     }
   };
 
-  const handleDownloadReceipt = (serviceChargeId: string, receiptNumber: string) => {
-    const downloadUrl = `/api/public/service-charge/receipt/${serviceChargeId}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `receipt-${receiptNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    message.success('Receipt download started');
+  const handleDownloadReceipt = async (serviceChargeId: string, receiptNumber: string) => {
+    try {
+      message.loading({ content: 'Preparing receipt for download...', key: 'receipt-download' });
+      
+      // ✅ FIX: Use correct backend URL instead of relative URL
+      const response = await fetch(`${apiUrl}/public/service-charge/receipt/${serviceChargeId}`);
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = url;
+        link.download = `receipt-${receiptNumber}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        message.success({ content: 'Receipt downloaded successfully', key: 'receipt-download' });
+      } else {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to download receipt';
+        
+        if (response.status === 404) {
+          errorMessage = 'Receipt not found or not yet generated';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied - insufficient permissions';
+        }
+        
+        message.error({ content: errorMessage, key: 'receipt-download' });
+      }
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      message.error({ content: 'Network error - please try again', key: 'receipt-download' });
+    }
   };
 
   const getPaymentStatusIcon = (status: string) => {
