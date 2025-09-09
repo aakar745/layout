@@ -1,6 +1,8 @@
-import React from 'react';
-import { Button, Card, Space, Alert, Descriptions, Result, Tag, Typography } from 'antd';
+import React, { useState } from 'react';
+import { Button, Card, Space, Alert, Descriptions, Result, Tag, Typography, message } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { PaymentResult } from '../types';
+import { apiUrl } from '../../../config';
 
 const { Text } = Typography;
 
@@ -13,6 +15,39 @@ const SuccessStep: React.FC<SuccessStepProps> = ({
   paymentResult,
   onNavigateHome
 }) => {
+  const [downloadLoading, setDownloadLoading] = useState(false);
+
+  const handleDownloadReceipt = async (serviceChargeId: string, receiptNumber?: string) => {
+    try {
+      setDownloadLoading(true);
+      message.loading({ content: 'Preparing receipt for download...', key: 'receipt-download' });
+      
+      // Use the correct backend API URL
+      const response = await fetch(`${apiUrl}/public/service-charge/receipt/${serviceChargeId}`);
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `Receipt-${receiptNumber || serviceChargeId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        message.success({ content: 'Receipt downloaded successfully', key: 'receipt-download' });
+      } else {
+        throw new Error('Download failed');
+      }
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      message.error({ content: 'Failed to download receipt', key: 'receipt-download' });
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
   return (
     <Card className="step-card success-card">
       <Result
@@ -46,12 +81,12 @@ const SuccessStep: React.FC<SuccessStepProps> = ({
           </div>,
           <div key="actions">
             <Space>
-              {paymentResult?.receiptDownloadUrl && (
+              {paymentResult?.serviceChargeId && (
                 <Button
                   type="primary"
-                  href={paymentResult.receiptDownloadUrl}
-                  target="_blank"
-                  download
+                  icon={<DownloadOutlined />}
+                  onClick={() => handleDownloadReceipt(paymentResult.serviceChargeId, paymentResult.receiptNumber)}
+                  loading={downloadLoading}
                 >
                   Download Receipt
                 </Button>

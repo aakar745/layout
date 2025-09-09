@@ -164,37 +164,28 @@ const PaymentLookup: React.FC = () => {
     try {
       message.loading({ content: 'Preparing receipt for download...', key: 'receipt-download' });
       
-      // ✅ FIX: Use correct backend URL instead of relative URL
+      // Use the correct backend API URL
       const response = await fetch(`${apiUrl}/public/service-charge/receipt/${serviceChargeId}`);
 
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = url;
-        link.download = `receipt-${receiptNumber}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `receipt-${receiptNumber}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
         message.success({ content: 'Receipt downloaded successfully', key: 'receipt-download' });
       } else {
-        const errorText = await response.text();
-        let errorMessage = 'Failed to download receipt';
-        
-        if (response.status === 404) {
-          errorMessage = 'Receipt not found or not yet generated';
-        } else if (response.status === 403) {
-          errorMessage = 'Access denied - insufficient permissions';
-        }
-        
-        message.error({ content: errorMessage, key: 'receipt-download' });
+        throw new Error('Download failed');
       }
     } catch (error) {
       console.error('Error downloading receipt:', error);
-      message.error({ content: 'Network error - please try again', key: 'receipt-download' });
+      message.error({ content: 'Failed to download receipt', key: 'receipt-download' });
     }
   };
 
