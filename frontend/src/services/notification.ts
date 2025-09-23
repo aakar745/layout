@@ -94,7 +94,20 @@ class NotificationService {
         throw new Error('Invalid token provided for socket connection');
       }
 
-      const serverUrl = apiUrl.replace('/api', '');
+      let serverUrl = apiUrl.replace('/api', '');
+      
+      // Debug logging for production Socket.IO URL issue
+      console.log('🔍 Socket.IO URL Debug:', {
+        originalApiUrl: apiUrl,
+        serverUrl,
+        isProduction: window.location.hostname !== 'localhost'
+      });
+      
+      // TEMPORARY FIX: Hardcode production Socket.IO URL to prevent double https
+      if (window.location.hostname === 'admin.aakarbooking.com') {
+        serverUrl = 'https://api.aakarbooking.com';
+        console.log('🔧 Applied production Socket.IO URL fix:', serverUrl);
+      }
       
       // Pre-process token to ensure it's in the right format
       // Remove 'Bearer ' prefix if present (common mistake)
