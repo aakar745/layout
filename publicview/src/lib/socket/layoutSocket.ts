@@ -20,7 +20,8 @@ class LayoutSocketManager {
   private connect() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const socketUrl = apiUrl.replace('/api', '');
+      // Fix: Only remove the trailing /api, not internal /api in domain
+      const socketUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
       
       // Check for exhibitor authentication
       const exhibitorToken = localStorage.getItem('exhibitor_token');

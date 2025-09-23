@@ -48,10 +48,6 @@ export const fetchSiteSettings = async (): Promise<SiteSettings> => {
     
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
     
-    // Debug: Check what URL is being used in production
-    console.log('🔍 Logo Debug - API URL:', apiUrl);
-    console.log('🔍 Logo Debug - Environment:', process.env.NEXT_PUBLIC_API_URL);
-    
     return {
       siteName: siteInfo.siteName || 'Exhibition Management System',
       footerText: siteInfo.footerText || '',

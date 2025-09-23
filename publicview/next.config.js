@@ -53,8 +53,7 @@ const nextConfig = {
   
   // Performance optimizations
   compiler: {
-    // Temporarily keep console logs for debugging
-    removeConsole: false,
+    removeConsole: process.env.NODE_ENV === 'production',
   },
   
   // Headers for security and performance

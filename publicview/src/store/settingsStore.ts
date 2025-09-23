@@ -63,11 +63,7 @@ export const useSettingsStore = create<SettingsState>()(
             lastFetched: Date.now()
           });
           
-          console.log('🔍 Site settings fetched:', settings);
-          console.log('🔍 Environment check:', {
-            NODE_ENV: process.env.NODE_ENV,
-            NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL
-          });
+          console.log('Site settings fetched:', settings);
           
           // Also check if logo exists
           get().checkLogo();
