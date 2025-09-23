@@ -5,6 +5,14 @@ import { Rect, Text, Group, Label, Tag, Circle } from 'react-konva';
 import { Stall, LayoutViewConfig } from '@/lib/types/layout';
 import { useAuthStore } from '@/store/authStore';
 
+// Performance: Level-of-Detail (LOD) thresholds
+const LOD_THRESHOLDS = {
+  HIGH_DETAIL: 0.8,     // Full detail - shadows, perfect text, all effects
+  MEDIUM_DETAIL: 0.4,   // Medium detail - text visible, reduced shadows  
+  LOW_DETAIL: 0.2,      // Low detail - basic shapes only
+  MINIMAL_DETAIL: 0.1   // Minimal - simple rectangles, no text
+};
+
 interface StallRendererProps {
   stall: Stall;
   isSelected: boolean;
@@ -61,6 +69,20 @@ export default function StallRenderer({
   // Use exact old frontend logic
   const isStallSelected = isSelected;
   const dimensions = stall.dimensions;
+
+  // Performance: Determine Level-of-Detail based on current scale
+  const lodLevel = useMemo(() => {
+    if (scale >= LOD_THRESHOLDS.HIGH_DETAIL) return 'HIGH';
+    if (scale >= LOD_THRESHOLDS.MEDIUM_DETAIL) return 'MEDIUM';
+    if (scale >= LOD_THRESHOLDS.LOW_DETAIL) return 'LOW';
+    return 'MINIMAL';
+  }, [scale]);
+
+  // Performance: LOD-based feature flags
+  const shouldShowText = lodLevel !== 'MINIMAL';
+  const shouldShowShadows = lodLevel === 'HIGH' || lodLevel === 'MEDIUM';
+  const shouldShowTooltips = lodLevel !== 'MINIMAL'; // Keep tooltips even at low detail for UX
+  const shouldShowSelection = isStallSelected; // Always show selection for UX
 
   // Handle interactions - matching old frontend exactly
   const handleClick = useCallback(() => {
@@ -152,10 +174,11 @@ export default function StallRenderer({
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
-          shadowColor="rgba(0,0,0,0.1)"
-          shadowBlur={3}
-          shadowOffset={{ x: 1, y: 1 }}
-          shadowOpacity={0.3}
+          // Performance: Conditional shadows based on LOD
+          shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
+          shadowBlur={shouldShowShadows ? 3 : 0}
+          shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
+          shadowOpacity={shouldShowShadows ? 0.3 : 0}
           rotation={0}
           perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
           cornerRadius={0.05} // Sharp rectangles like old frontend!
@@ -198,8 +221,11 @@ export default function StallRenderer({
             x={rect1X} y={rect1Y}
             width={rect1Width} height={rect1Height}
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-            shadowColor="rgba(0,0,0,0.1)" shadowBlur={3}
-            shadowOffset={{ x: 1, y: 1 }} shadowOpacity={0.3}
+            // Performance: Conditional shadows based on LOD
+            shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
+            shadowBlur={shouldShowShadows ? 3 : 0}
+            shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
+            shadowOpacity={shouldShowShadows ? 0.3 : 0}
             rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
@@ -207,8 +233,11 @@ export default function StallRenderer({
             x={rect2X} y={rect2Y}
             width={rect2Width} height={rect2Height}
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-            shadowColor="rgba(0,0,0,0.1)" shadowBlur={3}
-            shadowOffset={{ x: 1, y: 1 }} shadowOpacity={0.3}
+            // Performance: Conditional shadows based on LOD
+            shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
+            shadowBlur={shouldShowShadows ? 3 : 0}
+            shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
+            shadowOpacity={shouldShowShadows ? 0.3 : 0}
             rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
@@ -224,10 +253,11 @@ export default function StallRenderer({
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
-        shadowColor="rgba(0,0,0,0.1)"
-        shadowBlur={3}
-        shadowOffset={{ x: 1, y: 1 }}
-        shadowOpacity={0.3}
+        // Performance: Conditional shadows based on LOD
+        shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
+        shadowBlur={shouldShowShadows ? 3 : 0}
+        shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
+        shadowOpacity={shouldShowShadows ? 0.3 : 0}
         rotation={0}
         perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
         cornerRadius={0.05}
@@ -252,18 +282,20 @@ export default function StallRenderer({
       {/* Shape renderer (exactly like old frontend) */}
       {renderStallShape()}
       
-      {/* Stall number text (exactly like old frontend) */}
-      <Text
-        text={stall.stallNumber}
-        fontSize={Math.min(dimensions.width, dimensions.height) * 0.25}
-        fill="#000000"
-        width={dimensions.width}
-        height={dimensions.height}
-        align="center"
-        verticalAlign="middle"
-        fontStyle="bold"
-        listening={false} // Performance: Text doesn't need event listeners
-      />
+      {/* Stall number text (Performance: Only show when readable) */}
+      {shouldShowText && (
+        <Text
+          text={stall.stallNumber}
+          fontSize={Math.min(dimensions.width, dimensions.height) * 0.25}
+          fill="#000000"
+          width={dimensions.width}
+          height={dimensions.height}
+          align="center"
+          verticalAlign="middle"
+          fontStyle="bold"
+          listening={false} // Performance: Text doesn't need event listeners
+        />
+      )}
       
       {/* Selection indicator (exactly like old frontend) */}
       {isStallSelected && (
@@ -278,8 +310,8 @@ export default function StallRenderer({
         />
       )}
 
-      {/* Tooltip (exactly like old frontend) */}
-      {tooltipVisible && (
+      {/* Tooltip (Performance: Only show when scale allows) */}
+      {tooltipVisible && shouldShowTooltips && (
         <Label
           x={dimensions.width / 2}
           y={-5 / scale}

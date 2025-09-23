@@ -23,6 +23,9 @@ const ZOOM_FACTOR = 1.15; // Match old frontend zoom factor
 const VIEWPORT_CULLING_BUFFER = 100; // Extra pixels around viewport to render
 const EVENT_THROTTLE_MS = 16; // ~60fps event throttling
 
+// Performance monitoring (optional debug feature)
+const ENABLE_PERF_MONITORING = process.env.NODE_ENV === 'development';
+
 // Viewport culling utilities
 const isStallInViewport = (stall: any, viewportBounds: any, hallX = 0, hallY = 0) => {
   const stallLeft = (stall.dimensions.x || 0) + hallX;
@@ -72,6 +75,27 @@ const LayoutCanvas = memo(function LayoutCanvas() {
       bottom: (-canvas.position.y + viewport.height + buffer) / canvas.scale
     };
   }, [canvas.position.x, canvas.position.y, canvas.scale, viewport.width, viewport.height]);
+
+  // Performance: Monitor rendering statistics (development only)
+  const performanceStats = useMemo(() => {
+    if (!layout?.halls || !ENABLE_PERF_MONITORING) return null;
+    
+    const totalStalls = layout.halls.reduce((total, hall) => total + (hall.stalls?.length || 0), 0);
+    const visibleStalls = layout.halls.reduce((total, hall) => {
+      if (!hall.stalls) return total;
+      const hallX = hall.dimensions.x || 0;
+      const hallY = hall.dimensions.y || 0;
+      return total + hall.stalls.filter(stall => 
+        isStallInViewport(stall, viewportBounds, hallX, hallY)
+      ).length;
+    }, 0);
+    
+    const cullPercentage = totalStalls > 0 ? ((totalStalls - visibleStalls) / totalStalls * 100).toFixed(1) : 0;
+    
+    console.log(`🎯 Performance: ${visibleStalls}/${totalStalls} stalls rendered (${cullPercentage}% culled, scale: ${canvas.scale.toFixed(2)})`);
+    
+    return { totalStalls, visibleStalls, cullPercentage };
+  }, [layout?.halls, viewportBounds, canvas.scale]);
 
   // Update viewport dimensions
   const updateViewport = useCallback(() => {
