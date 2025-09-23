@@ -14,17 +14,37 @@ COPY eslint.config.mjs ./
 # Install dependencies
 RUN npm ci --only=production=false
 
+# Accept build arguments
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SITE_URL  
+ARG NEXT_PUBLIC_ADMIN_URL
+
+# Set environment variables from build args
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL
+
 # Copy publicview source code
 COPY src ./src
 COPY public ./public
 
-# Build Next.js app
+# Build Next.js app (environment variables are now available)
 RUN npm run build
 
 # Production stage
 FROM node:22-alpine
 
 WORKDIR /app
+
+# Accept build arguments in production stage too
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SITE_URL  
+ARG NEXT_PUBLIC_ADMIN_URL
+
+# Set environment variables for runtime
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL
 
 # Copy package.json and install production dependencies only
 COPY package.json ./
