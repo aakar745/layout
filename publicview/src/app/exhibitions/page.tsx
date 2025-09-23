@@ -22,7 +22,7 @@ export default async function ExhibitionsPage() {
   try {
     exhibitions = await getExhibitions();
   } catch (err) {
-    console.error('Failed to fetch exhibitions:', err);
+    console.warn('API not accessible during build, using client-side fallback:', err instanceof Error ? err.message : err);
     error = err instanceof Error ? err.message : 'Failed to load exhibitions';
   }
 

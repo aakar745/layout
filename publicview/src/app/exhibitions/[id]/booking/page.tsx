@@ -29,6 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch (error) {
+    console.warn('Failed to generate booking metadata, using fallback:', error);
     return {
       title: 'Complete Your Booking | Exhibition Management',
       description: 'Complete your stall booking with our secure checkout process.',
@@ -45,7 +46,7 @@ export default async function BookingPage({ params, searchParams }: Props) {
   try {
     exhibition = await getExhibition(id);
   } catch (err) {
-    console.error(`Failed to fetch exhibition ${id}:`, err);
+    console.warn(`API not accessible during build for exhibition ${id}:`, err instanceof Error ? err.message : err);
     
     // If exhibition doesn't exist, show 404
     if (err instanceof Error && err.message.includes('404')) {
