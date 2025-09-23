@@ -10,11 +10,13 @@ import {
 } from 'lucide-react';
 
 export const SITE_CONFIG = {
-  name: "Exhibition Management System",
-  title: "Exhibition Management System - Book Your Stall",
+  name: "Aakar Booking",
+  title: "Aakar Booking - Book Your Exhibition Stall",
   description: "Discover and book exhibition stalls across India. Modern exhibition management with real-time booking.",
-  url: "https://yourdomain.com",
+  url: "https://aakarbooking.com",
   ogImage: "/og-image.jpg",
+  adminUrl: "https://admin.aakarbooking.com",
+  apiUrl: "https://api.aakarbooking.com",
 };
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [

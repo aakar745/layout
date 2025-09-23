@@ -38,7 +38,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import publicExhibitionService from '../../services/publicExhibition';
+import api from '../../services/api';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -109,7 +109,7 @@ const ExhibitorBookings: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await publicExhibitionService.getExhibitorBookings();
+      const response = await api.get('/exhibitor-bookings/my-bookings');
       setBookings(response.data || []);
     } catch (err) {
       console.error('Error fetching bookings:', err);
@@ -129,7 +129,7 @@ const ExhibitorBookings: React.FC = () => {
       cancelText: 'No, Keep Booking',
       onOk: async () => {
         try {
-          await publicExhibitionService.cancelExhibitorBooking(bookingId);
+          await api.patch(`/exhibitor-bookings/${bookingId}/cancel`);
           message.success('Booking cancelled successfully');
           fetchBookings(); // Refresh the list
         } catch (error) {

@@ -4,21 +4,15 @@ import { useSelector } from 'react-redux';
 import { App as AntApp, Spin } from 'antd';
 import { RootState } from './store/store';
 import MainLayout from './layouts/MainLayout';
-import ExhibitorLayout from './layouts/ExhibitorLayout';
+// ExhibitorLayout removed - exhibitor functionality disabled
 import Login from './pages/auth/Login';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import { PublicLayoutView, PublicExhibitionDetails, PublicExhibitionList } from './components/exhibition/public_view';
-import Home from './pages/home/Home';
+// Public components removed - now handled by publicview service
 import './styles/modal.css';
 
 // Lazy-loaded components
 const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
-const ExhibitorDashboard = lazy(() => import('./pages/exhibitor/Dashboard'));
-const ExhibitorBookings = lazy(() => import('./pages/exhibitor/Bookings'));
-const ExhibitorBookingDetails = lazy(() => import('./pages/exhibitor/BookingDetails'));
-const ExhibitorProfile = lazy(() => import('./pages/exhibitor/Profile'));
-const ExhibitorInvoiceDetails = lazy(() => import('./pages/exhibitor/InvoiceDetails'));
-const ExhibitorSupport = lazy(() => import('./pages/exhibitor/Support'));
+// Exhibitor components removed - exhibitor functionality disabled
 const Profile = lazy(() => import('./pages/account/Profile'));
 const Settings = lazy(() => import('./pages/settings/Settings'));
 const Roles = lazy(() => import('./pages/roles/index'));
@@ -46,17 +40,9 @@ const ActivityPage = lazy(() => import('./pages/activity/index'));
 const AnalyticsPage = lazy(() => import('./pages/analytics'));
 const ServiceChargesPage = lazy(() => import('./pages/service-charges/index'));
 const ServiceChargeSettings = lazy(() => import('./pages/service-charges/settings'));
-const ServiceChargeForm = lazy(() => import('./pages/service-charges/public'));
-const PaymentLookup = lazy(() => import('./pages/service-charges/public/PaymentLookup'));
 const ServiceChargeStallsPage = lazy(() => import('./pages/service-charge-stalls/index'));
 
-// Static Pages
-const AboutUs = lazy(() => import('./pages/static/AboutUs'));
-const ContactUs = lazy(() => import('./pages/static/ContactUs'));
-const PricingPolicy = lazy(() => import('./pages/static/PricingPolicy'));
-const TermsConditions = lazy(() => import('./pages/static/TermsConditions'));
-const PrivacyPolicy = lazy(() => import('./pages/static/PrivacyPolicy'));
-const CancellationRefund = lazy(() => import('./pages/static/CancellationRefund'));
+// Static Pages removed - now handled by publicview service
 
 // Preload critical routes to avoid loading delays
 const preloadCriticalRoutes = () => {
@@ -86,11 +72,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-// Exhibitor private route
-const ExhibitorRoute = ({ children }: { children: React.ReactNode }) => {
-  const isAuthenticated = useSelector((state: RootState) => state.exhibitorAuth.isAuthenticated);
-  return isAuthenticated ? children : <Navigate to="/" />;
-};
+// Exhibitor functionality removed
 
 // Wrap components with ErrorBoundary for consistent error handling
 const withErrorBoundary = (component: React.ReactNode) => (
@@ -106,92 +88,11 @@ function App() {
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<Home />} />
+              {/* Redirect root to login - public routes now handled by publicview service */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<Login />} />
               
-              {/* Public Exhibition Routes */}
-              <Route path="/exhibitions" element={<PublicExhibitionList />} />
-              <Route path="/exhibitions/:id" element={<PublicExhibitionDetails />} />
-              <Route path="/exhibitions/:id/layout" element={<PublicLayoutView />} />
-              
-              {/* Public Service Charge Route */}
-              <Route path="/exhibitions/:exhibitionId/service-charge" element={<ServiceChargeForm />} />
-              <Route path="/exhibitions/:exhibitionId/service-charge/check-payment" element={<PaymentLookup />} />
-              <Route path="/service-charge/payment-success" element={<ServiceChargeForm />} />
-              <Route path="/service-charge/payment-result" element={<ServiceChargeForm />} />
-              
-              {/* Static Pages */}
-              <Route path="/about" element={<AboutUs />} />
-              <Route path="/contact" element={<ContactUs />} />
-              <Route path="/pricing-policy" element={<PricingPolicy />} />
-              <Route path="/terms" element={<TermsConditions />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              <Route path="/cancellation-refund" element={<CancellationRefund />} />
-              
-              {/* Exhibitor Routes */}
-              <Route
-                path="/exhibitor/dashboard"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ErrorBoundary>
-                        <ExhibitorDashboard />
-                      </ErrorBoundary>
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
-              <Route
-                path="/exhibitor/profile"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ExhibitorProfile />
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
-              <Route
-                path="/exhibitor/bookings"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ExhibitorBookings />
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
-              <Route
-                path="/exhibitor/bookings/:id"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ExhibitorBookingDetails />
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
-              <Route
-                path="/exhibitor/support"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ExhibitorSupport />
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
-              <Route
-                path="/exhibitor/invoice/:id"
-                element={
-                  <ExhibitorRoute>
-                    <ExhibitorLayout>
-                      <ExhibitorInvoiceDetails />
-                    </ExhibitorLayout>
-                  </ExhibitorRoute>
-                }
-              />
+              {/* Exhibitor Routes removed - functionality disabled */}
               
               {/* Private Admin Routes */}
               <Route

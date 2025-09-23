@@ -21,7 +21,7 @@ import {
   FileTextOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import publicExhibitionService from '@services/publicExhibition';
+import api from '../../services/api';
 
 const { Title, Text } = Typography;
 
@@ -38,7 +38,7 @@ const ExhibitorBookingDetails: React.FC = () => {
   const fetchBookingDetails = async () => {
     try {
       setLoading(true);
-      const response = await publicExhibitionService.getExhibitorBooking(id || '');
+      const response = await api.get(`/exhibitor-bookings/${id}`);
       setBooking(response.data);
     } catch (error) {
       console.error('Error fetching booking details:', error);

@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { Link, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import publicExhibitionService from '../../services/publicExhibition';
+import api from '../../services/api';
 import { Booking } from '../../types/booking';
 
 // Extended booking status type to include all possible statuses from the API
@@ -34,7 +34,7 @@ const ExhibitorDashboard: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await publicExhibitionService.getExhibitorBookings();
+      const response = await api.get('/exhibitor-bookings/my-bookings');
       // Cast the response data to our extended booking type
       setRecentBookings(response.data as ExtendedBooking[] || []);
     } catch (err) {

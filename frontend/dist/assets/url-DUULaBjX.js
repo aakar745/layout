@@ -1,0 +1,1 @@
+const n=(r,i)=>{if(!r)return"";let e=`/exhibition/${r.slug||r._id||r.id}`;return i&&(e+=`/${i}`),e},l=(r,i)=>{if(!r)return"";let e=`/exhibitions/${r.slug||r._id||r.id}`;return i&&(e+=`/${i}`),e};export{l as a,n as g};
