@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, memo, useMemo } from 'react';
 import { Stage, Layer, Line, Rect, Text, Group } from 'react-konva';
 import { useLayoutStore } from '@/store/layoutStore';
 import StallRenderer from './StallRenderer';
@@ -14,16 +14,35 @@ import { ViewportDimensions } from '@/lib/types/layout';
 import Konva from 'konva';
 
 // Canvas constants
-
 const CANVAS_PADDING = 50;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 20; // Match old frontend max scale
 const ZOOM_FACTOR = 1.15; // Match old frontend zoom factor
 
+// Performance optimization constants
+const VIEWPORT_CULLING_BUFFER = 100; // Extra pixels around viewport to render
+const EVENT_THROTTLE_MS = 16; // ~60fps event throttling
+
+// Viewport culling utilities
+const isStallInViewport = (stall: any, viewportBounds: any, hallX = 0, hallY = 0) => {
+  const stallLeft = (stall.dimensions.x || 0) + hallX;
+  const stallTop = (stall.dimensions.y || 0) + hallY;
+  const stallRight = stallLeft + (stall.dimensions.width || 0);
+  const stallBottom = stallTop + (stall.dimensions.height || 0);
+  
+  return !(stallRight < viewportBounds.left || 
+           stallLeft > viewportBounds.right ||
+           stallBottom < viewportBounds.top ||
+           stallTop > viewportBounds.bottom);
+};
+
 const LayoutCanvas = memo(function LayoutCanvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [viewport, setViewport] = useState<ViewportDimensions>({ width: 1200, height: 800 }); // Larger default to match container
+  
+  // Performance: throttling refs for event handling
+  const lastUpdateTime = useRef<number>(0);
   
   const {
     layout,
@@ -38,6 +57,21 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     setHoveredStall,
     clearSelection
   } = useLayoutStore();
+
+  // Performance: Calculate viewport bounds for culling
+  const viewportBounds = useMemo(() => {
+    if (!viewport.width || !viewport.height || !canvas.scale) {
+      return { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+    }
+    
+    const buffer = VIEWPORT_CULLING_BUFFER;
+    return {
+      left: (-canvas.position.x - buffer) / canvas.scale,
+      top: (-canvas.position.y - buffer) / canvas.scale, 
+      right: (-canvas.position.x + viewport.width + buffer) / canvas.scale,
+      bottom: (-canvas.position.y + viewport.height + buffer) / canvas.scale
+    };
+  }, [canvas.position.x, canvas.position.y, canvas.scale, viewport.width, viewport.height]);
 
   // Update viewport dimensions
   const updateViewport = useCallback(() => {
@@ -90,9 +124,14 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     }
   }, [layout?.name, viewport.width, viewport.height, fitToCanvas]); // Trigger on layout change and viewport resize
 
-  // Handle wheel zoom
+  // Handle wheel zoom (Performance: throttled for smooth interaction)
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
+    
+    // Performance: Throttle zoom events to ~60fps
+    const now = performance.now();
+    if (now - lastUpdateTime.current < EVENT_THROTTLE_MS) return;
+    lastUpdateTime.current = now;
     
     const stage = stageRef.current;
     if (!stage) return;
@@ -283,45 +322,52 @@ const LayoutCanvas = memo(function LayoutCanvas() {
             ))
           )}
 
-          {/* Stalls */}
+          {/* Stalls (Performance: Only render visible stalls) */}
           {layout.halls.map(hall =>
-            (hall.stalls || []).map(stall => {
-              // Use consistent ID: backend always provides 'id' field
-              const stallId = stall.id || stall._id || '';
-              if (!stallId) {
-                console.warn('Stall missing ID:', stall);
-                return null;
-              }
-              
-              // Use old frontend pattern - pass hall position to StallRenderer
-              const hallX = hall.dimensions.x || 0;
-              const hallY = hall.dimensions.y || 0;
-              
-              // Keep stall dimensions structure exactly like old frontend
-              const stallWithDimensions = {
-                ...stall,
-                dimensions: {
-                  ...stall.dimensions,
-                  x: stall.position?.x || stall.dimensions?.x || 0,
-                  y: stall.position?.y || stall.dimensions?.y || 0
+            (hall.stalls || [])
+              .filter(stall => {
+                // Performance: Viewport culling - only render visible stalls
+                const hallX = hall.dimensions.x || 0;
+                const hallY = hall.dimensions.y || 0;
+                return isStallInViewport(stall, viewportBounds, hallX, hallY);
+              })
+              .map(stall => {
+                // Use consistent ID: backend always provides 'id' field
+                const stallId = stall.id || stall._id || '';
+                if (!stallId) {
+                  console.warn('Stall missing ID:', stall);
+                  return null;
                 }
-              };
-              
-              return (
-                <StallRenderer
-                  key={stallId}
-                  stall={stallWithDimensions}
-                  isSelected={canvas.selectedStalls.includes(stallId)}
-                  isHovered={canvas.hoveredStall === stallId}
-                  viewConfig={viewConfig}
-                  onSelect={toggleStallSelection}
-                  onHover={setHoveredStall}
-                  scale={canvas.scale}
-                  hallX={hallX}
-                  hallY={hallY}
-                />
-              );
-            })
+                
+                // Use old frontend pattern - pass hall position to StallRenderer
+                const hallX = hall.dimensions.x || 0;
+                const hallY = hall.dimensions.y || 0;
+                
+                // Keep stall dimensions structure exactly like old frontend
+                const stallWithDimensions = {
+                  ...stall,
+                  dimensions: {
+                    ...stall.dimensions,
+                    x: stall.position?.x || stall.dimensions?.x || 0,
+                    y: stall.position?.y || stall.dimensions?.y || 0
+                  }
+                };
+                
+                return (
+                  <StallRenderer
+                    key={stallId}
+                    stall={stallWithDimensions}
+                    isSelected={canvas.selectedStalls.includes(stallId)}
+                    isHovered={canvas.hoveredStall === stallId}
+                    viewConfig={viewConfig}
+                    onSelect={toggleStallSelection}
+                    onHover={setHoveredStall}
+                    scale={canvas.scale}
+                    hallX={hallX}
+                    hallY={hallY}
+                  />
+                );
+              })
           )}
 
           {/* Amenities */}

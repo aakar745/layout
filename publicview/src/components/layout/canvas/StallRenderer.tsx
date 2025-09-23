@@ -157,7 +157,7 @@ export default function StallRenderer({
           shadowOffset={{ x: 1, y: 1 }}
           shadowOpacity={0.3}
           rotation={0}
-          perfectDrawEnabled={true}
+          perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
           cornerRadius={0.05} // Sharp rectangles like old frontend!
         />
       );
@@ -200,7 +200,7 @@ export default function StallRenderer({
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
             shadowColor="rgba(0,0,0,0.1)" shadowBlur={3}
             shadowOffset={{ x: 1, y: 1 }} shadowOpacity={0.3}
-            rotation={0} perfectDrawEnabled={true}
+            rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
           <Rect
@@ -209,7 +209,7 @@ export default function StallRenderer({
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
             shadowColor="rgba(0,0,0,0.1)" shadowBlur={3}
             shadowOffset={{ x: 1, y: 1 }} shadowOpacity={0.3}
-            rotation={0} perfectDrawEnabled={true}
+            rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
         </Group>
@@ -229,7 +229,7 @@ export default function StallRenderer({
         shadowOffset={{ x: 1, y: 1 }}
         shadowOpacity={0.3}
         rotation={0}
-        perfectDrawEnabled={true}
+        perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
         cornerRadius={0.05}
       />
     );
@@ -262,7 +262,7 @@ export default function StallRenderer({
         align="center"
         verticalAlign="middle"
         fontStyle="bold"
-        listening={false}
+        listening={false} // Performance: Text doesn't need event listeners
       />
       
       {/* Selection indicator (exactly like old frontend) */}
@@ -274,7 +274,7 @@ export default function StallRenderer({
           fill="#1890ff"
           stroke="#ffffff"
           strokeWidth={0.2 / scale}
-          listening={false}
+          listening={false} // Performance: Selection indicator doesn't need events
         />
       )}
 
@@ -284,7 +284,7 @@ export default function StallRenderer({
           x={dimensions.width / 2}
           y={-5 / scale}
           opacity={0.9}
-          listening={false}
+          listening={false} // Performance: Tooltip doesn't need events
         >
           <Tag
             fill="#333"
@@ -305,7 +305,7 @@ export default function StallRenderer({
             fill="white"
             align="center"
             width={Math.max(100 / scale, (tooltipText.length * 10) / scale)}
-            listening={false}
+            listening={false} // Performance: Tooltip text doesn't need events
           />
         </Label>
       )}
