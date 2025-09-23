@@ -4,6 +4,12 @@ export const apiUrl = isProduction
   ? (import.meta.env.VITE_API_URL || 'https://api.aakarbooking.com/api')
   : 'http://localhost:5000/api';
 
+// Debug logging for production
+if (isProduction) {
+  console.log('Production API URL:', apiUrl);
+  console.log('Environment variable VITE_API_URL:', import.meta.env.VITE_API_URL);
+}
+
 // Admin panel URL
 export const adminUrl = isProduction 
   ? 'https://admin.aakarbooking.com'
