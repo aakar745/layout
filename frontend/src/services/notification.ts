@@ -97,13 +97,6 @@ class NotificationService {
       // Fix: Only remove the trailing /api, not internal /api in domain
       let serverUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
       
-      // Debug logging for production Socket.IO URL issue
-      console.log('🔍 Socket.IO URL Debug:', {
-        originalApiUrl: apiUrl,
-        serverUrl,
-        isProduction: window.location.hostname !== 'localhost'
-      });
-      
       // Pre-process token to ensure it's in the right format
       // Remove 'Bearer ' prefix if present (common mistake)
       const cleanToken = token.startsWith('Bearer ') ? token.substring(7) : token;
