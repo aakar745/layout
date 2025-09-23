@@ -269,7 +269,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       onClick: () => navigate('/invoices'),
     },
     {
-      key: 'service-charges',
+      key: 'service-charges-menu',
       icon: <CreditCardOutlined />,
       label: 'Service Charges',
       requiredPermission: 'view_service_charges',

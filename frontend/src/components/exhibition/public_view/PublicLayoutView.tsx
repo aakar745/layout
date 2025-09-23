@@ -540,7 +540,7 @@ const PublicLayoutView: React.FC = () => {
             margin: isMobile ? '40px 0px 10px 0px' : '10px 0px',
             border: 'none'
           }}
-          bodyStyle={{ padding: isMobile ? '5px' : '24px' }}
+          styles={{ body: { padding: isMobile ? '5px' : '24px' } }}
         >
           <Row gutter={[24, 24]} style={{ marginBottom: isMobile ? 16 : 32 }}>
             {/* Left column: Exhibition logo and details */}

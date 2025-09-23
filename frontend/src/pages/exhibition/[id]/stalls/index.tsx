@@ -454,7 +454,7 @@ const StallManager: React.FC = () => {
             </Space>
           }
           style={{ flex: 1 }}
-          bodyStyle={{ height: 'calc(100% - 57px)' }}
+          styles={{ body: { height: 'calc(100% - 57px)' } }}
         >
           {stalls.length > 500 && (
             <div style={{ 

@@ -53,8 +53,11 @@ interface BookingTableProps {
 /**
  * Displays a delete confirmation modal with styled UI
  */
-const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => void, formatBookingNumber: (id: string, createdAt: string) => string) => {
-  Modal.confirm({
+const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => void, formatBookingNumber: (id: string, createdAt: string) => string, modal?: any) => {
+  // Use the modal instance if available, otherwise fallback to static Modal.confirm
+  const confirmModal = modal || Modal;
+  
+  confirmModal.confirm({
     title: (
       <div style={{ 
         display: 'flex', 
@@ -109,7 +112,11 @@ const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => vo
         marginTop: 0
       }}>
         <Button
-          onClick={() => Modal.destroyAll()}
+          onClick={() => {
+            // For modal instances, the modal will close automatically on cancel
+            if (modal && modal.destroy) modal.destroy();
+            else Modal.destroyAll();
+          }}
           style={{ 
             height: '40px',
             padding: '10px 18px',
@@ -131,7 +138,9 @@ const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => vo
           type="primary"
           onClick={() => {
             handleDelete(record._id);
-            Modal.destroyAll();
+            // For modal instances, the modal will close automatically on confirm
+            if (modal && modal.destroy) modal.destroy();
+            else Modal.destroyAll();
           }}
           style={{ 
             height: '40px',
@@ -181,7 +190,8 @@ const showDeleteConfirm = (record: BookingType, handleDelete: (id: string) => vo
  * Gets columns configuration for the booking table
  */
 export const getTableColumns = (
-  props: BookingTableProps
+  props: BookingTableProps,
+  modal?: any
 ): ColumnsType<BookingType> => {
   const navigate = useNavigate();
   const { data: invoices, isLoading: isLoadingInvoices, error: invoiceError, refetch: refetchInvoices } = useGetInvoicesQuery({ 
@@ -788,75 +798,61 @@ Exhibition Management Team`;
             />
           </Tooltip>
           <Dropdown
-            overlay={
-              <Menu>
-                {record.status !== 'cancelled' && props.hasPermission('view_bookings') && (
-                  <Menu.Item 
-                    key="invoice" 
-                    icon={<FileTextOutlined />}
-                    disabled={isLoadingInvoices || (record.status !== 'approved' && record.status !== 'confirmed')}
-                    onClick={() => handleInvoiceClick(record)}
-                  >
-                    {record.status !== 'approved' && record.status !== 'confirmed' 
-                      ? 'Approve First to View Invoice' 
-                      : 'View Invoice'
-                    }
-                  </Menu.Item>
-                )}
-                {record.status !== 'cancelled' && props.hasPermission('view_bookings') && (
-                  <Menu.Item 
-                    key="sendInvoice" 
-                    icon={<MailOutlined />}
-                    disabled={isSendingEmail || (record.status !== 'approved' && record.status !== 'confirmed')}
-                    onClick={() => handleSendInvoice(record)}
-                  >
-                    {isSendingEmail 
-                      ? 'Sending...' 
-                      : record.status !== 'approved' && record.status !== 'confirmed' 
-                        ? 'Approve First to Send Invoice' 
-                        : 'Send Invoice'
-                    }
-                  </Menu.Item>
-                )}
-                                  <Menu.Item 
-                    key="sendWhatsApp" 
-                    icon={<MessageOutlined />}
-                    disabled={isSendingWhatsApp || (record.status !== 'approved' && record.status !== 'confirmed')}
-                    onClick={() => handleSendWhatsAppInvoice(record)}
-                  >
-                    {isSendingWhatsApp 
-                      ? 'Sending WhatsApp...' 
-                      : record.status !== 'approved' && record.status !== 'confirmed' 
-                        ? 'Approve First to Send Invoice' 
-                        : 'Send Invoice via WhatsApp'
-                    }
-                  </Menu.Item>
-                <Menu.Item 
-                  key="updateStatus" 
-                  icon={<CheckCircleOutlined />}
-                  onClick={() => {
+            menu={{
+              items: [
+                ...(record.status !== 'cancelled' && props.hasPermission('view_bookings') ? [{
+                  key: 'invoice',
+                  icon: <FileTextOutlined />,
+                  label: record.status !== 'approved' && record.status !== 'confirmed' 
+                    ? 'Approve First to View Invoice' 
+                    : 'View Invoice',
+                  disabled: isLoadingInvoices || (record.status !== 'approved' && record.status !== 'confirmed'),
+                  onClick: () => handleInvoiceClick(record)
+                }] : []),
+                ...(record.status !== 'cancelled' && props.hasPermission('view_bookings') ? [{
+                  key: 'sendInvoice',
+                  icon: <MailOutlined />,
+                  label: isSendingEmail 
+                    ? 'Sending...' 
+                    : record.status !== 'approved' && record.status !== 'confirmed' 
+                      ? 'Approve First to Send Invoice' 
+                      : 'Send Invoice',
+                  disabled: isSendingEmail || (record.status !== 'approved' && record.status !== 'confirmed'),
+                  onClick: () => handleSendInvoice(record)
+                }] : []),
+                {
+                  key: 'sendWhatsApp',
+                  icon: <MessageOutlined />,
+                  label: isSendingWhatsApp 
+                    ? 'Sending WhatsApp...' 
+                    : record.status !== 'approved' && record.status !== 'confirmed' 
+                      ? 'Approve First to Send Invoice' 
+                      : 'Send Invoice via WhatsApp',
+                  disabled: isSendingWhatsApp || (record.status !== 'approved' && record.status !== 'confirmed'),
+                  onClick: () => handleSendWhatsAppInvoice(record)
+                },
+                {
+                  key: 'updateStatus',
+                  icon: <CheckCircleOutlined />,
+                  label: 'Update Status',
+                  onClick: () => {
                     props.setSelectedBooking(record);
                     props.setSelectedStatus(record.status);
                     props.setRejectionReasonText(record.rejectionReason || '');
                     props.setIsStatusModalVisible(true);
-                  }}
-                >
-                  Update Status
-                </Menu.Item>
-                {props.hasPermission('delete_bookings') && (
-                  <Menu.Item 
-                    key="delete" 
-                    icon={<DeleteOutlined />}
-                    danger
-                    onClick={() => {
-                      showDeleteConfirm(record, props.handleDelete, props.formatBookingNumber);
-                    }}
-                  >
-                    Delete
-                  </Menu.Item>
-                )}
-              </Menu>
-            }
+                  }
+                },
+                ...(props.hasPermission('delete_bookings') ? [{
+                  key: 'delete',
+                  icon: <DeleteOutlined />,
+                  label: 'Delete',
+                  danger: true,
+                  onClick: () => {
+                    showDeleteConfirm(record, props.handleDelete, props.formatBookingNumber, modal);
+                  }
+                }] : [])
+              ]
+            }}
             trigger={['click']}
           >
             <Button icon={<MoreOutlined />} />
@@ -878,8 +874,11 @@ const BookingTable: React.FC<BookingTableProps> = (props) => {
     fetchBookingsWithPagination
   } = props;
 
+  // Use Modal.useModal() hook for context-aware modals
+  const [modal, contextHolder] = Modal.useModal();
+
   // Get the columns configuration
-  const columns = getTableColumns(props);
+  const columns = getTableColumns(props, modal);
 
   // Custom render function for pagination toolbar
   const renderPaginationToolbar = (
@@ -914,6 +913,7 @@ const BookingTable: React.FC<BookingTableProps> = (props) => {
 
   return (
     <>
+      {contextHolder}
       <Table
         columns={columns}
         dataSource={bookings}

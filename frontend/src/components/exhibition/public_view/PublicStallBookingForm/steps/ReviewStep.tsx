@@ -324,7 +324,9 @@ const ReviewStep: React.FC<StepProps> = ({
   if (loading) {
     return (
       <StepContent style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
-        <Spin size="large" tip="Processing your booking..." />
+        <Spin size="large" tip="Processing your booking...">
+          <div style={{ minHeight: '50px' }} />
+        </Spin>
       </StepContent>
     );
   }

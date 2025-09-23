@@ -326,55 +326,46 @@ const GlobalHeader: React.FC = () => {
     { key: 'contact', label: 'Contact', path: '/contact' },
   ];
   
-  // Guest menu when not logged in
-  const guestMenu = (
-    <StyledMenu
-      items={[
-        {
-          key: 'exhibitor-login',
-          icon: <LoginOutlined />,
-          label: <a onClick={handleShowLoginModal}>Exhibitor Login</a>,
-        },
-        {
-          key: 'exhibitor-register',
-          icon: <UserAddOutlined />,
-          label: <a onClick={showRegisterModal}>Register as Exhibitor</a>,
-        }
-      ]}
-    />
-  );
+  // Guest menu items when not logged in
+  const guestMenuItems = [
+    {
+      key: 'exhibitor-login',
+      icon: <LoginOutlined />,
+      label: <a onClick={handleShowLoginModal}>Exhibitor Login</a>,
+    },
+    {
+      key: 'exhibitor-register',
+      icon: <UserAddOutlined />,
+      label: <a onClick={showRegisterModal}>Register as Exhibitor</a>,
+    }
+  ];
 
-  // Exhibitor menu when logged in
-  const exhibitorMenu = (
-    <StyledMenu
-      items={[
-        {
-          key: 'exhibitor-dashboard',
-          icon: <DashboardOutlined />,
-          label: <Link to="/exhibitor/dashboard">Dashboard</Link>,
-        },
-        {
-          key: 'exhibitor-profile',
-          icon: <UserOutlined />,
-          label: <Link to="/exhibitor/profile">My Profile</Link>,
-        },
-        {
-          key: 'exhibitor-bookings',
-          icon: <ShopOutlined />,
-          label: <Link to="/exhibitor/bookings">My Bookings</Link>,
-        },
-        {
-          key: 'divider',
-          type: 'divider',
-        },
-        {
-          key: 'exhibitor-logout',
-          icon: <LogoutOutlined />,
-          label: <a onClick={handleExhibitorLogout}>Logout</a>,
-        },
-      ]}
-    />
-  );
+  // Exhibitor menu items when logged in
+  const exhibitorMenuItems = [
+    {
+      key: 'exhibitor-dashboard',
+      icon: <DashboardOutlined />,
+      label: <Link to="/exhibitor/dashboard">Dashboard</Link>,
+    },
+    {
+      key: 'exhibitor-profile',
+      icon: <UserOutlined />,
+      label: <Link to="/exhibitor/profile">My Profile</Link>,
+    },
+    {
+      key: 'exhibitor-bookings',
+      icon: <ShopOutlined />,
+      label: <Link to="/exhibitor/bookings">My Bookings</Link>,
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'exhibitor-logout',
+      icon: <LogoutOutlined />,
+      label: <a onClick={handleExhibitorLogout}>Logout</a>,
+    },
+  ];
 
   return (
     <>
@@ -407,15 +398,21 @@ const GlobalHeader: React.FC = () => {
           {/* User profile/login for desktop */}
           <HeaderRight>
             <Dropdown 
-              overlay={exhibitorAuth.isAuthenticated ? exhibitorMenu : guestMenu} 
+              menu={{ 
+                items: exhibitorAuth.isAuthenticated ? exhibitorMenuItems : guestMenuItems 
+              }}
               trigger={['click']} 
               placement="bottomRight"
               open={dropdownVisible}
               onOpenChange={setDropdownVisible}
-              overlayStyle={{ 
-                minWidth: '150px',
-                marginTop: '10px'
-              }}
+              popupRender={(menu) => (
+                <div style={{ 
+                  minWidth: '150px',
+                  marginTop: '10px'
+                }}>
+                  {menu}
+                </div>
+              )}
             >
               {exhibitorAuth.isAuthenticated ? (
                 <Space style={{ cursor: 'pointer' }}>

@@ -284,7 +284,7 @@ const ExhibitionDetails: React.FC = () => {
           borderRadius: '12px',
           overflow: 'hidden'
         }}
-        bodyStyle={{ padding: '0' }}
+        styles={{ body: { padding: '0' } }}
       >
         <div style={{ 
           background: 'linear-gradient(135deg, #1a365d 0%, #44337a 100%)',

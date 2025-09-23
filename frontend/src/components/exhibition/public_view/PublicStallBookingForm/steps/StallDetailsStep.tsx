@@ -397,8 +397,8 @@ const StallDetailsStep: React.FC<StepProps> = ({
             background: '#f6f8fa',
             borderBottom: '1px solid #eee'
           }}
-          bodyStyle={{ 
-            padding: '16px 24px' 
+          styles={{ 
+            body: { padding: '16px 24px' }
           }}
         >
           <div className="summary-row">

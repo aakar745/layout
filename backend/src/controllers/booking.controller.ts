@@ -237,6 +237,36 @@ export const createBooking = async (req: Request, res: Response) => {
       // Continue - logging is not critical
     }
 
+    // Emit real-time stall booking updates to all viewers of this exhibition
+    try {
+      const { emitStallStatusChanged } = require('../services/socket.service');
+      
+      // Add delay for MongoDB consistency (AtomicBookingService sets status to 'booked')
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Fetch the updated stalls and verify they are properly booked
+      const updatedStalls = await Stall.find({ _id: { $in: stallIds } });
+      
+      console.log(`Fetched ${updatedStalls.length} stalls for admin booking emission:`, 
+        updatedStalls.map(s => ({ id: s._id, number: s.number, status: s.status })));
+      
+      // Only emit events for stalls that were actually updated to 'booked' status
+      const bookedStalls = updatedStalls.filter(stall => stall.status === 'booked');
+      
+      if (bookedStalls.length !== updatedStalls.length) {
+        console.warn(`Warning: Only ${bookedStalls.length} of ${updatedStalls.length} stalls are in 'booked' status`);
+      }
+      
+      bookedStalls.forEach(stall => {
+        emitStallStatusChanged(exhibitionId, stall);
+      });
+      
+      console.log(`Real-time admin booking updates emitted for ${bookedStalls.length} stalls`);
+    } catch (socketError) {
+      console.error('Error emitting admin booking updates:', socketError);
+      // Don't fail the booking if socket emission fails
+    }
+
     // Return successful response with populated data
     const populatedBooking = await Booking.findById(booking._id)
       .populate('exhibitionId', 'name')
@@ -529,12 +559,41 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
       }
     });
 
-    // Update all stalls status based on the new booking status
+    // Update all stalls status based on the new booking status with race condition protection
     if (status === 'confirmed' || status === 'approved') {
-      await Stall.updateMany(
-        { _id: { $in: booking.stallIds } },
-        { status: status === 'confirmed' ? 'booked' : 'reserved' }
+      const newStallStatus = status === 'confirmed' ? 'booked' : 'reserved';
+      
+      const stallUpdateResult = await Stall.updateMany(
+        { 
+          _id: { $in: booking.stallIds },
+          status: { $ne: newStallStatus } // Only update if status is different (avoid unnecessary updates)
+        },
+        { status: newStallStatus }
       );
+
+      console.log(`Updated ${stallUpdateResult.modifiedCount} stalls to ${newStallStatus} status`);
+
+      // Emit real-time stall status updates to all viewers of this exhibition
+      try {
+        const { emitStallStatusChanged } = require('../services/socket.service');
+        
+        // Add delay for MongoDB consistency
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const updatedStalls = await Stall.find({ _id: { $in: booking.stallIds } });
+        
+        console.log(`Fetched ${updatedStalls.length} stalls for status update emission:`, 
+          updatedStalls.map(s => ({ id: s._id, number: s.number, status: s.status })));
+        
+        updatedStalls.forEach(stall => {
+          emitStallStatusChanged(booking.exhibitionId._id || booking.exhibitionId, stall);
+        });
+        
+        console.log(`Real-time stall status updates emitted for ${updatedStalls.length} stalls after booking ${status}`);
+      } catch (socketError) {
+        console.error('Error emitting stall status updates:', socketError);
+        // Don't fail the status update if socket emission fails
+      }
       
       // When a booking is approved OR confirmed, check if an invoice exists - if not, create one
       if (status === 'approved' || status === 'confirmed') {
@@ -642,10 +701,37 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
         }
       }
     } else if (status === 'cancelled' || status === 'rejected') {
-      await Stall.updateMany(
-        { _id: { $in: booking.stallIds } },
+      const stallUpdateResult = await Stall.updateMany(
+        { 
+          _id: { $in: booking.stallIds },
+          status: { $in: ['booked', 'reserved'] } // Only update if currently booked/reserved
+        },
         { status: 'available' }
       );
+
+      console.log(`Updated ${stallUpdateResult.modifiedCount} stalls to available status after ${status}`);
+
+      // Emit real-time stall status updates to all viewers of this exhibition
+      try {
+        const { emitStallStatusChanged } = require('../services/socket.service');
+        
+        // Add delay for MongoDB consistency
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const updatedStalls = await Stall.find({ _id: { $in: booking.stallIds } });
+        
+        console.log(`Fetched ${updatedStalls.length} stalls for ${status} emission:`, 
+          updatedStalls.map(s => ({ id: s._id, number: s.number, status: s.status })));
+        
+        updatedStalls.forEach(stall => {
+          emitStallStatusChanged(booking.exhibitionId._id || booking.exhibitionId, stall);
+        });
+        
+        console.log(`Real-time stall availability updates emitted for ${updatedStalls.length} stalls after booking ${status}`);
+      } catch (socketError) {
+        console.error('Error emitting stall availability updates:', socketError);
+        // Don't fail the status update if socket emission fails
+      }
       
       // Update invoice status if status is cancelled
       if (status === 'cancelled') {
@@ -731,11 +817,38 @@ export const deleteBooking = async (req: Request, res: Response) => {
     const stallNumbers = (booking.stallIds as any[]).map(stall => stall.number).join(', ');
     const exhibitionName = (booking.exhibitionId as any)?.name || 'Unknown Exhibition';
 
-    // Update all stalls status back to available
-    await Stall.updateMany(
-      { _id: { $in: booking.stallIds } },
+    // Update all stalls status back to available with atomic operation to prevent race conditions
+    const stallUpdateResult = await Stall.updateMany(
+      { 
+        _id: { $in: booking.stallIds },
+        status: { $in: ['booked', 'reserved'] } // Only update if currently booked/reserved
+      },
       { status: 'available' }
     );
+
+    console.log(`Updated ${stallUpdateResult.modifiedCount} stalls to available status`);
+
+    // Emit real-time stall status updates to all viewers of this exhibition
+    try {
+      const { emitStallStatusChanged } = require('../services/socket.service');
+      
+      // Add delay for MongoDB consistency like in booking creation
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const updatedStalls = await Stall.find({ _id: { $in: booking.stallIds } });
+      
+      console.log(`Fetched ${updatedStalls.length} stalls for deletion emission:`, 
+        updatedStalls.map(s => ({ id: s._id, number: s.number, status: s.status })));
+      
+      updatedStalls.forEach(stall => {
+        emitStallStatusChanged(booking.exhibitionId._id || booking.exhibitionId, stall);
+      });
+      
+      console.log(`Real-time stall availability updates emitted for ${updatedStalls.length} stalls`);
+    } catch (socketError) {
+      console.error('Error emitting stall availability updates:', socketError);
+      // Don't fail the deletion if socket emission fails
+    }
 
     // Delete related invoice
     await Invoice.deleteOne({ bookingId: booking._id });

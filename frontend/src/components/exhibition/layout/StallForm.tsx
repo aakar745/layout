@@ -344,7 +344,7 @@ const StallForm: React.FC<StallFormProps> = ({
         }
         open={visible}
         onCancel={handleCancel}
-        destroyOnClose={true}
+        destroyOnHidden={true}
         forceRender
         width={480}
         centered

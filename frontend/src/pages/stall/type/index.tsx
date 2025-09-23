@@ -216,7 +216,7 @@ const StallTypePage: React.FC = () => {
         open={isModalVisible}
         onCancel={handleCancel}
         footer={null}
-        destroyOnClose={false}
+        destroyOnHidden={false}
       >
         <Form
           form={form}

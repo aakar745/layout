@@ -33,7 +33,7 @@ export const initializeSocket = (server: HTTPServer) => {
     pingInterval: 25000
   });
 
-  // Authentication middleware
+  // Authentication middleware - supports public read-only access
   io.use((socket, next) => {
     try {
       // Log complete handshake data for debugging
@@ -56,12 +56,23 @@ export const initializeSocket = (server: HTTPServer) => {
         tokenLength: token ? token.length : 0
       });
       
+      // Allow public connections for read-only access
       if (!token) {
-        console.error('Authentication error: Token missing in socket connection');
-        return next(new Error('Authentication error: Token missing'));
+        if (authType === 'public') {
+          console.log('Public socket connection allowed for read-only access');
+          socket.data.user = {
+            id: 'public',
+            isPublic: true,
+            isExhibitor: false
+          };
+          return next();
+        } else {
+          console.error('Authentication error: Token missing in socket connection');
+          return next(new Error('Authentication error: Token missing'));
+        }
       }
 
-      // Verify the token
+      // Verify the token for authenticated users
       const adminSecret = process.env.JWT_SECRET || 'defaultsecret';
       const exhibitorSecret = process.env.EXHIBITOR_JWT_SECRET || 'exhibitorsecret';
       
@@ -92,7 +103,8 @@ export const initializeSocket = (server: HTTPServer) => {
         // Add user data to socket
         socket.data.user = {
           id: actualUserId,
-          isExhibitor: authType === 'exhibitor'
+          isExhibitor: authType === 'exhibitor',
+          isPublic: false
         };
         
         console.log(`Socket authenticated for ${authType} user:`, actualUserId);
@@ -111,6 +123,7 @@ export const initializeSocket = (server: HTTPServer) => {
   io.on('connection', (socket) => {
     const userId = socket.data.user?.id;
     const isExhibitor = socket.data.user?.isExhibitor;
+    const isPublic = socket.data.user?.isPublic;
     
     if (!userId) {
       console.error('Socket connection without user ID');
@@ -118,27 +131,54 @@ export const initializeSocket = (server: HTTPServer) => {
       return;
     }
     
-    console.log(`User connected: ${userId} (${isExhibitor ? 'Exhibitor' : 'Admin'})`);
+    const userType = isPublic ? 'Public' : (isExhibitor ? 'Exhibitor' : 'Admin');
+    console.log(`User connected: ${userId} (${userType})`);
     
-    // Join user-specific room for targeted notifications
-    const userRoom = `user-${userId}`;
-    socket.join(userRoom);
-    console.log(`User ${userId} joined room: ${userRoom}`);
+    // Only authenticated users get user-specific rooms
+    if (!isPublic) {
+      // Join user-specific room for targeted notifications
+      const userRoom = `user-${userId}`;
+      socket.join(userRoom);
+      console.log(`User ${userId} joined room: ${userRoom}`);
+      
+      // Join role-based room
+      const roleRoom = isExhibitor ? 'exhibitors' : 'admins';
+      socket.join(roleRoom);
+      console.log(`User ${userId} joined room: ${roleRoom}`);
+    }
     
-    // Join role-based room
-    const roleRoom = isExhibitor ? 'exhibitors' : 'admins';
-    socket.join(roleRoom);
-    console.log(`User ${userId} joined room: ${roleRoom}`);
-    
-    // Handle client listening for notifications
-    socket.on('subscribe_notifications', () => {
-      console.log(`User ${userId} subscribed to notifications`);
+    // Handle exhibition room joining (available for all users including public)
+    socket.on('joinExhibition', (exhibitionId) => {
+      if (!exhibitionId) {
+        console.error('Exhibition ID missing for joinExhibition');
+        return;
+      }
+      const exhibitionRoom = `exhibition-${exhibitionId}`;
+      socket.join(exhibitionRoom);
+      console.log(`User ${userId} (${userType}) joined exhibition room: ${exhibitionRoom}`);
+    });
+
+    // Handle exhibition room leaving
+    socket.on('leaveExhibition', (exhibitionId) => {
+      if (!exhibitionId) {
+        console.error('Exhibition ID missing for leaveExhibition');
+        return;
+      }
+      const exhibitionRoom = `exhibition-${exhibitionId}`;
+      socket.leave(exhibitionRoom);
+      console.log(`User ${userId} (${userType}) left exhibition room: ${exhibitionRoom}`);
     });
     
-    // Handle client stopping notification listening
-    socket.on('unsubscribe_notifications', () => {
-      console.log(`User ${userId} unsubscribed from notifications`);
-    });
+    // Handle client listening for notifications (authenticated users only)
+    if (!isPublic) {
+      socket.on('subscribe_notifications', () => {
+        console.log(`User ${userId} subscribed to notifications`);
+      });
+      
+      socket.on('unsubscribe_notifications', () => {
+        console.log(`User ${userId} unsubscribed from notifications`);
+      });
+    }
     
     // Handle errors
     socket.on('error', (error) => {
@@ -147,9 +187,15 @@ export const initializeSocket = (server: HTTPServer) => {
     
     // Handle disconnection
     socket.on('disconnect', (reason) => {
-      console.log(`User disconnected: ${userId}, reason: ${reason}`);
-      socket.leave(userRoom);
-      socket.leave(roleRoom);
+      console.log(`User disconnected: ${userId} (${userType}), reason: ${reason}`);
+      
+      // Clean up rooms (only if not public)
+      if (!isPublic) {
+        const userRoom = `user-${userId}`;
+        const roleRoom = isExhibitor ? 'exhibitors' : 'admins';
+        socket.leave(userRoom);
+        socket.leave(roleRoom);
+      }
     });
   });
 
@@ -224,4 +270,75 @@ export const emitUserDeactivated = (userId: string | mongoose.Types.ObjectId) =>
       timestamp: new Date().toISOString()
     });
   }
+};
+
+/**
+ * Emit an event to all users viewing a specific exhibition
+ * @param exhibitionId Exhibition ID
+ * @param event Event name
+ * @param data Event data
+ */
+export const emitToExhibition = (exhibitionId: string | mongoose.Types.ObjectId, event: string, data: any) => {
+  if (io) {
+    const exhibitionRoom = `exhibition-${exhibitionId}`;
+    console.log(`Emitting ${event} to exhibition room: ${exhibitionRoom}`);
+    io.to(exhibitionRoom).emit(event, data);
+  }
+};
+
+/**
+ * Emit stall status change to all viewers of an exhibition
+ * @param exhibitionId Exhibition ID
+ * @param stallData Updated stall data
+ */
+export const emitStallStatusChanged = (exhibitionId: string | mongoose.Types.ObjectId, stallData: any) => {
+  const updateData = {
+    exhibitionId: exhibitionId.toString(),
+    stallId: stallData._id.toString(),
+    stallNumber: stallData.number,
+    status: stallData.status,
+    companyName: stallData.companyName,
+    timestamp: new Date().toISOString()
+  };
+  
+  emitToExhibition(exhibitionId, 'stallStatusChanged', updateData);
+  console.log(`Stall status update emitted for exhibition ${exhibitionId}, stall ${stallData.number}`);
+};
+
+/**
+ * Emit stall booking event to all viewers of an exhibition
+ * @param exhibitionId Exhibition ID
+ * @param stallData Booked stall data
+ * @param bookingData Booking information
+ */
+export const emitStallBooked = (exhibitionId: string | mongoose.Types.ObjectId, stallData: any, bookingData?: any) => {
+  const updateData = {
+    exhibitionId: exhibitionId.toString(),
+    stallId: stallData._id.toString(),
+    stallNumber: stallData.number,
+    status: 'booked',
+    companyName: bookingData?.companyName || stallData.companyName,
+    bookedBy: bookingData?.customerName || bookingData?.companyName,
+    timestamp: new Date().toISOString()
+  };
+  
+  emitToExhibition(exhibitionId, 'stallBooked', updateData);
+  console.log(`Stall booking event emitted for exhibition ${exhibitionId}, stall ${stallData.number}`);
+};
+
+/**
+ * Emit layout update event to all viewers of an exhibition
+ * @param exhibitionId Exhibition ID
+ * @param updateData Layout update information
+ */
+export const emitLayoutUpdate = (exhibitionId: string | mongoose.Types.ObjectId, updateData: any) => {
+  const eventData = {
+    exhibitionId: exhibitionId.toString(),
+    updateType: updateData.type || 'general',
+    timestamp: new Date().toISOString(),
+    ...updateData
+  };
+  
+  emitToExhibition(exhibitionId, 'layoutUpdate', eventData);
+  console.log(`Layout update emitted for exhibition ${exhibitionId}`);
 }; 

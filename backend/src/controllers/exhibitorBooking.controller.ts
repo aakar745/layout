@@ -145,6 +145,22 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
       { status: 'reserved' }
     );
 
+    // Emit real-time stall booking updates to all viewers of this exhibition
+    try {
+      const { emitStallBooked } = require('../services/socket.service');
+      const updatedStalls = await Stall.find({ _id: { $in: stallIds } });
+      updatedStalls.forEach(stall => {
+        emitStallBooked(exhibition._id, stall, {
+          companyName: exhibitor.companyName,
+          customerName: exhibitor.contactPerson,
+          bookingId: booking._id
+        });
+      });
+    } catch (socketError) {
+      console.error('Error emitting stall booking updates:', socketError);
+      // Don't fail the booking if socket emission fails
+    }
+
     // Send notification to admin about new exhibitor booking (non-blocking)
     try {
       if (exhibition.createdBy) {
@@ -321,11 +337,38 @@ export const cancelExhibitorBooking = async (req: Request, res: Response) => {
     booking.status = 'cancelled';
     await booking.save();
 
-    // Update stall status back to available
-    await Stall.updateMany(
-      { _id: { $in: booking.stallIds } },
+    // Update stall status back to available with race condition protection
+    const stallUpdateResult = await Stall.updateMany(
+      { 
+        _id: { $in: booking.stallIds },
+        status: { $in: ['booked', 'reserved'] } // Only update if currently booked/reserved
+      },
       { status: 'available' }
     );
+
+    console.log(`Updated ${stallUpdateResult.modifiedCount} stalls to available status after cancellation`);
+
+    // Emit real-time stall status updates to all viewers of this exhibition
+    try {
+      const { emitStallStatusChanged } = require('../services/socket.service');
+      
+      // Add delay for MongoDB consistency
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const updatedStalls = await Stall.find({ _id: { $in: booking.stallIds } });
+      
+      console.log(`Fetched ${updatedStalls.length} stalls for cancellation emission:`, 
+        updatedStalls.map(s => ({ id: s._id, number: s.number, status: s.status })));
+      
+      updatedStalls.forEach(stall => {
+        emitStallStatusChanged(booking.exhibitionId._id || booking.exhibitionId, stall);
+      });
+      
+      console.log(`Real-time stall availability updates emitted for ${updatedStalls.length} stalls after cancellation`);
+    } catch (socketError) {
+      console.error('Error emitting stall availability updates:', socketError);
+      // Don't fail the cancellation if socket emission fails
+    }
 
     res.json({ message: 'Booking cancelled successfully', booking });
   } catch (error) {

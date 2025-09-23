@@ -307,7 +307,9 @@ const Analytics: React.FC = () => {
     return (
       <AnalyticsContainer>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <Spin size="large" tip="Loading exhibitions..." />
+          <Spin size="large" tip="Loading exhibitions...">
+            <div style={{ minHeight: '50px' }} />
+          </Spin>
         </div>
       </AnalyticsContainer>
     );
@@ -380,7 +382,9 @@ const Analytics: React.FC = () => {
 
       {selectedExhibition && loading && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-          <Spin size="large" tip="Loading analytics data..." />
+          <Spin size="large" tip="Loading analytics data...">
+            <div style={{ minHeight: '50px' }} />
+          </Spin>
         </div>
       )}
 

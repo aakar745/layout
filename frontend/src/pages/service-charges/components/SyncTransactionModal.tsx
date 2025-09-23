@@ -128,7 +128,7 @@ const SyncTransactionModal: React.FC<SyncTransactionModalProps> = ({
       onCancel={handleClose}
       footer={null}
       width={600}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {!result && (

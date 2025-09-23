@@ -50,6 +50,9 @@ const ExhibitorManagement: React.FC = () => {
   const [addLoading, setAddLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   
+  // Use Modal.useModal() hook for context-aware modals
+  const [modal, contextHolder] = Modal.useModal();
+  
   // Server-side filtering and pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -366,7 +369,9 @@ const ExhibitorManagement: React.FC = () => {
   };
   
   const handleDeleteMultiple = () => {
-    Modal.confirm({
+    // Use modal instance instead of static Modal.confirm
+    const confirmModal = modal || Modal;
+    confirmModal.confirm({
       title: 'Delete Selected Exhibitors',
       content: `Are you sure you want to delete ${selectedRowKeys.length} exhibitors? This action cannot be undone.`,
       okText: 'Yes',
@@ -420,6 +425,7 @@ const ExhibitorManagement: React.FC = () => {
 
   return (
     <div className="dashboard-container">
+      {contextHolder}
       {/* Header Section */}
       <div style={{ marginBottom: '24px' }}>
         <Row gutter={[24, 24]} align="middle">

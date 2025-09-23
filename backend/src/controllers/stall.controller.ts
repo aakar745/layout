@@ -256,6 +256,26 @@ export const updateStall = async (req: Request, res: Response) => {
 
     console.log('Stall updated successfully:', stall);
     
+    // Emit real-time stall update to all viewers of this exhibition
+    try {
+      const { emitLayoutUpdate } = require('../services/socket.service');
+      emitLayoutUpdate(exhibitionId, {
+        type: 'stall_updated',
+        stall: {
+          _id: stall._id.toString(),
+          number: stall.number,
+          dimensions: stall.dimensions,
+          stallTypeId: stall.stallTypeId,
+          status: stall.status,
+          ratePerSqm: stall.ratePerSqm
+        }
+      });
+      console.log(`Real-time stall update emitted for stall ${stall.number}`);
+    } catch (socketError) {
+      console.error('Error emitting stall update:', socketError);
+      // Don't fail the update if socket emission fails
+    }
+    
     // Invalidate PDF cache for all invoices related to this stall
     // This ensures that when stall data (like dimensions, ratePerSqm) changes,
     // the PDFs reflect the latest information
@@ -314,13 +334,31 @@ export const updateStall = async (req: Request, res: Response) => {
 export const deleteStall = async (req: Request, res: Response) => {
   try {
     const { exhibitionId, id } = req.params;
-    const stall = await Stall.findOneAndDelete({
+    
+    // First get the stall to capture its data before deletion
+    const existingStall = await Stall.findOne({ _id: id, exhibitionId });
+    if (!existingStall) {
+      return res.status(404).json({ message: 'Stall not found' });
+    }
+
+    // Now delete the stall
+    await Stall.findOneAndDelete({
       _id: id,
       exhibitionId
     });
-    
-    if (!stall) {
-      return res.status(404).json({ message: 'Stall not found' });
+
+    // Emit real-time stall deletion to all viewers of this exhibition
+    try {
+      const { emitLayoutUpdate } = require('../services/socket.service');
+      emitLayoutUpdate(exhibitionId, {
+        type: 'stall_deleted',
+        stallId: existingStall._id.toString(),
+        stallNumber: existingStall.number
+      });
+      console.log(`Real-time stall deletion emitted for stall ${existingStall.number}`);
+    } catch (socketError) {
+      console.error('Error emitting stall deletion:', socketError);
+      // Don't fail the deletion if socket emission fails
     }
 
     res.json({ message: 'Stall deleted successfully' });
@@ -352,6 +390,10 @@ export const updateStallStatus = async (req: Request, res: Response) => {
       { new: true, runValidators: true }
     );
 
+    if (!stall) {
+      return res.status(404).json({ message: 'Stall not found after update' });
+    }
+
     // Log activity
     await logActivity(req, {
       action: 'stall_status_changed',
@@ -376,6 +418,15 @@ export const updateStallStatus = async (req: Request, res: Response) => {
       },
       success: true
     });
+
+    // Emit real-time stall status update to all viewers of this exhibition
+    try {
+      const { emitStallStatusChanged } = require('../services/socket.service');
+      emitStallStatusChanged(exhibitionId, stall);
+    } catch (socketError) {
+      console.error('Error emitting stall status update:', socketError);
+      // Don't fail the update if socket emission fails
+    }
 
     res.json(stall);
   } catch (error) {

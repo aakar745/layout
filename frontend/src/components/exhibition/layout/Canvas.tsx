@@ -278,7 +278,7 @@ const Canvas: React.FC<CanvasProps> = ({
           layerRef.current.cache(cacheConfig);
         }
         
-        layerRef.current.hitGraphEnabled(false);
+        layerRef.current.listening(false);
         
         if (isPublicView) {
           if (stageRef.current) {
@@ -358,7 +358,7 @@ const Canvas: React.FC<CanvasProps> = ({
       optimizeForDragging(false);
       
       if (layerRef.current) {
-        layerRef.current.hitGraphEnabled(true);
+        layerRef.current.listening(true);
         
         if (isPublicView) {
           layerRef.current.clearCache();
@@ -633,14 +633,13 @@ const Canvas: React.FC<CanvasProps> = ({
         scaleX={scale}
         scaleY={scale}
         perfectDrawEnabled={!isDragging && !isPublicView && !shouldOptimizeForLargeDataset}
-        hitGraphEnabled={!isDragging}
+        listening={!isDragging}
         pixelRatio={
           shouldOptimizeForLargeDataset 
             ? (isDragging ? 0.5 : 0.8) // Lower quality for large datasets
             : (isDragging ? (isMobile ? 0.8 : 1) : Math.min(1.5, window.devicePixelRatio || 1))
         }
         dragDistance={isPublicView ? (isMobile ? 5 : 3) : 0}
-        listening={!shouldOptimizeForLargeDataset || !isDragging} // Reduce event listening for performance
       >
         {isPublicView && (
           <FastLayer 
@@ -655,7 +654,7 @@ const Canvas: React.FC<CanvasProps> = ({
           ref={layerRef}
           imageSmoothingEnabled={!isDragging && !shouldOptimizeForLargeDataset}
           perfectDrawEnabled={!isDragging && !shouldOptimizeForLargeDataset}
-          hitGraphEnabled={!isDragging}
+          listening={!isDragging}
         >
           {!isPublicView && (
             <ExhibitionSpace

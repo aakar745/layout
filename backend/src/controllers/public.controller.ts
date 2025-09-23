@@ -325,6 +325,22 @@ export const bookPublicStall = async (req: Request, res: Response) => {
       { status: 'reserved' }
     );
 
+    // Emit real-time stall booking update to all viewers of this exhibition
+    try {
+      const { emitStallBooked } = require('../services/socket.service');
+      const updatedStall = await Stall.findById(stallId);
+      if (updatedStall) {
+        emitStallBooked(exhibition._id, updatedStall, {
+          companyName,
+          customerName,
+          bookingId: booking._id
+        });
+      }
+    } catch (socketError) {
+      console.error('Error emitting stall booking update:', socketError);
+      // Don't fail the booking if socket emission fails
+    }
+
     // Invoice is automatically created by the atomic booking service
 
     // Log activity
@@ -550,6 +566,22 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
       { _id: { $in: stallIds } },
       { status: 'reserved' }
     );
+
+    // Emit real-time stall booking updates to all viewers of this exhibition
+    try {
+      const { emitStallBooked } = require('../services/socket.service');
+      const updatedStalls = await Stall.find({ _id: { $in: stallIds } });
+      updatedStalls.forEach(stall => {
+        emitStallBooked(exhibition._id, stall, {
+          companyName,
+          customerName,
+          bookingId: booking._id
+        });
+      });
+    } catch (socketError) {
+      console.error('Error emitting stall booking updates:', socketError);
+      // Don't fail the booking if socket emission fails
+    }
 
     // Invoice is automatically created by the atomic booking service
 

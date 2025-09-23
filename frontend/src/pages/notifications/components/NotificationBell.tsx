@@ -415,13 +415,13 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
       className={`bell-container ${hasNewAnimation ? 'bell-animate' : ''}`}
     >
       <Dropdown 
-        overlay={dropdownContent}
+        popupRender={() => dropdownContent}
         trigger={['click']}
         open={visible}
         onOpenChange={handleVisibleChange}
         placement="bottomRight"
         getPopupContainer={(trigger) => trigger.parentNode as HTMLElement}
-        overlayClassName="notification-dropdown-overlay"
+        openClassName="notification-dropdown-overlay"
       >
         <div className="bell-trigger">
           <Badge 

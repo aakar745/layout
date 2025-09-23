@@ -401,7 +401,7 @@ const PublicStallBookingForm: React.FC<PublicStallBookingFormProps> = ({
           </div>
         }
         width={900}
-        destroyOnClose
+        destroyOnHidden
         maskClosable={false}
         className="booking-modal"
       >

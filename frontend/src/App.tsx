@@ -74,7 +74,9 @@ setTimeout(preloadCriticalRoutes, 3000);
 // Loading component for suspense fallback
 const LoadingFallback = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-    <Spin size="large" tip="Loading..." />
+    <Spin size="large" tip="Loading...">
+      <div style={{ minHeight: '50px' }} />
+    </Spin>
   </div>
 );
 
@@ -101,7 +103,7 @@ function App() {
   return (
     <AntApp>
       <ErrorBoundary>
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               {/* Public Routes */}

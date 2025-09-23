@@ -60,6 +60,8 @@ const ExhibitorTable: React.FC<ExhibitorTableProps> = ({
   onTableChange,
   onSortChange
 }) => {
+  // Use Modal.useModal() hook for context-aware modals
+  const [modal, contextHolder] = Modal.useModal();
 
   const getStatusTag = (status: string) => {
     switch(status) {
@@ -324,22 +326,23 @@ const ExhibitorTable: React.FC<ExhibitorTableProps> = ({
             Update Status
           </Button>
           <Dropdown
-            overlay={
-              <Menu>
-                <Menu.Item 
-                  key="edit" 
-                  icon={<EditOutlined />}
-                  onClick={() => onEdit(record)}
-                >
-                  Edit
-                </Menu.Item>
-                <Menu.Item 
-                  key="delete" 
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={(e) => {
-                    e.domEvent.stopPropagation();
-                    Modal.confirm({
+            menu={{
+              items: [
+                {
+                  key: 'edit',
+                  icon: <EditOutlined />,
+                  label: 'Edit',
+                  onClick: () => onEdit(record)
+                },
+                {
+                  key: 'delete',
+                  icon: <DeleteOutlined />,
+                  label: 'Delete',
+                  danger: true,
+                  onClick: () => {
+                    // Use modal instance instead of static Modal.confirm
+                    const confirmModal = modal || Modal;
+                    confirmModal.confirm({
                       title: 'Delete Exhibitor',
                       content: 'Are you sure you want to delete this exhibitor? This action cannot be undone.',
                       okText: 'Yes',
@@ -347,12 +350,10 @@ const ExhibitorTable: React.FC<ExhibitorTableProps> = ({
                       cancelText: 'No',
                       onOk: () => onDelete(record._id)
                     });
-                  }}
-                >
-                  Delete
-                </Menu.Item>
-              </Menu>
-            }
+                  }
+                }
+              ]
+            }}
             trigger={['click']}
           >
             <Button icon={<MoreOutlined />} />
@@ -363,30 +364,33 @@ const ExhibitorTable: React.FC<ExhibitorTableProps> = ({
   ];
 
   return (
-    <Table
-      rowSelection={rowSelection}
-      dataSource={exhibitors}
-      columns={columns}
-      rowKey="_id"
-      loading={loading}
-      pagination={{
-        current: currentPage,
-        pageSize: pageSize,
-        total: total,
-        showSizeChanger: true,
-        showQuickJumper: true,
-        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-        onChange: onTableChange,
-        onShowSizeChange: onTableChange,
-        pageSizeOptions: ['10', '20', '50', '100'],
-      }}
-      scroll={{ x: 1500 }}
-      onChange={(pagination, filters, sorter: any) => {
-        if (sorter.field) {
-          onSortChange(sorter.field, sorter.order);
-        }
-      }}
-    />
+    <>
+      {contextHolder}
+      <Table
+        rowSelection={rowSelection}
+        dataSource={exhibitors}
+        columns={columns}
+        rowKey="_id"
+        loading={loading}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: total,
+          showSizeChanger: true,
+          showQuickJumper: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+          onChange: onTableChange,
+          onShowSizeChange: onTableChange,
+          pageSizeOptions: ['10', '20', '50', '100'],
+        }}
+        scroll={{ x: 1500 }}
+        onChange={(pagination, filters, sorter: any) => {
+          if (sorter.field) {
+            onSortChange(sorter.field, sorter.order);
+          }
+        }}
+      />
+    </>
   );
 };
 

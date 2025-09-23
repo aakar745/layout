@@ -79,7 +79,7 @@ const LayoutBuilder: React.FC = () => {
           <Card
             hoverable
             style={{ height: '100%', background: '#fff', borderRadius: '8px' }}
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
           >
             <div style={{ 
               height: 140, 
@@ -111,7 +111,7 @@ const LayoutBuilder: React.FC = () => {
           <Card
             hoverable
             style={{ height: '100%', background: '#fff', borderRadius: '8px' }}
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
           >
             <div style={{ 
               height: 140, 
@@ -144,7 +144,7 @@ const LayoutBuilder: React.FC = () => {
           <Card
             hoverable
             style={{ height: '100%', background: '#fff', borderRadius: '8px' }}
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
           >
             <div style={{ 
               height: 140, 
@@ -177,7 +177,7 @@ const LayoutBuilder: React.FC = () => {
           <Card
             hoverable
             style={{ height: '100%', background: '#fff', borderRadius: '8px' }}
-            bodyStyle={{ padding: '24px' }}
+            styles={{ body: { padding: '24px' } }}
           >
             <div style={{ 
               height: 140, 

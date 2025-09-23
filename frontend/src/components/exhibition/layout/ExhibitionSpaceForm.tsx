@@ -40,7 +40,7 @@ const ExhibitionSpaceForm: React.FC<ExhibitionSpaceFormProps> = ({
         onCancel();
       }}
       onOk={handleSubmit}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

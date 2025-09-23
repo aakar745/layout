@@ -278,13 +278,13 @@ const AmenitiesTable: React.FC<AmenitiesTableProps> = ({
       fixed: 'right' as const,
       render: (_: any, record: any) => (
         <Dropdown 
-          overlay={
-            <Menu>
-              <Menu.Item key="view" icon={<EyeOutlined />}>View Details</Menu.Item>
-              <Menu.Item key="edit" icon={<EditOutlined />}>Edit</Menu.Item>
-              <Menu.Item key="settings" icon={<SettingOutlined />}>Settings</Menu.Item>
-            </Menu>
-          } 
+          menu={{
+            items: [
+              { key: 'view', icon: <EyeOutlined />, label: 'View Details' },
+              { key: 'edit', icon: <EditOutlined />, label: 'Edit' },
+              { key: 'settings', icon: <SettingOutlined />, label: 'Settings' }
+            ]
+          }}
           trigger={['click']}
         >
           <Button type="text" icon={<EllipsisOutlined />} />

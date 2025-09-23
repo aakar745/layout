@@ -99,7 +99,7 @@ const HallForm: React.FC<HallFormProps> = ({
       }}
       footer={null}
       width={400}
-      destroyOnClose
+      destroyOnHidden
       className="hall-form-modal"
     >
       <Form

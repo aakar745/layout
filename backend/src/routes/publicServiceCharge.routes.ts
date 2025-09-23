@@ -8,7 +8,8 @@ import {
   downloadReceipt,
   handlePaymentFailure,
   getPaymentQueueStatus,
-  lookupServiceCharge
+  lookupServiceCharge,
+  cancelServiceChargeOrder
 } from '../controllers/publicServiceCharge.controller';
 import { getActiveServiceChargeStalls } from '../controllers/serviceChargeStall.controller';
 import { upload, optimizeImage } from '../config/upload';
@@ -189,5 +190,12 @@ router.get('/queue-status', getPaymentQueueStatus);
  * @access  Public
  */
 router.post('/lookup/:exhibitionId', lookupServiceCharge);
+
+/**
+ * @route   PUT /api/public/service-charge/cancel/:serviceChargeId
+ * @desc    Cancel service charge order
+ * @access  Public
+ */
+router.put('/cancel/:serviceChargeId', cancelServiceChargeOrder);
 
 export default router; 

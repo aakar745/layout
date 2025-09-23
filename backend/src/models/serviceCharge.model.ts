@@ -25,8 +25,10 @@ export interface IServiceCharge extends Document {
   phonePeTransactionId?: string;
   phonePeMerchantTransactionId?: string;
   
-  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
   paidAt?: Date;
+  cancelledAt?: Date;
+  cancellationReason?: string;
   
   // Receipt Information
   receiptNumber?: string; // Auto-generated
@@ -129,11 +131,19 @@ const serviceChargeSchema = new Schema({
   
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
+    enum: ['pending', 'paid', 'failed', 'refunded', 'cancelled'],
     default: 'pending'
   },
   paidAt: {
     type: Date
+  },
+  cancelledAt: {
+    type: Date
+  },
+  cancellationReason: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Cancellation reason cannot exceed 500 characters']
   },
   
   // Receipt Information

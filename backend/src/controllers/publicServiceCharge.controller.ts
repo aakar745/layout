@@ -243,17 +243,18 @@ export const createServiceChargeOrder = async (req: Request, res: Response) => {
       
       // Process payment through queue system
       const phonePeOrder = await paymentQueueService.processPayment(paymentId, async () => {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        // Use the new Next.js publicview URL instead of the old React frontend
+        const publicviewUrl = process.env.PUBLICVIEW_URL || 'http://localhost:3000';
         const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
         
-        const redirectUrl = `${frontendUrl}/service-charge/payment-result?serviceChargeId=${serviceCharge._id}&gateway=phonepe`;
+        const redirectUrl = `${publicviewUrl}/service-charge/payment-result?serviceChargeId=${serviceCharge._id}&gateway=phonepe`;
         const callbackUrl = `${backendUrl}/api/public/service-charge/phonepe-callback`;
         
         console.log('[Public Service Charge] Creating PhonePe order with URLs:', {
           redirectUrl,
           callbackUrl,
           receiptNumber: serviceCharge.receiptNumber,
-          frontendUrl,
+          publicviewUrl,
           backendUrl
         });
         
@@ -1601,6 +1602,94 @@ const handleRefundWebhook = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Error processing refund webhook',
+      error: (error as Error).message
+    });
+  }
+};
+
+/**
+ * @desc    Cancel service charge order
+ * @route   PUT /api/public/service-charge/cancel/:serviceChargeId
+ * @access  Public
+ */
+export const cancelServiceChargeOrder = async (req: Request, res: Response) => {
+  try {
+    const { serviceChargeId } = req.params;
+    const { reason = 'User cancelled - session timeout' } = req.body;
+
+    console.log('🚫 [CANCEL] Cancelling service charge:', serviceChargeId);
+
+    // Find and validate service charge
+    const serviceCharge = await ServiceCharge.findById(serviceChargeId);
+    
+    if (!serviceCharge) {
+      return res.status(404).json({
+        success: false,
+        message: 'Service charge not found'
+      });
+    }
+
+    // Only allow cancellation of pending/failed payments
+    if (serviceCharge.paymentStatus === 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel paid service charge'
+      });
+    }
+
+    // Update service charge status
+    serviceCharge.paymentStatus = 'cancelled';
+    serviceCharge.status = 'cancelled';
+    serviceCharge.cancelledAt = new Date();
+    serviceCharge.cancellationReason = reason;
+    
+    await serviceCharge.save();
+
+    console.log('✅ [CANCEL] Service charge cancelled successfully');
+
+    // 📝 LOG ACTIVITY: Record cancellation
+    await logSystemActivity(
+      'service_charge_cancelled',
+      'service_charge',
+      `Service charge cancelled: ${serviceCharge.receiptNumber}`,
+      {
+        serviceChargeId: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        amount: serviceCharge.amount,
+        reason,
+        vendorName: serviceCharge.vendorName,
+        stallNumber: serviceCharge.stallNumber
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Service charge cancelled successfully',
+      data: {
+        serviceChargeId: serviceCharge._id,
+        receiptNumber: serviceCharge.receiptNumber,
+        status: serviceCharge.status,
+        paymentStatus: serviceCharge.paymentStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [CANCEL] Error cancelling service charge:', error);
+    
+    // 📝 LOG ACTIVITY: Record cancellation error
+    await logSystemActivity(
+      'service_charge_cancel_error',
+      'service_charge',
+      `Error cancelling service charge: ${(error as Error).message}`,
+      {
+        serviceChargeId: req.params.serviceChargeId,
+        error: (error as Error).message
+      }
+    );
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling service charge',
       error: (error as Error).message
     });
   }
