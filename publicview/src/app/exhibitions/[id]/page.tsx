@@ -68,10 +68,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function ExhibitionDetailsPage({ params }: Props) {
-  // Move API calls to client-side to prevent ECONNREFUSED errors during build
-  const exhibition: ExhibitionWithStats | null = null;
-  const error: string | null = null;
+export default async function ExhibitionDetailsPage({ params }: Props) {
+  const { id } = await params;
+  let exhibition: ExhibitionWithStats | null = null;
+  let error: string | null = null;
+
+  try {
+    exhibition = await getExhibition(id);
+  } catch (err) {
+    console.error(`Failed to fetch exhibition ${id}:`, err);
+    
+    // If it's a 404, show the not found page
+    if (err instanceof Error && err.message.includes('404')) {
+      notFound();
+    }
+    
+    error = err instanceof Error ? err.message : 'Failed to load exhibition';
+  }
+
+  // If no exhibition and no error (shouldn't happen, but just in case)
+  if (!exhibition && !error) {
+    notFound();
+  }
 
   return (
     <ExhibitionDetailsClient 

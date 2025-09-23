@@ -17,19 +17,6 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { id } = await params;
-    
-    // Don't make API call during build to prevent ECONNREFUSED errors
-    if (process.env.NODE_ENV !== 'production') {
-      return {
-        title: 'Complete Your Booking | Exhibition Management',
-        description: 'Complete your stall booking with our secure checkout process.',
-        robots: {
-          index: false,
-          follow: false,
-        },
-      };
-    }
-    
     const exhibition = await getExhibition(id);
     
     return {
@@ -42,14 +29,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch (error) {
-    console.warn('Failed to generate booking metadata, using fallback:', error);
     return {
       title: 'Complete Your Booking | Exhibition Management',
       description: 'Complete your stall booking with our secure checkout process.',
-      robots: {
-        index: false,
-        follow: false,
-      },
     };
   }
 }
@@ -57,10 +39,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BookingPage({ params, searchParams }: Props) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
-  
-  // Move API calls to client-side to prevent ECONNREFUSED errors during build
-  const exhibition: ExhibitionWithStats | null = null;
-  const error: string | null = null;
+  let exhibition: ExhibitionWithStats | null = null;
+  let error: string | null = null;
+
+  try {
+    exhibition = await getExhibition(id);
+  } catch (err) {
+    console.error(`Failed to fetch exhibition ${id}:`, err);
+    
+    // If exhibition doesn't exist, show 404
+    if (err instanceof Error && err.message.includes('404')) {
+      notFound();
+    }
+    
+    error = err instanceof Error ? err.message : 'Failed to load exhibition';
+  }
+
+  if (!exhibition && !error) {
+    notFound();
+  }
 
   // Parse selected stall IDs from URL
   const selectedStallIds = resolvedSearchParams.stalls 

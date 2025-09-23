@@ -15,8 +15,8 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface LayoutViewerProps {
-  exhibition: ExhibitionWithStats | null;
-  layout: Layout | null;
+  exhibition: ExhibitionWithStats;
+  layout: Layout;
   error: string | null;
 }
 
@@ -25,18 +25,6 @@ export default function LayoutViewer({
   layout: initialLayout, 
   error 
 }: LayoutViewerProps) {
-  // Early return if no exhibition data - should be handled by parent component with client-side fetching
-  if (!exhibition) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="text-gray-600 mt-4">Loading exhibition data...</p>
-        </div>
-      </div>
-    );
-  }
-  
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(error);
   
@@ -60,7 +48,7 @@ export default function LayoutViewer({
     subscribeToLayoutUpdates,
     unsubscribeFromLayoutUpdates,
     isConnected: socketConnected 
-  } = useLayoutSocket(exhibition?._id || '');
+  } = useLayoutSocket(exhibition._id);
 
   // Store socket functions in refs to prevent useEffect re-runs
   const subscribeRef = useRef(subscribeToUpdates);
@@ -111,7 +99,7 @@ export default function LayoutViewer({
   useEffect(() => {
     if (typeof window === 'undefined') return; // Skip on server
     
-    if (socketConnected && exhibition?._id) {
+    if (socketConnected && exhibition._id) {
       console.log('Setting up stall update subscription for exhibition:', exhibition._id);
       
       // Clean up previous handler
@@ -131,13 +119,13 @@ export default function LayoutViewer({
         }
       };
     }
-  }, [socketConnected, exhibition?._id, handleStallUpdate]);
+  }, [socketConnected, exhibition._id, handleStallUpdate]);
 
   // Setup socket subscription for real-time layout updates
   useEffect(() => {
     if (typeof window === 'undefined') return; // Skip on server
     
-    if (socketConnected && exhibition?._id) {
+    if (socketConnected && exhibition._id) {
       console.log('Setting up layout update subscription for exhibition:', exhibition._id);
       
       // Subscribe to layout updates
@@ -148,7 +136,7 @@ export default function LayoutViewer({
         unsubscribeLayoutRef.current(handleLayoutUpdate);
       };
     }
-  }, [socketConnected, exhibition?._id, handleLayoutUpdate]);
+  }, [socketConnected, exhibition._id, handleLayoutUpdate]);
 
   // Error state
   if (loadError && !initialLayout) {

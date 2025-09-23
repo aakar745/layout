@@ -15,18 +15,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ExhibitionsPage() {
-  // Move API calls to client-side to prevent ECONNREFUSED errors during build
-  const exhibitions: Exhibition[] = [];
-  const error: string | null = null;
+export default async function ExhibitionsPage() {
+  let exhibitions: Exhibition[] = [];
+  let error: string | null = null;
 
-  // Summary with no data initially - will be updated client-side
-  const summary = {
-    total: 0,
-    upcoming: 0, 
-    active: 0,
-    completed: 0
-  };
+  try {
+    exhibitions = await getExhibitions();
+  } catch (err) {
+    console.error('Failed to fetch exhibitions:', err);
+    error = err instanceof Error ? err.message : 'Failed to load exhibitions';
+  }
+
+  const summary = getExhibitionsSummary(exhibitions);
 
   return (
     <div className="min-h-screen bg-white">

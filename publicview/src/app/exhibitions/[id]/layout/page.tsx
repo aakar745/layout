@@ -52,18 +52,81 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function LayoutPage({ params }: Props) {
-  // Move API calls to client-side to prevent ECONNREFUSED errors during build
-  const exhibition: ExhibitionWithStats | null = null;
-  const layout: Layout | null = null;
-  const error: string | null = null;
+export default async function LayoutPage({ params }: Props) {
+  const { id } = await params;
+  let exhibition: ExhibitionWithStats | null = null;
+  let layout: Layout | null = null;
+  let error: string | null = null;
 
-  // Always show the layout client component which will handle API calls client-side
+  try {
+    // Fetch exhibition and layout data in parallel
+    const [exhibitionData, layoutData] = await Promise.allSettled([
+      getExhibition(id),
+      getExhibitionLayout(id)
+    ]);
+
+    if (exhibitionData.status === 'fulfilled') {
+      exhibition = exhibitionData.value;
+    } else {
+      console.error('Failed to fetch exhibition:', exhibitionData.reason);
+    }
+
+    if (layoutData.status === 'fulfilled') {
+      layout = layoutData.value;
+    } else {
+      console.error('Failed to fetch layout:', layoutData.reason);
+      // Layout might not exist for all exhibitions
+    }
+
+    // If exhibition doesn't exist, show 404
+    if (!exhibition) {
+      notFound();
+    }
+
+  } catch (err) {
+    console.error(`Failed to fetch data for exhibition ${id}:`, err);
+    error = err instanceof Error ? err.message : 'Failed to load exhibition data';
+  }
+
+  // If no layout available, show message
+  if (exhibition && !layout && !error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-16">
+            <div className="text-6xl mb-6">🏗️</div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Layout Coming Soon
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+              The interactive layout for <strong>{exhibition.name}</strong> is currently being prepared. 
+              Please check back later or contact us for more information.
+            </p>
+            <div className="space-y-4">
+              <Link
+                href={`/exhibitions/${id}`}
+                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mr-4"
+              >
+                Back to Exhibition Details
+              </Link>
+              <Link
+                href="/exhibitions"
+                className="inline-block px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Browse Other Exhibitions
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <LayoutViewer 
-      exhibition={null}
-      layout={null}
-      error={null}
+      exhibition={exhibition!}
+      layout={layout!}
+      error={error}
     />
   );
 }
