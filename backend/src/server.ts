@@ -123,7 +123,6 @@ app.use(cors({
       'https://aakarbooking.com',
       'https://www.aakarbooking.com',
       'https://admin.aakarbooking.com',
-      'https://api.aakarbooking.com',
       'http://aakarbooking.com',
       'http://www.aakarbooking.com',
       // Add frontend service URL environment variable support
@@ -154,7 +153,6 @@ app.use((req, res, next) => {
     'https://aakarbooking.com',
     'https://www.aakarbooking.com',
     'https://admin.aakarbooking.com',
-    'https://api.aakarbooking.com',
     'http://aakarbooking.com',
     'http://www.aakarbooking.com'
   ];
@@ -286,7 +284,6 @@ app.use('/api/uploads', protectStatic, (req, res, next) => {
     'https://aakarbooking.com',
     'https://www.aakarbooking.com',
     'https://admin.aakarbooking.com',
-    'https://api.aakarbooking.com',
     'http://aakarbooking.com',
     'http://www.aakarbooking.com'
   ];
@@ -314,7 +311,6 @@ app.use('/api/public/uploads', (req, res, next) => {
     'https://aakarbooking.com',
     'https://www.aakarbooking.com',
     'https://admin.aakarbooking.com',
-    'https://api.aakarbooking.com',
     'http://aakarbooking.com',
     'http://www.aakarbooking.com'
   ];
