@@ -41,14 +41,20 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**', // Allow any HTTPS domain for production
+        hostname: 'api.aakarbooking.com',
+        pathname: '/api/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**', // Allow any HTTPS domain for production (fallback)
       }
     ],
   },
   
   // Performance optimizations
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    // Temporarily keep console logs for debugging
+    removeConsole: false,
   },
   
   // Headers for security and performance
