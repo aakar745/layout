@@ -13,13 +13,18 @@ interface Props {
 // Generate static params for popular exhibitions (optional optimization)
 export async function generateStaticParams() {
   try {
+    // Only generate static params in production and when API is accessible
+    if (process.env.NODE_ENV !== 'production') {
+      return [];
+    }
+    
     const exhibitions = await getExhibitions();
     // Generate static pages for the first 10 exhibitions
     return exhibitions.slice(0, 10).map((exhibition) => ({
       id: exhibition.slug || exhibition._id,
     }));
   } catch (error) {
-    console.error('Failed to generate static params:', error);
+    console.warn('API not accessible during build, skipping static generation:', error instanceof Error ? error.message : error);
     return [];
   }
 }
@@ -55,9 +60,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch (error) {
+    console.warn('Failed to generate metadata, using fallback:', error);
     return {
-      title: 'Exhibition Not Found',
-      description: 'The requested exhibition could not be found.',
+      title: 'Exhibition Details | Exhibition Management System',
+      description: 'View exhibition details and book your stalls.',
     };
   }
 }

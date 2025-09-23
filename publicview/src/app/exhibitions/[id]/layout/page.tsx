@@ -43,7 +43,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         images: exhibition.headerLogo ? [exhibition.headerLogo] : [],
       },
     };
-  } catch {
+  } catch (error) {
+    console.warn('Failed to generate layout metadata, using fallback:', error);
     return {
       title: 'Exhibition Layout | Interactive Stall Booking',
       description: 'Explore the interactive exhibition layout and book your stall online.',
