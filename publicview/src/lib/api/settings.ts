@@ -47,20 +47,11 @@ export const fetchSiteSettings = async (): Promise<SiteSettings> => {
     const siteInfo = await fetchApi('/public/site-info');
     
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const logoUrl = `${apiUrl}/public/logo`;
-    
-    // Debug logging for logo URL construction
-    console.log('🔍 Logo URL Debug:', {
-      'NEXT_PUBLIC_API_URL': process.env.NEXT_PUBLIC_API_URL,
-      'apiUrl': apiUrl,
-      'logoUrl': logoUrl,
-      'isProduction': typeof window !== 'undefined' ? window.location.hostname !== 'localhost' : 'server-side'
-    });
     
     return {
       siteName: siteInfo.siteName || 'Exhibition Management System',
       footerText: siteInfo.footerText || '',
-      logoUrl: logoUrl, // Logo endpoint URL
+      logoUrl: `${apiUrl}/public/logo`, // Logo endpoint URL
     };
   } catch (error) {
     console.error('Error fetching site settings:', error);

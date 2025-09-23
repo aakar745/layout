@@ -10,7 +10,6 @@ interface SettingsState {
   isInitialized: boolean; // Track if we've completed initial load
   error: string | null;
   lastFetched: number | null;
-  cacheVersion?: string; // Version tracking for cache invalidation
   
   // Actions
   fetchSettings: () => Promise<void>;
@@ -26,9 +25,6 @@ interface SettingsState {
 // Cache duration: 5 minutes
 const CACHE_DURATION = 5 * 60 * 1000;
 
-// Version key to force cache invalidation after API URL fixes
-const CACHE_VERSION = '1.1';
-
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -39,29 +35,19 @@ export const useSettingsStore = create<SettingsState>()(
       isInitialized: false,
       error: null,
       lastFetched: null,
-      cacheVersion: undefined,
       
       // Fetch site settings from API
       fetchSettings: async () => {
         const state = get();
         
-        // Check if we have recent cached data and matching version
+        // Check if we have recent cached data
         if (
           state.settings && 
           state.lastFetched && 
-          state.cacheVersion === CACHE_VERSION &&
           Date.now() - state.lastFetched < CACHE_DURATION
         ) {
           console.log('Using cached site settings');
           return;
-        }
-        
-        // Log cache invalidation reason
-        if (state.cacheVersion !== CACHE_VERSION) {
-          console.log('🔄 Cache version mismatch, forcing refresh:', {
-            stored: state.cacheVersion,
-            current: CACHE_VERSION
-          });
         }
         
         try {
@@ -74,8 +60,7 @@ export const useSettingsStore = create<SettingsState>()(
             isLoading: false,
             isInitialized: true,
             error: null,
-            lastFetched: Date.now(),
-            cacheVersion: CACHE_VERSION
+            lastFetched: Date.now()
           });
           
           console.log('Site settings fetched:', settings);
@@ -134,7 +119,6 @@ export const useSettingsStore = create<SettingsState>()(
         logoExists: state.logoExists,
         isInitialized: state.isInitialized,
         lastFetched: state.lastFetched,
-        cacheVersion: state.cacheVersion,
       }),
     }
   )

@@ -15,18 +15,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function ExhibitionsPage() {
-  let exhibitions: Exhibition[] = [];
-  let error: string | null = null;
+export default function ExhibitionsPage() {
+  // Move API calls to client-side to prevent ECONNREFUSED errors during build
+  const exhibitions: Exhibition[] = [];
+  const error: string | null = null;
 
-  try {
-    exhibitions = await getExhibitions();
-  } catch (err) {
-    console.warn('API not accessible during build, using client-side fallback:', err instanceof Error ? err.message : err);
-    error = err instanceof Error ? err.message : 'Failed to load exhibitions';
-  }
-
-  const summary = getExhibitionsSummary(exhibitions);
+  // Summary with no data initially - will be updated client-side
+  const summary = {
+    total: 0,
+    upcoming: 0, 
+    active: 0,
+    completed: 0
+  };
 
   return (
     <div className="min-h-screen bg-white">
