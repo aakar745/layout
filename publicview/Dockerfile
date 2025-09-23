@@ -7,7 +7,6 @@ COPY package.json ./
 COPY package-lock.json ./
 COPY tsconfig.json ./
 COPY next.config.js ./
-COPY next.config.ts ./
 COPY postcss.config.mjs ./
 COPY components.json ./
 COPY eslint.config.mjs ./
