@@ -59,55 +59,59 @@ export default function LayoutHeader({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Navigation & Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Navigation & Actions - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
           <Link href={getExhibitionUrl(exhibition)}>
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Details
+            <Button variant="outline" size="sm" className="px-2 sm:px-3">
+              <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Details</span>
+              <span className="sm:hidden">Back</span>
             </Button>
           </Link>
           
           {/* Connection Status */}
-          <div className="flex items-center space-x-2 text-sm">
+          <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm">
             {isConnected ? (
               <>
-                <Wifi className="h-4 w-4 text-green-500" />
-                <span className="text-green-600">Live Updates</span>
+                <Wifi className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+                <span className="text-green-600 hidden sm:inline">Live Updates</span>
+                <span className="text-green-600 sm:hidden">Live</span>
               </>
             ) : (
               <>
-                <WifiOff className="h-4 w-4 text-red-500" />
-                <span className="text-red-600">Offline</span>
+                <WifiOff className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
+                <span className="text-red-600 hidden sm:inline">Offline</span>
+                <span className="text-red-600 sm:hidden">Offline</span>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share className="h-4 w-4 mr-2" />
-            Share
+        <div className="flex items-center space-x-1 sm:space-x-2">
+          <Button variant="outline" size="sm" onClick={handleShare} className="px-2 sm:px-3">
+            <Share className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Share</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download
+          <Button variant="outline" size="sm" onClick={handleDownload} className="px-2 sm:px-3">
+            <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Download</span>
           </Button>
         </div>
       </div>
 
-      {/* Main Header */}
-      <Card className="p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Main Header - Mobile Responsive */}
+      <Card className="p-3 sm:p-4 lg:p-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
           {/* Exhibition Info */}
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-3">
-              <h1 className="text-3xl font-bold text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3">
+              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 line-clamp-2">
                 {exhibition.name}
               </h1>
               <Badge 
+                className="self-start sm:self-center"
                 style={{ 
                   backgroundColor: status.bgColor,
                   color: status.textColor,
@@ -118,41 +122,41 @@ export default function LayoutHeader({
               </Badge>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+            <div className="flex flex-col sm:grid sm:grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
               <div className="flex items-center space-x-2">
-                <Calendar className="h-4 w-4 text-purple-500" />
-                <span>{formatDateRange(exhibition.startDate, exhibition.endDate)}</span>
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-purple-500 flex-shrink-0" />
+                <span className="truncate">{formatDateRange(exhibition.startDate, exhibition.endDate)}</span>
               </div>
               
               {exhibition.venue && (
                 <div className="flex items-center space-x-2">
-                  <MapPin className="h-4 w-4 text-red-500" />
-                  <span>{exhibition.venue}</span>
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-red-500 flex-shrink-0" />
+                  <span className="truncate">{exhibition.venue}</span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Quick Stats */}
+          {/* Quick Stats - Mobile Optimized */}
           {stats && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="grid grid-cols-4 gap-2 sm:gap-4 lg:gap-6 border-t pt-3 sm:border-t-0 sm:pt-0">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.totalStalls}</div>
-                <div className="text-xs text-gray-500">Total Stalls</div>
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600">{stats.totalStalls}</div>
+                <div className="text-xs text-gray-500">Total</div>
               </div>
               
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.availableStalls}</div>
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">{stats.availableStalls}</div>
                 <div className="text-xs text-gray-500">Available</div>
               </div>
               
               <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">{stats.bookedStalls}</div>
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-600">{stats.bookedStalls}</div>
                 <div className="text-xs text-gray-500">Booked</div>
               </div>
               
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">
                   {stats.occupancyRate.toFixed(0)}%
                 </div>
                 <div className="text-xs text-gray-500">Occupied</div>

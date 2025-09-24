@@ -33,9 +33,9 @@ export default function LayoutSidebar({ exhibition }: LayoutSidebarProps) {
 
   return (
     <div className="space-y-6">
-      {/* Selection Card */}
-      <Card>
-        <div className="border-b border-gray-200 px-4 py-3">
+      {/* Selection Card - Mobile optimized */}
+      <Card className="lg:sticky lg:top-0">
+        <div className="border-b border-gray-200 px-3 lg:px-4 py-2 lg:py-3">
           <div className="flex items-center">
             <ShoppingCart className="h-4 w-4 mr-2 text-blue-600" />
             <span className="text-sm font-medium text-blue-600">
@@ -44,7 +44,7 @@ export default function LayoutSidebar({ exhibition }: LayoutSidebarProps) {
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="p-3 lg:p-4">
           <SelectionTab
             selectedStalls={selectedStalls}
             selectedTotal={selectedTotal}
@@ -89,19 +89,19 @@ function SelectionTab({
         </Button>
       </div>
 
-      <div className="space-y-2 max-h-60 overflow-y-auto">
+      <div className="space-y-2 max-h-48 sm:max-h-60 overflow-y-auto">
         {selectedStalls.map((stall) => (
-          <div key={stall._id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <div>
-              <div className="font-medium text-sm">{stall.stallNumber}</div>
+          <div key={stall._id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs sm:text-sm">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">{stall.stallNumber}</div>
               <div className="text-xs text-gray-500">
-                {stall.dimensions.width}×{stall.dimensions.height}
+                {stall.dimensions.width}×{stall.dimensions.height}m
               </div>
             </div>
-            <div className="text-right">
-              <div className="font-medium text-sm">₹{stall.price.toLocaleString()}</div>
+            <div className="text-right flex-shrink-0 ml-2">
+              <div className="font-medium">₹{stall.price.toLocaleString()}</div>
               {stall.category && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs mt-1">
                   {stall.category}
                 </Badge>
               )}
@@ -110,19 +110,19 @@ function SelectionTab({
         ))}
       </div>
 
-      <div className="border-t pt-4">
-        <div className="flex justify-between items-center mb-4">
-          <span className="font-medium">Total:</span>
-          <span className="font-bold text-lg">₹{selectedTotal.toLocaleString()}</span>
+      <div className="border-t pt-3 sm:pt-4">
+        <div className="flex justify-between items-center mb-3 sm:mb-4">
+          <span className="font-medium text-sm sm:text-base">Total:</span>
+          <span className="font-bold text-base sm:text-lg">₹{selectedTotal.toLocaleString()}</span>
         </div>
         
         <Button 
           onClick={onBookNow} 
-          className="w-full"
-          size="lg"
+          className="w-full text-sm sm:text-base"
+          size="sm"
         >
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          Book Now ({selectedStalls.length} stalls)
+          <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+          Book Now ({selectedStalls.length})
         </Button>
       </div>
     </div>

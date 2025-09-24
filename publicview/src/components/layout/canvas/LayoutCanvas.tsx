@@ -49,6 +49,11 @@ const LayoutCanvas = memo(function LayoutCanvas() {
   const isDragging = useRef<boolean>(false);
   const dragStartTime = useRef<number>(0);
   
+  // Mobile touch handling refs
+  const lastTouchDistance = useRef<number>(0);
+  const isMobile = useRef<boolean>(false);
+  const touchStartTime = useRef<number>(0);
+  
   const {
     layout,
     canvas,
@@ -63,14 +68,27 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     clearSelection
   } = useLayoutStore();
 
-  // Performance: Calculate viewport bounds for culling (Phase 3: Aggressive during drag)
+  // Performance: Calculate viewport bounds for culling (Phase 3: Ultra-aggressive during interactions)
   const viewportBounds = useMemo(() => {
     if (!viewport.width || !viewport.height || !canvas.scale) {
       return { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
     }
     
-    // Phase 3: Aggressive culling during drag operations for smooth interaction
-    const buffer = canvas.isDragging ? VIEWPORT_CULLING_BUFFER * 0.5 : VIEWPORT_CULLING_BUFFER;
+    // PERFORMANCE: Ultra-aggressive culling during interactions for 0-lag performance
+    // Reduce buffer significantly during drag/zoom for mobile performance
+    let buffer = VIEWPORT_CULLING_BUFFER;
+    
+    if (canvas.isDragging || isDragging.current) {
+      // During drag: 80% less buffer for ultra-smooth performance 
+      buffer = VIEWPORT_CULLING_BUFFER * 0.2;
+    } else if (canvas.scale < 0.5) {
+      // At low zoom: smaller buffer since objects are tiny anyway
+      buffer = VIEWPORT_CULLING_BUFFER * 0.5;
+    } else if (isMobile.current) {
+      // Mobile: Always use smaller buffer for better performance
+      buffer = VIEWPORT_CULLING_BUFFER * 0.7;
+    }
+    
     return {
       left: (-canvas.position.x - buffer) / canvas.scale,
       top: (-canvas.position.y - buffer) / canvas.scale, 
@@ -100,10 +118,19 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     return { totalStalls, visibleStalls, cullPercentage };
   }, [layout?.halls, viewportBounds, canvas.scale]);
 
-  // Update viewport dimensions
+  // Mobile detection and viewport updates
   const updateViewport = useCallback(() => {
     if (canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
+      
+      // Detect mobile device
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(userAgent) || 
+                           'ontouchstart' in window || 
+                           window.innerWidth <= 768;
+      
+      isMobile.current = isMobileDevice;
+      
       setViewport({
         width: rect.width,
         height: rect.height
@@ -184,8 +211,11 @@ const LayoutCanvas = memo(function LayoutCanvas() {
       y: pointer.y - mousePointTo.y * newScale,
     };
 
-    setScale(newScale);
-    setPosition(newPosition);
+    // PERFORMANCE: Use requestAnimationFrame for smooth zoom updates
+    requestAnimationFrame(() => {
+      setScale(newScale);
+      setPosition(newPosition);
+    });
   }, [canvas.scale, canvas.position, setScale, setPosition]);
 
   // Phase 3: Enhanced drag handling for smooth performance with 1000+ stalls
@@ -203,12 +233,15 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     
     isDragging.current = false;
     
-    // Phase 3: Restore full quality after drag completes
-    updateCanvasState({ isDragging: false });
-    
-    setPosition({
-      x: stage.x(),
-      y: stage.y()
+    // PERFORMANCE: Use requestAnimationFrame for smooth drag end
+    requestAnimationFrame(() => {
+      // Phase 3: Restore full quality after drag completes
+      updateCanvasState({ isDragging: false });
+      
+      setPosition({
+        x: stage.x(),
+        y: stage.y()
+      });
     });
 
     // Performance monitoring for drag operations
@@ -216,6 +249,110 @@ const LayoutCanvas = memo(function LayoutCanvas() {
       console.log(`🎯 Drag completed in ${dragDuration.toFixed(2)}ms`);
     }
   }, [setPosition, updateCanvasState]);
+
+  // Mobile touch handlers for pinch-to-zoom
+  const getTouchDistance = (touches: TouchList) => {
+    if (touches.length < 2) return 0;
+    
+    const touch1 = touches[0];
+    const touch2 = touches[1];
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getTouchCenter = (touches: TouchList) => {
+    if (touches.length === 0) return { x: 0, y: 0 };
+    if (touches.length === 1) return { x: touches[0].clientX, y: touches[0].clientY };
+    
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+  };
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (!isMobile.current) return;
+    
+    touchStartTime.current = performance.now();
+    
+    if (e.touches.length === 2) {
+      // Two finger touch - prepare for pinch zoom
+      e.preventDefault();
+      lastTouchDistance.current = getTouchDistance(e.touches);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!isMobile.current || !stageRef.current) return;
+    
+    if (e.touches.length === 2) {
+      // Two finger pinch-to-zoom
+      e.preventDefault();
+      
+      // CRITICAL FIX: Throttle touch events to prevent lag
+      const now = performance.now();
+      if (now - lastUpdateTime.current < EVENT_THROTTLE_MS) return;
+      lastUpdateTime.current = now;
+      
+      const currentDistance = getTouchDistance(e.touches);
+      if (lastTouchDistance.current === 0) {
+        lastTouchDistance.current = currentDistance;
+        return;
+      }
+
+      const scaleChange = currentDistance / lastTouchDistance.current;
+      const oldScale = canvas.scale;
+      const newScale = Math.min(Math.max(oldScale * scaleChange, MIN_SCALE), MAX_SCALE);
+      
+      // PERFORMANCE: Skip if scale didn't change enough to matter
+      if (Math.abs(newScale - oldScale) < 0.01) return;
+      
+      // Get touch center point
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const touchCenter = getTouchCenter(e.touches);
+      const pointer = {
+        x: touchCenter.x - rect.left,
+        y: touchCenter.y - rect.top
+      };
+
+      // Calculate new position to zoom towards touch center
+      const mousePointTo = {
+        x: (pointer.x - canvas.position.x) / oldScale,
+        y: (pointer.y - canvas.position.y) / oldScale,
+      };
+
+      const newPosition = {
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      };
+
+      // PERFORMANCE: Use requestAnimationFrame for smooth updates
+      requestAnimationFrame(() => {
+        setScale(newScale);
+        setPosition(newPosition);
+      });
+      
+      lastTouchDistance.current = currentDistance;
+    }
+  }, [canvas.scale, canvas.position, setScale, setPosition]);
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (!isMobile.current) return;
+    
+    lastTouchDistance.current = 0;
+    
+    // Performance monitoring for touch operations
+    if (ENABLE_PERF_MONITORING) {
+      const touchDuration = performance.now() - touchStartTime.current;
+      if (touchDuration > 0) {
+        console.log(`🎯 Touch interaction completed in ${touchDuration.toFixed(2)}ms`);
+      }
+    }
+  }, []);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -274,6 +411,23 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [canvas.scale, clearSelection, fitToCanvas, setScale]);
 
+  // Setup touch event listeners for mobile pinch-to-zoom
+  useEffect(() => {
+    const canvasElement = canvasRef.current;
+    if (!canvasElement) return;
+
+    // Add touch event listeners with passive: false to prevent default
+    canvasElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvasElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvasElement.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvasElement.removeEventListener('touchstart', handleTouchStart);
+      canvasElement.removeEventListener('touchmove', handleTouchMove);
+      canvasElement.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+
   if (!layout || !layout.halls || !Array.isArray(layout.halls)) {
     return (
       <div className="flex items-center justify-center h-96 bg-gray-100">
@@ -290,10 +444,21 @@ const LayoutCanvas = memo(function LayoutCanvas() {
   return (
     <div 
       ref={canvasRef}
-      className="relative w-full bg-gray-50 overflow-hidden cursor-grab active:cursor-grabbing"
+      className="relative w-full bg-gray-50 overflow-hidden cursor-grab active:cursor-grabbing touch-pan-x touch-pan-y"
       style={{ 
-        height: 'min(80vh, 1000px)', // Match old frontend: 80% viewport height, max 1000px
-        minHeight: '600px' // Minimum height for usability
+        // Mobile-responsive height: adapt to screen size
+        height: isMobile.current 
+          ? 'min(70vh, 500px)' // Mobile: 70% viewport height, max 500px
+          : 'min(80vh, 1000px)', // Desktop: 80% viewport height, max 1000px
+        minHeight: isMobile.current ? '400px' : '600px', // Smaller min height for mobile
+        // Prevent zoom on mobile browsers
+        touchAction: 'none',
+        // Disable text selection
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        // Optimize for mobile
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent'
       }}
     >
       <Stage
@@ -393,6 +558,21 @@ const LayoutCanvas = memo(function LayoutCanvas() {
                 .filter(stall => stall.stallId); // Remove invalid stalls
             });
 
+            // MOBILE PERFORMANCE: Limit stalls during touch interactions for 0-lag
+            const maxStallsForSmoothInteraction = isMobile.current ? 500 : 1000;
+            const isInteracting = canvas.isDragging || isDragging.current;
+            
+            const finalStalls = isInteracting && visibleStalls.length > maxStallsForSmoothInteraction
+              ? visibleStalls
+                  .slice(0, maxStallsForSmoothInteraction)
+                  .concat(
+                    // Always include selected stalls even during interaction
+                    visibleStalls
+                      .slice(maxStallsForSmoothInteraction)
+                      .filter(stall => canvas.selectedStalls.includes(stall.stallId))
+                  )
+              : visibleStalls;
+
             // Phase 3: Batch by status for better GPU utilization
             const stallBatches = {
               available: [] as any[],
@@ -401,7 +581,7 @@ const LayoutCanvas = memo(function LayoutCanvas() {
               unavailable: [] as any[]
             };
 
-            visibleStalls.forEach(stall => {
+            finalStalls.forEach(stall => {
               if (stallBatches[stall.status as keyof typeof stallBatches]) {
                 stallBatches[stall.status as keyof typeof stallBatches].push(stall);
               }
@@ -457,13 +637,23 @@ const LayoutCanvas = memo(function LayoutCanvas() {
       </Stage>
       
       
-      {/* Help text */}
-      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-600 max-w-xs">
+      {/* Help text - Mobile adaptive */}
+      <div className="absolute bottom-2 lg:bottom-4 left-2 lg:left-4 bg-white/90 backdrop-blur-sm rounded-lg p-2 lg:p-3 text-xs text-gray-600 max-w-xs">
         <p className="font-medium mb-1">Navigation:</p>
-        <p>• Mouse wheel: Zoom in/out</p>
-        <p>• Drag: Pan around</p>
-        <p>• Click stalls: Select/deselect</p>
-        <p>• Ctrl+0: Fit to screen</p>
+        {isMobile.current ? (
+          <>
+            <p>• Pinch: Zoom in/out</p>
+            <p>• Drag: Pan around</p>
+            <p>• Tap stalls: Select</p>
+          </>
+        ) : (
+          <>
+            <p>• Mouse wheel: Zoom in/out</p>
+            <p>• Drag: Pan around</p>
+            <p>• Click stalls: Select/deselect</p>
+            <p>• Ctrl+0: Fit to screen</p>
+          </>
+        )}
       </div>
     </div>
   );

@@ -183,7 +183,7 @@ export default function LayoutViewer({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
         {/* Breadcrumb */}
         <LayoutBreadcrumb exhibition={exhibition} />
 
@@ -194,11 +194,11 @@ export default function LayoutViewer({
           isConnected={isConnected}
         />
 
-        {/* Main layout interface */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mt-8">
-          {/* Canvas Area - Expanded to take more space */}
-          <div className="xl:col-span-4">
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        {/* Main layout interface - Mobile optimized */}
+        <div className="flex flex-col lg:grid lg:grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-6 mt-4 sm:mt-6 lg:mt-8">
+          {/* Mobile: Sidebar first, Desktop: Canvas first */}
+          <div className="order-2 lg:order-1 xl:col-span-4">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
               {/* Controls */}
               <LayoutControls />
               
@@ -209,9 +209,11 @@ export default function LayoutViewer({
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="xl:col-span-1">
-            <LayoutSidebar exhibition={exhibition} />
+          {/* Sidebar - Mobile: Fixed bottom, Desktop: Side panel */}
+          <div className="order-1 lg:order-2 xl:col-span-1">
+            <div className="lg:sticky lg:top-4">
+              <LayoutSidebar exhibition={exhibition} />
+            </div>
           </div>
         </div>
 

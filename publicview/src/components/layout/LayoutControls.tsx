@@ -67,20 +67,20 @@ export default function LayoutControls() {
   return (
     <div className="border-b border-gray-200 bg-white">
       <div className="p-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          {/* Zoom Controls */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center bg-gray-100 rounded-lg">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          {/* Zoom Controls - Mobile optimized */}
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <div className="flex items-center bg-gray-100 rounded-lg touch-manipulation">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleZoomOut}
-                className="rounded-r-none"
+                className="rounded-r-none px-2 sm:px-3 h-9 sm:h-8 touch-manipulation active:scale-95"
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
               
-              <div className="px-3 py-1 text-sm font-medium min-w-[60px] text-center">
+              <div className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium min-w-[50px] sm:min-w-[60px] text-center bg-white border-y border-gray-200">
                 {(canvas.scale * 100).toFixed(0)}%
               </div>
               
@@ -88,7 +88,7 @@ export default function LayoutControls() {
                 variant="ghost"
                 size="sm"
                 onClick={handleZoomIn}
-                className="rounded-l-none"
+                className="rounded-l-none px-2 sm:px-3 h-9 sm:h-8 touch-manipulation active:scale-95"
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
@@ -98,21 +98,23 @@ export default function LayoutControls() {
               variant="outline"
               size="sm"
               onClick={handleFitToScreen}
-              title="Fit to screen (Ctrl+0)"
+              title="Fit to screen"
+              className="px-2 sm:px-3"
             >
               <Maximize className="h-4 w-4" />
             </Button>
           </div>
 
-          {/* View Options */}
-          <div className="flex items-center space-x-2">
+          {/* View Options - Mobile optimized */}
+          <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto w-full sm:w-auto">
             <Button
               variant={viewConfig.showGrid ? "default" : "outline"}
               size="sm"
               onClick={toggleGrid}
               title="Toggle grid"
+              className="px-2 sm:px-3 flex-shrink-0"
             >
-              <Grid3X3 className="h-4 w-4" />
+              <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
@@ -120,8 +122,9 @@ export default function LayoutControls() {
               size="sm"
               onClick={toggleStallNumbers}
               title="Toggle stall numbers"
+              className="px-2 sm:px-3 flex-shrink-0"
             >
-              <Hash className="h-4 w-4" />
+              <Hash className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
@@ -129,8 +132,9 @@ export default function LayoutControls() {
               size="sm"
               onClick={togglePrices}
               title="Toggle prices"
+              className="px-2 sm:px-3 flex-shrink-0"
             >
-              <DollarSign className="h-4 w-4" />
+              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
@@ -138,57 +142,61 @@ export default function LayoutControls() {
               size="sm"
               onClick={toggleAmenities}
               title="Toggle amenities"
+              className="px-2 sm:px-3 flex-shrink-0"
             >
-              <MapPin className="h-4 w-4" />
+              <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
 
-          {/* Selection Info */}
+          {/* Selection Info - Mobile optimized */}
           {selectedStalls.length > 0 && (
-            <div className="flex items-center space-x-3">
-              <div className="text-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+              <div className="text-xs sm:text-sm">
                 <span className="font-medium">{selectedStalls.length}</span> stalls selected
               </div>
               
-              {selectedTotal > 0 && (
-                <Badge variant="secondary" className="text-sm">
-                  ₹{selectedTotal.toLocaleString()}
-                </Badge>
-              )}
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearSelection}
-              >
-                Clear
-              </Button>
+              <div className="flex items-center space-x-2">
+                {selectedTotal > 0 && (
+                  <Badge variant="secondary" className="text-xs sm:text-sm">
+                    ₹{selectedTotal.toLocaleString()}
+                  </Badge>
+                )}
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="px-2 sm:px-3 text-xs sm:text-sm"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Legend */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="flex flex-wrap items-center gap-4 text-xs">
+        {/* Legend - Mobile optimized */}
+        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs">
             <div className="flex items-center space-x-1">
-              <div className="w-4 h-3 bg-green-100 border border-green-500 rounded"></div>
-              <span>Available</span>
+              <div className="w-3 h-2 sm:w-4 sm:h-3 bg-green-100 border border-green-500 rounded"></div>
+              <span className="text-xs">Available</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-4 h-3 bg-red-100 border border-red-500 rounded"></div>
-              <span>Booked</span>
+              <div className="w-3 h-2 sm:w-4 sm:h-3 bg-red-100 border border-red-500 rounded"></div>
+              <span className="text-xs">Booked</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-4 h-3 bg-yellow-100 border border-yellow-500 rounded"></div>
-              <span>Reserved</span>
+              <div className="w-3 h-2 sm:w-4 sm:h-3 bg-yellow-100 border border-yellow-500 rounded"></div>
+              <span className="text-xs">Reserved</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-4 h-3 bg-gray-100 border border-gray-500 rounded"></div>
-              <span>Unavailable</span>
+              <div className="w-3 h-2 sm:w-4 sm:h-3 bg-gray-100 border border-gray-500 rounded"></div>
+              <span className="text-xs">Unavailable</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-4 h-3 bg-blue-500 border border-blue-700 rounded"></div>
-              <span>Selected</span>
+              <div className="w-3 h-2 sm:w-4 sm:h-3 bg-blue-500 border border-blue-700 rounded"></div>
+              <span className="text-xs">Selected</span>
             </div>
           </div>
         </div>

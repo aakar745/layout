@@ -73,13 +73,29 @@ export default function StallRenderer({
   const isStallSelected = isSelected;
   const dimensions = stall.dimensions;
 
-  // Performance: Determine Level-of-Detail based on current scale
+  // PERFORMANCE FIX: Cache mobile detection to prevent repeated calculations
+  const isMobileDevice = useMemo(() => {
+    return typeof window !== 'undefined' && 
+      (/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(navigator.userAgent.toLowerCase()) || 
+       'ontouchstart' in window || 
+       window.innerWidth <= 768);
+  }, []);
+
+  // Performance: Determine Level-of-Detail based on current scale (Mobile optimized)
   const lodLevel = useMemo(() => {
-    if (scale >= LOD_THRESHOLDS.HIGH_DETAIL) return 'HIGH';
-    if (scale >= LOD_THRESHOLDS.MEDIUM_DETAIL) return 'MEDIUM';
-    if (scale >= LOD_THRESHOLDS.LOW_DETAIL) return 'LOW';
+    // Mobile gets more aggressive LOD to maintain 60fps
+    const thresholds = isMobileDevice ? {
+      HIGH_DETAIL: 1.2,     // Mobile: Higher threshold for high detail
+      MEDIUM_DETAIL: 0.6,   // Mobile: Higher threshold for medium detail  
+      LOW_DETAIL: 0.3,      // Mobile: Higher threshold for low detail
+      MINIMAL_DETAIL: 0.1   // Same minimal threshold
+    } : LOD_THRESHOLDS;
+    
+    if (scale >= thresholds.HIGH_DETAIL) return 'HIGH';
+    if (scale >= thresholds.MEDIUM_DETAIL) return 'MEDIUM';
+    if (scale >= thresholds.LOW_DETAIL) return 'LOW';
     return 'MINIMAL';
-  }, [scale]);
+  }, [scale, isMobileDevice]);
 
   // Performance: LOD-based feature flags
   const shouldShowText = lodLevel !== 'MINIMAL';
