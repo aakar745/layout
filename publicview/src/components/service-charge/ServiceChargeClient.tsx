@@ -625,12 +625,12 @@ export default function ServiceChargeClient({ exhibitionId }: ServiceChargeClien
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 py-16">
-        <div className="max-w-4xl mx-auto text-center px-6">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 py-12 sm:py-16">
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 leading-tight">
             Service Charge Payment
           </h1>
-          <p className="text-xl text-gray-600 mb-6">
+          <p className="text-lg sm:text-xl text-gray-600 mb-4 sm:mb-6 px-2 sm:px-0 leading-relaxed">
             {exhibition?.config.title || 'Pay your exhibition service charges securely'}
           </p>
           <div className="text-sm text-gray-500">
@@ -640,14 +640,14 @@ export default function ServiceChargeClient({ exhibitionId }: ServiceChargeClien
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         {/* Steps Indicator */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <StepsIndicator currentStep={currentStep} />
         </div>
 
         {/* Step Content */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 overflow-hidden">
           {currentStep === 0 && (
             <VendorDetailsStep
               exhibition={exhibition!}

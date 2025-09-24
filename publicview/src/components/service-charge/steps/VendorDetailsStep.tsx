@@ -177,9 +177,9 @@ export default function VendorDetailsStep({
             Vendor Information
           </h3>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            <div>
-              <Label htmlFor="vendorName" className="text-sm font-medium text-gray-700 mb-1 block">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="md:col-span-2 lg:col-span-1">
+              <Label htmlFor="vendorName" className="text-sm font-medium text-gray-700 mb-2 block">
                 Vendor Name *
               </Label>
               <Input
@@ -195,8 +195,8 @@ export default function VendorDetailsStep({
               )}
             </div>
 
-            <div>
-              <Label htmlFor="companyName" className="text-sm font-medium text-gray-700 mb-1 block">
+            <div className="md:col-span-2 lg:col-span-1">
+              <Label htmlFor="companyName" className="text-sm font-medium text-gray-700 mb-2 block">
                 Vendor Company Name *
               </Label>
               <Input
@@ -212,8 +212,8 @@ export default function VendorDetailsStep({
               )}
             </div>
 
-            <div>
-              <Label htmlFor="vendorPhone" className="text-sm font-medium text-gray-700 mb-1 block">
+            <div className="md:col-span-2 lg:col-span-1">
+              <Label htmlFor="vendorPhone" className="text-sm font-medium text-gray-700 mb-2 block">
                 Mobile Number *
               </Label>
               <div className="relative">
@@ -222,7 +222,7 @@ export default function VendorDetailsStep({
                   id="vendorPhone"
                   {...form.register('vendorPhone')}
                   placeholder="Enter 10-digit mobile number"
-                  className="pl-10 h-10 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
+                  className="pl-10 h-11 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
                   maxLength={10}
                   onInput={(e) => {
                     e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '');

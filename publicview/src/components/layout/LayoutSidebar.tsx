@@ -34,7 +34,7 @@ export default function LayoutSidebar({ exhibition }: LayoutSidebarProps) {
   return (
     <div className="space-y-6">
       {/* Selection Card - Mobile optimized */}
-      <Card className="lg:sticky lg:top-0">
+      <Card className="lg:sticky lg:top-0 rounded-md">
         <div className="border-b border-gray-200 px-3 lg:px-4 py-2 lg:py-3">
           <div className="flex items-center">
             <ShoppingCart className="h-4 w-4 mr-2 text-blue-600" />

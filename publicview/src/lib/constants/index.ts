@@ -28,84 +28,57 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
 
 export const HERO_STATS: StatsItem[] = [
   {
-    label: "Active Exhibitions",
-    value: "50+",
+    label: "Years Experience",
+    value: "25+",
     icon: Calendar
   },
   {
-    label: "Happy Exhibitors", 
-    value: "1000+",
-    icon: Users
-  },
-  {
-    label: "Stalls Booked",
-    value: "5000+", 
+    label: "Trade Exhibitions", 
+    value: "50+",
     icon: Building2
   },
   {
-    label: "Success Rate",
-    value: "98%",
+    label: "Exhibitors Served",
+    value: "10000+", 
+    icon: Users
+  },
+  {
+    label: "Trade Visitors",
+    value: "1000000+",
     icon: TrendingUp
   }
 ];
 
 export const FEATURES: FeatureItem[] = [
   {
-    title: "Real-Time Booking",
-    description: "Book your exhibition stalls instantly with our real-time booking system. See availability and confirm your space in seconds.",
+    title: "Industry-Focused Events",
+    description: "Specialized exhibitions across beauty, technology, gifting, healthcare, and more. We create targeted platforms for specific industries.",
     icon: Zap
   },
   {
-    title: "Smart Layout Viewer", 
-    description: "Interactive floor plans and 3D layouts help you choose the perfect stall location for maximum visibility and foot traffic.",
+    title: "Premium Venues", 
+    description: "Partnership with India's top exhibition centers including Science City, Pragati Maidan, and major convention centers nationwide.",
     icon: Building2
   },
   {
-    title: "Secure Payments",
-    description: "Multiple payment options with bank-level security. PhonePe integration ensures your transactions are safe and instant.",
+    title: "End-to-End Management",
+    description: "Complete event management from planning to execution. Marketing, logistics, visitor management - we handle it all.",
     icon: Shield
   },
   {
-    title: "Exhibitor Dashboard",
-    description: "Manage all your bookings, invoices, and exhibition details from one centralized dashboard with real-time updates.",
+    title: "Digital Integration",
+    description: "Modern digital solutions including online booking, smart layouts, payment integration, and exhibitor management systems.",
     icon: Users
   },
   {
-    title: "24/7 Support",
-    description: "Get help whenever you need it with our round-the-clock customer support team. We're here to make your experience smooth.",
+    title: "Proven Track Record",
+    description: "25+ years of successful event management with thousands of satisfied exhibitors and consistent growth across India.",
     icon: CheckCircle
   },
   {
-    title: "Analytics & Insights",
-    description: "Track your exhibition performance with detailed analytics, visitor insights, and ROI measurements.",
+    title: "Business Growth",
+    description: "Our exhibitions drive real business results with targeted audiences, quality leads, and networking opportunities for exhibitors.",
     icon: TrendingUp
   }
 ];
 
-export const ABOUT_TIMELINE = [
-  {
-    year: "2020",
-    title: "Company Founded",
-    description: "Started with a vision to digitize exhibition management in India."
-  },
-  {
-    year: "2021", 
-    title: "First 100 Exhibitions",
-    description: "Successfully managed our first 100 exhibitions across major cities."
-  },
-  {
-    year: "2022",
-    title: "Technology Upgrade", 
-    description: "Launched real-time booking system and mobile-first platform."
-  },
-  {
-    year: "2023",
-    title: "1000+ Exhibitors",
-    description: "Reached milestone of 1000+ satisfied exhibitors and partners."
-  },
-  {
-    year: "2024",
-    title: "AI Integration",
-    description: "Introduced AI-powered stall recommendations and analytics."
-  }
-];

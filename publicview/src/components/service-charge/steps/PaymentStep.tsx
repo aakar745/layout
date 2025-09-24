@@ -227,9 +227,9 @@ export default function PaymentStep({
           )}
 
           {/* Total Amount */}
-          <div className="flex justify-between items-center py-4 border-t-2 border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 py-4 border-t-2 border-gray-200">
             <span className="text-lg font-semibold text-gray-900">Service Charge</span>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <div className="text-2xl font-bold text-blue-600">
                 ₹{amount.toLocaleString()}
               </div>

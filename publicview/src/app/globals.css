@@ -202,3 +202,21 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* MOBILE LOGO FIX: Improve image rendering for crisp logos on mobile */
+img[alt*="Logo"], img[alt*="logo"] {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+
+/* Additional mobile optimizations for high-DPI displays */
+@media only screen and (-webkit-min-device-pixel-ratio: 2), 
+       only screen and (min-device-pixel-ratio: 2), 
+       only screen and (min-resolution: 192dpi), 
+       only screen and (min-resolution: 2dppx) {
+  img[alt*="Logo"], img[alt*="logo"] {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: optimize-contrast;
+  }
+}

@@ -227,16 +227,16 @@ export default function PaymentLookupClient({ exhibitionId }: PaymentLookupClien
           </Alert>
 
           <form onSubmit={form.handleSubmit(handleSearch)} className="space-y-4 sm:space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-4 sm:space-y-6">
               <div>
-                <Label htmlFor="phone">Mobile Number</Label>
+                <Label htmlFor="phone" className="text-sm font-medium text-gray-700 mb-2 block">Mobile Number</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
                     id="phone"
                     {...form.register('phone')}
                     placeholder="Enter 10-digit mobile number"
-                    className="pl-10 h-11"
+                    className="pl-10 h-11 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
                     maxLength={10}
                     onInput={(e) => {
                       e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '');
@@ -244,47 +244,58 @@ export default function PaymentLookupClient({ exhibitionId }: PaymentLookupClien
                   />
                 </div>
                 {form.formState.errors.phone && (
-                  <p className="text-sm text-red-500 mt-1">
+                  <p className="text-xs sm:text-sm text-red-500 mt-1">
                     {form.formState.errors.phone.message}
                   </p>
                 )}
               </div>
 
+              {/* OR Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">OR</span>
+                </div>
+              </div>
+
               <div>
-                <Label htmlFor="stallNumber">Stall Number</Label>
+                <Label htmlFor="stallNumber" className="text-sm font-medium text-gray-700 mb-2 block">Stall Number</Label>
                 <div className="relative">
                   <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
                     id="stallNumber"
                     {...form.register('stallNumber')}
                     placeholder="Enter stall number (e.g., A2, B15)"
-                    className="pl-10 h-11"
+                    className="pl-10 h-11 text-sm border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
                   />
                 </div>
               </div>
             </div>
 
             <div className="text-center">
-              <div className="text-sm text-gray-500 mb-3 sm:mb-4">OR</div>
               <p className="text-sm text-gray-600 mb-4 sm:mb-6">
-                You can search using either field above. Both fields are not required.
+                Enter either your mobile number or stall number to find your payment records.
               </p>
               
               <Button
                 type="submit"
                 disabled={searching}
                 size="lg"
-                className="w-full sm:w-auto min-w-48 h-12"
+                className="w-full sm:w-auto sm:min-w-48 h-12 text-sm sm:text-base"
               >
                 {searching ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Searching...
+                    <span className="hidden sm:inline">Searching...</span>
+                    <span className="sm:hidden">Searching...</span>
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4 mr-2" />
-                    Search Payments
+                    <span className="hidden sm:inline">Search Payments</span>
+                    <span className="sm:hidden">Search</span>
                   </>
                 )}
               </Button>
@@ -392,14 +403,14 @@ export default function PaymentLookupClient({ exhibitionId }: PaymentLookupClien
         )}
 
         {/* Help Section */}
-        <Card className="p-6 mt-8 bg-gray-50">
-          <h4 className="font-semibold text-gray-900 mb-4">Need Help?</h4>
+        <Card className="p-4 sm:p-6 mt-6 sm:mt-8 bg-gray-50">
+          <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Need Help?</h4>
           
           <div className="space-y-3 text-sm text-gray-600">
             <div>
               <strong className="text-gray-900">Can&apos;t find your payment?</strong>
             </div>
-            <ul className="space-y-1 ml-4">
+            <ul className="space-y-2 sm:space-y-1 ml-3 sm:ml-4">
               <li>• Make sure you&apos;re using the same mobile number used during payment</li>
               <li>• For stall numbers, you can use partial matches (e.g., &apos;A2&apos; finds &apos;A2 (5x5)&apos;, &apos;A2-Block1&apos;)</li>
               <li>• Search is case-insensitive, so &apos;a2&apos; and &apos;A2&apos; both work</li>
@@ -407,10 +418,10 @@ export default function PaymentLookupClient({ exhibitionId }: PaymentLookupClien
               <li>• If you just made a payment, please wait a few minutes for processing</li>
             </ul>
             
-            <div className="pt-4 border-t">
+            <div className="pt-3 sm:pt-4 border-t">
               <Link 
                 href={`/exhibitions/${exhibitionId}/service-charge`}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base"
               >
                 Make a new service charge payment →
               </Link>
@@ -419,11 +430,12 @@ export default function PaymentLookupClient({ exhibitionId }: PaymentLookupClien
         </Card>
 
         {/* Navigation */}
-        <div className="text-center mt-8">
+        <div className="text-center mt-6 sm:mt-8">
           <Link href="/exhibitions">
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" className="text-sm sm:text-base">
               <Home className="w-4 h-4 mr-2" />
-              Browse More Exhibitions
+              <span className="hidden sm:inline">Browse More Exhibitions</span>
+              <span className="sm:hidden">Browse Exhibitions</span>
             </Button>
           </Link>
         </div>

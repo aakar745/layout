@@ -10,8 +10,8 @@ export default function Home() {
   return (
     <>
       <HeroSection />
-      <AboutSection />
       <FeaturedExhibitions />
+      <AboutSection />
       <FeaturesSection />
       <CTASection />
     </>

@@ -46,7 +46,7 @@ export default function Footer() {
                   alt={`${getSiteName()} Logo`}
                   width={100}
                   height={32}
-                  className="object-contain max-h-8"
+                  className="object-contain max-h-8 [image-rendering:crisp-edges] [image-rendering:-webkit-optimize-contrast]"
                   onError={() => setLogoError(true)}
                   loading="lazy"
                 />

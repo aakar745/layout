@@ -30,43 +30,44 @@ export default function HeroSection() {
 
       {/* Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           {/* Badge */}
           <div className="flex justify-center">
-            <Badge variant="secondary" className="bg-white/10 text-white border-white/20 hover:bg-white/20">
-              🚀 India's #1 Exhibition Management Platform
+            <Badge variant="secondary" className="bg-white/10 text-white border-white/20 hover:bg-white/20 text-xs sm:text-sm px-3 py-1">
+              <span className="hidden sm:inline">🏢 Aakar Exhibition - 25+ Years of Excellence in Event Management</span>
+              <span className="sm:hidden">🏢 Aakar Exhibition - 25+ Years</span>
             </Badge>
           </div>
 
           {/* Main Heading */}
-          <div className="space-y-4">
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
-              Book Your
+          <div className="space-y-3 sm:space-y-4">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
+              India's Leading
               <span className="bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
-                {" "}Perfect Stall
+                {" "}Exhibition
               </span>
               <br />
-              in Seconds
+              Organizer
             </h1>
-            <p className="text-xl md:text-2xl text-blue-100 max-w-3xl mx-auto leading-relaxed">
-              Discover thousands of exhibition opportunities across India. 
-              Real-time booking, instant confirmation, and seamless management.
+            <p className="text-lg sm:text-xl md:text-2xl text-blue-100 max-w-3xl mx-auto leading-relaxed px-2 sm:px-0">
+              Join thousands of exhibitors at our premium trade shows across India. 
+              From beauty & wellness to technology & gifting - we create platforms for business growth.
             </p>
           </div>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg" asChild className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-medium">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-4 sm:px-0">
+            <Button size="lg" asChild className="w-full sm:w-auto bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-medium">
               <Link href="/exhibitions">
                 <span className="text-blue-600">Browse Exhibitions</span>
-                <ArrowRight className="ml-2 h-5 w-5 text-blue-600" />
+                <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
               </Link>
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
               onClick={() => openLoginModal()}
-              className="border-white/30 text-white hover:bg-white/10 bg-transparent font-medium"
+              className="w-full sm:w-auto border-white/30 text-white hover:bg-white/10 bg-transparent font-medium"
               style={{ color: 'white' }}
             >
               <span className="text-white">Exhibitor Login</span>
@@ -74,17 +75,17 @@ export default function HeroSection() {
           </div>
 
           {/* Stats */}
-          <div className="pt-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="pt-8 sm:pt-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
               {HERO_STATS.map((stat, index) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={index} className="text-center space-y-2">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Icon className="h-6 w-6 text-blue-200" />
+                  <div key={index} className="text-center space-y-1 sm:space-y-2">
+                    <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-white/10 rounded-lg backdrop-blur-sm">
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-200" />
                     </div>
-                    <div className="text-2xl md:text-3xl font-bold">{stat.value}</div>
-                    <div className="text-blue-200 text-sm">{stat.label}</div>
+                    <div className="text-xl sm:text-2xl md:text-3xl font-bold">{stat.value}</div>
+                    <div className="text-blue-200 text-xs sm:text-sm px-1">{stat.label}</div>
                   </div>
                 );
               })}

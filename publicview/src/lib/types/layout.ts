@@ -186,10 +186,11 @@ export interface StallFilters {
 }
 
 export interface LayoutViewConfig {
-  showGrid: boolean;
+  showGrid: boolean;           // Exhibition space background grid
+  showHallGrids: boolean;      // Hall internal grids (always useful)
   showStallNumbers: boolean;
-  showPrices: boolean;
-  showAmenities: boolean;
+  showDimensions: boolean;    // Stall dimensions (width x height)
+  showFixtures: boolean;      // Layout structures (stages, pillars, displays, etc.)
   colorScheme: 'default' | 'accessibility' | 'custom';
 }
 

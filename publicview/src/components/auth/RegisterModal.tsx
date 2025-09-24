@@ -86,7 +86,6 @@ export default function RegisterModal() {
       });
       setOtp('');
       setValidationErrors({});
-      setOtpSent(false);
       setResendTimer(0);
       clearError();
     }

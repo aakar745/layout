@@ -35,6 +35,9 @@ const getAuthenticatedImageUrl = (path: string): string => {
 };
 
 export default function FixtureRenderer({ fixture, viewConfig, scale = 1 }: FixtureRendererProps) {
+  // Don't render if fixtures are hidden
+  if (!viewConfig.showFixtures) return null;
+
   const [imageUrl, setImageUrl] = useState<string>('');
   
   // Set up authenticated image URL when fixture icon changes (exactly like old frontend)
@@ -47,8 +50,8 @@ export default function FixtureRenderer({ fixture, viewConfig, scale = 1 }: Fixt
     }
   }, [fixture.icon]);
   
-  // Use the authenticated image URL 
-  const [image] = useImage(imageUrl);
+  // Use the authenticated image URL with CORS enabled for canvas export
+  const [image] = useImage(imageUrl, 'anonymous');
 
   // Helper function to format dimensions for display (exactly like old frontend)
   const formatDimensions = (width: number, height: number): string => {

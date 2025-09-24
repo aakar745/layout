@@ -198,11 +198,11 @@ export default function StallRenderer({
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
-          // Performance: Conditional shadows based on LOD
-          shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
-          shadowBlur={shouldShowShadows ? 3 : 0}
-          shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
-          shadowOpacity={shouldShowShadows ? 0.3 : 0}
+          // PERFORMANCE: More aggressive shadow culling for better performance
+          shadowColor={shouldShowShadows && scale > 0.8 ? "rgba(0,0,0,0.1)" : undefined}
+          shadowBlur={shouldShowShadows && scale > 0.8 ? 3 : 0}
+          shadowOffset={shouldShowShadows && scale > 0.8 ? { x: 1, y: 1 } : undefined}
+          shadowOpacity={shouldShowShadows && scale > 0.8 ? 0.3 : 0}
           rotation={0}
           perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
           cornerRadius={0.05} // Sharp rectangles like old frontend!
@@ -245,11 +245,11 @@ export default function StallRenderer({
             x={rect1X} y={rect1Y}
             width={rect1Width} height={rect1Height}
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-            // Performance: Conditional shadows based on LOD
-            shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
-            shadowBlur={shouldShowShadows ? 3 : 0}
-            shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
-            shadowOpacity={shouldShowShadows ? 0.3 : 0}
+            // PERFORMANCE: More aggressive shadow culling for better performance
+            shadowColor={shouldShowShadows && scale > 0.8 ? "rgba(0,0,0,0.1)" : undefined}
+            shadowBlur={shouldShowShadows && scale > 0.8 ? 3 : 0}
+            shadowOffset={shouldShowShadows && scale > 0.8 ? { x: 1, y: 1 } : undefined}
+            shadowOpacity={shouldShowShadows && scale > 0.8 ? 0.3 : 0}
             rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
@@ -257,11 +257,11 @@ export default function StallRenderer({
             x={rect2X} y={rect2Y}
             width={rect2Width} height={rect2Height}
             fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-            // Performance: Conditional shadows based on LOD
-            shadowColor={shouldShowShadows ? "rgba(0,0,0,0.1)" : undefined}
-            shadowBlur={shouldShowShadows ? 3 : 0}
-            shadowOffset={shouldShowShadows ? { x: 1, y: 1 } : undefined}
-            shadowOpacity={shouldShowShadows ? 0.3 : 0}
+            // PERFORMANCE: More aggressive shadow culling for better performance
+            shadowColor={shouldShowShadows && scale > 0.8 ? "rgba(0,0,0,0.1)" : undefined}
+            shadowBlur={shouldShowShadows && scale > 0.8 ? 3 : 0}
+            shadowOffset={shouldShowShadows && scale > 0.8 ? { x: 1, y: 1 } : undefined}
+            shadowOpacity={shouldShowShadows && scale > 0.8 ? 0.3 : 0}
             rotation={0} perfectDrawEnabled={false} // Performance: Disable pixel-perfect drawing (invisible difference)
             cornerRadius={0.05}
           />
@@ -306,17 +306,33 @@ export default function StallRenderer({
       {/* Shape renderer (exactly like old frontend) */}
       {renderStallShape()}
       
-      {/* Stall number text (Performance: Only show when readable) */}
-      {shouldShowText && (
+      {/* Stall number text (Performance: Only show when readable and enabled) */}
+      {shouldShowText && viewConfig.showStallNumbers && (
         <Text
           text={stall.stallNumber}
           fontSize={Math.min(dimensions.width, dimensions.height) * 0.25}
           fill="#000000"
           width={dimensions.width}
-          height={dimensions.height}
+          height={dimensions.height * (viewConfig.showDimensions ? 0.6 : 1)} // Adjust height if dimensions are shown
           align="center"
           verticalAlign="middle"
           fontStyle="bold"
+          listening={false} // Performance: Text doesn't need event listeners
+        />
+      )}
+
+      {/* Dimensions text (Performance: Only show when readable and enabled) */}
+      {shouldShowText && viewConfig.showDimensions && (
+        <Text
+          text={`${Math.round(dimensions.width)}m×${Math.round(dimensions.height)}m`}
+          fontSize={Math.min(dimensions.width, dimensions.height) * 0.18}
+          fill="#6b7280"
+          width={dimensions.width}
+          height={dimensions.height * 0.4}
+          y={dimensions.height * 0.6} // Position below stall number
+          align="center"
+          verticalAlign="middle"
+          fontStyle="normal"
           listening={false} // Performance: Text doesn't need event listeners
         />
       )}

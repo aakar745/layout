@@ -79,6 +79,9 @@ interface LayoutState {
   applyStallUpdate: (update: StallUpdate) => void;
   applyLayoutUpdate: (update: { type: string; stall?: Partial<Stall>; [key: string]: unknown }) => void;
   
+  // Export actions
+  exportCanvasAsImage: () => Promise<void>;
+  
   // Computed values
   getFilteredStalls: () => Stall[];
   getSelectedStallsTotal: () => number;
@@ -99,10 +102,11 @@ const initialFilters: StallFilters = {
 };
 
 const initialViewConfig: LayoutViewConfig = {
-  showGrid: true,
+  showGrid: false,              // PERFORMANCE: Exhibition space grid disabled by default (saves 200+ line renders)
+  showHallGrids: false,          // Hall internal grids enabled (useful and lightweight)
   showStallNumbers: true,
-  showPrices: true,
-  showAmenities: true,
+  showDimensions: false,        // Stall dimensions (off by default for performance, user can enable)
+  showFixtures: true,           // Layout structures (stages, pillars, displays, etc.)
   colorScheme: 'default',
 };
 
@@ -303,10 +307,10 @@ export const useLayoutStore = create<LayoutState>()(
             halls: state.layout.halls.map(hall => ({
               ...hall,
               stalls: (hall.stalls || []).map(stall => 
-                stall._id === update.stall._id
+                stall._id === update.stall?._id
                   ? { 
                       ...stall, 
-                      ...update.stall, // Apply all updated properties
+                      ...(update.stall || {}), // Apply all updated properties
                       id: stall.id || stall._id, // Preserve id consistency
                       _id: stall._id // Preserve _id
                     }
@@ -315,11 +319,10 @@ export const useLayoutStore = create<LayoutState>()(
             }))
           };
           
-          return {
-            ...state,
-            layout: updatedLayout,
-            lastUpdate: update.timestamp
-          };
+        return {
+          layout: updatedLayout,
+          lastUpdate: typeof update.timestamp === 'string' ? update.timestamp : null
+        };
         } 
         else if (update.type === 'stall_deleted') {
           // Handle stall deletion
@@ -342,21 +345,19 @@ export const useLayoutStore = create<LayoutState>()(
           );
           
           return {
-            ...state,
             layout: updatedLayout,
             selectedStalls: filteredSelectedStalls,
             canvas: {
               ...state.canvas,
               selectedStalls: filteredCanvasSelectedStalls
             },
-            lastUpdate: update.timestamp
+            lastUpdate: typeof update.timestamp === 'string' ? update.timestamp : null
           };
         }
         
         // For other update types, just update the timestamp
         return {
-          ...state,
-          lastUpdate: update.timestamp
+          lastUpdate: typeof update.timestamp === 'string' ? update.timestamp : null
         };
       });
     },
@@ -426,6 +427,17 @@ export const useLayoutStore = create<LayoutState>()(
         .find(s => (s._id || s.id) === stallId);
       
       return stall?.status === 'available' && !canvas.selectedStalls.includes(stallId);
+    },
+
+    // Export canvas as image
+    exportCanvasAsImage: async () => {
+      // This will be called from LayoutHeader, implementation will be provided by LayoutCanvas
+      const canvasExportFn = (window as any).__layoutCanvasExport;
+      if (canvasExportFn) {
+        await canvasExportFn();
+      } else {
+        console.warn('Canvas export function not available. Make sure LayoutCanvas is loaded.');
+      }
     },
   }))
 );

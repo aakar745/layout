@@ -32,7 +32,7 @@ export default function ImageUpload({ value, onChange, disabled }: ImageUploadPr
     }
 
     // Validate file type
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.heic'];
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.heic'];
     const fileName = file.name.toLowerCase();
     const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
     
@@ -109,7 +109,7 @@ export default function ImageUpload({ value, onChange, disabled }: ImageUploadPr
         if (error.message.includes('LIMIT_FILE_SIZE')) {
           toast.error('Image is too large. Maximum file size is 10MB.');
         } else if (error.message.includes('INVALID_FILE_TYPE')) {
-          toast.error('Invalid file type. Please upload JPG, PNG, GIF, SVG, or HEIC files.');
+          toast.error('Invalid file type. Please upload JPG, PNG or HEIC files.');
         } else {
           toast.error(error.message || 'Upload failed. Please try again.');
         }
@@ -156,33 +156,35 @@ export default function ImageUpload({ value, onChange, disabled }: ImageUploadPr
           `}
         >
           <input {...getInputProps()} />
-          <div className="p-3">
+          <div className="p-4 sm:p-6">
             {uploading ? (
-              <div className="flex items-center justify-center space-x-2">
-                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
-                <span className="text-xs text-gray-600">Uploading...</span>
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-3">
+                <Loader2 className="w-5 h-5 sm:w-4 sm:h-4 text-blue-500 animate-spin" />
+                <span className="text-sm sm:text-xs text-gray-600">Uploading...</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center space-x-2">
-                <Upload className={`w-4 h-4 ${isDragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-                <div>
-                  <span className="text-xs font-medium text-gray-700">
-                    {isDragActive ? 'Drop here' : 'Click to upload'}
-                  </span>
-                  <span className="text-xs text-gray-400 ml-2">• JPG, PNG, GIF, SVG, HEIC</span>
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-3">
+                <Upload className={`w-6 h-6 sm:w-5 sm:h-5 ${isDragActive ? 'text-blue-500' : 'text-gray-400'}`} />
+                <div className="text-center sm:text-left">
+                  <div className="text-sm sm:text-xs font-medium text-gray-700">
+                    {isDragActive ? 'Drop image here' : 'Click to upload or drag & drop'}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 sm:mt-0 sm:ml-0">
+                    <span className="hidden sm:inline">• </span>JPG, PNG, GIF, SVG, HEIC
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </Card>
       ) : (
-        <Card className="p-3">
-          <div className="flex items-center space-x-3">
+        <Card className="p-3 sm:p-4">
+          <div className="flex items-center space-x-3 sm:space-x-4">
             <div className="relative flex-shrink-0">
               <img
                 src={preview}
                 alt="Uploaded"
-                className="w-12 h-12 object-cover rounded border border-gray-200"
+                className="w-14 h-14 sm:w-12 sm:h-12 object-cover rounded border border-gray-200"
                 onError={() => {
                   setPreview(null);
                   toast.error('Failed to load image preview');
@@ -190,33 +192,33 @@ export default function ImageUpload({ value, onChange, disabled }: ImageUploadPr
               />
               <Badge 
                 variant="secondary" 
-                className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 flex items-center justify-center text-xs"
+                className="absolute -top-1 -right-1 h-5 w-5 sm:h-4 sm:w-4 rounded-full p-0 flex items-center justify-center text-xs"
               >
                 ✓
               </Badge>
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-900">Image uploaded</span>
-                <div className="flex space-x-1">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                <span className="text-sm sm:text-xs font-medium text-gray-900">Image uploaded successfully</span>
+                <div className="flex space-x-2 sm:space-x-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={handlePreview}
-                    className="h-6 w-6 p-0"
+                    className="h-7 w-7 sm:h-6 sm:w-6 p-0"
                   >
-                    <ImageIcon className="w-3 h-3" />
+                    <ImageIcon className="w-4 h-4 sm:w-3 sm:h-3" />
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={handleRemove}
-                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                    className="h-7 w-7 sm:h-6 sm:w-6 p-0 text-red-500 hover:text-red-700"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-4 h-4 sm:w-3 sm:h-3" />
                   </Button>
                 </div>
               </div>

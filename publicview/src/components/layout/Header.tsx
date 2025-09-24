@@ -59,13 +59,13 @@ export default function Header() {
                   <Image
                     src={getLogoUrl()!}
                     alt={`${getSiteName()} Logo`}
-                    width={120}
+                    width={0}
                     height={40}
-                    className="object-contain max-h-10"
+                    className="w-auto h-10 object-contain"
                     onError={() => setLogoError(true)}
                     priority
                     fetchPriority="high"
-                    sizes="120px"
+                    sizes="(max-width: 768px) 100vw, 200px"
                   />
                 </div>
               ) : (

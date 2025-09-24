@@ -25,7 +25,7 @@ async function fetchWithRetry(
           ...options.headers,
         },
         next: { 
-          revalidate: 300, // 5 minutes cache
+          revalidate: 15, // 15 seconds cache for faster updates
           tags: ['exhibitions']
         },
         ...options,

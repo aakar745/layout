@@ -56,6 +56,14 @@ export const metadata: Metadata = {
   },
 };
 
+// CRITICAL: Separate viewport export for mobile clarity and preventing blur
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

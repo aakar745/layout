@@ -10,9 +10,9 @@ import {
   Grid3X3, 
   Eye, 
   EyeOff,
-  DollarSign,
+  Ruler,
   Hash,
-  MapPin,
+  Building2,
   Palette
 } from 'lucide-react';
 import { useLayoutStore } from '@/store/layoutStore';
@@ -47,19 +47,19 @@ export default function LayoutControls() {
   };
 
   const toggleGrid = () => {
-    updateViewConfig({ showGrid: !viewConfig.showGrid });
+    updateViewConfig({ showHallGrids: !viewConfig.showHallGrids });
   };
 
   const toggleStallNumbers = () => {
     updateViewConfig({ showStallNumbers: !viewConfig.showStallNumbers });
   };
 
-  const togglePrices = () => {
-    updateViewConfig({ showPrices: !viewConfig.showPrices });
+  const toggleDimensions = () => {
+    updateViewConfig({ showDimensions: !viewConfig.showDimensions });
   };
 
-  const toggleAmenities = () => {
-    updateViewConfig({ showAmenities: !viewConfig.showAmenities });
+  const toggleFixtures = () => {
+    updateViewConfig({ showFixtures: !viewConfig.showFixtures });
   };
 
   const selectedTotal = getSelectedStallsTotal();
@@ -108,10 +108,10 @@ export default function LayoutControls() {
           {/* View Options - Mobile optimized */}
           <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto w-full sm:w-auto">
             <Button
-              variant={viewConfig.showGrid ? "default" : "outline"}
+              variant={viewConfig.showHallGrids ? "default" : "outline"}
               size="sm"
               onClick={toggleGrid}
-              title="Toggle grid"
+              title="Toggle hall grids"
               className="px-2 sm:px-3 flex-shrink-0"
             >
               <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -128,23 +128,23 @@ export default function LayoutControls() {
             </Button>
 
             <Button
-              variant={viewConfig.showPrices ? "default" : "outline"}
+              variant={viewConfig.showDimensions ? "default" : "outline"}
               size="sm"
-              onClick={togglePrices}
-              title="Toggle prices"
+              onClick={toggleDimensions}
+              title="Toggle dimensions (width x height)"
               className="px-2 sm:px-3 flex-shrink-0"
             >
-              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+              <Ruler className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
-              variant={viewConfig.showAmenities ? "default" : "outline"}
+              variant={viewConfig.showFixtures ? "default" : "outline"}
               size="sm"
-              onClick={toggleAmenities}
-              title="Toggle amenities"
+              onClick={toggleFixtures}
+              title="Toggle fixtures (stages, pillars, displays)"
               className="px-2 sm:px-3 flex-shrink-0"
             >
-              <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+              <Building2 className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
 

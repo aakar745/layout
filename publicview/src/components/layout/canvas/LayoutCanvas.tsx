@@ -6,7 +6,6 @@ import { useLayoutStore } from '@/store/layoutStore';
 import StallRenderer from './StallRenderer';
 import HallRenderer from './HallRenderer';
 import GridRenderer from './GridRenderer';
-import AmenityRenderer from './AmenityRenderer';
 import PathRenderer from './PathRenderer';
 import FixtureRenderer from './FixtureRenderer';
 import SelectionBox from './SelectionBox';
@@ -71,6 +70,90 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     clearSelection
   } = useLayoutStore();
 
+  // Export canvas as image function
+  const exportCanvasAsImage = useCallback(async () => {
+    if (!stageRef.current || !layout) return;
+
+    const { updateViewConfig } = useLayoutStore.getState();
+    const originalShowFixtures = viewConfig.showFixtures;
+
+    try {
+      // Get the stage
+      const stage = stageRef.current;
+      
+      // Create filename with exhibition name and timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `layout-${layout.name || 'exhibition'}-${timestamp}.png`;
+      
+      try {
+        // First attempt: Export with all elements
+        const dataURL = stage.toDataURL({
+          mimeType: 'image/png',
+          quality: 1,
+          pixelRatio: 2, // Higher resolution for better quality
+        });
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log(`Layout exported as ${filename}`);
+        
+      } catch (corsError) {
+        // If CORS error, try again without fixtures (which may contain problematic images)
+        console.warn('CORS error detected, attempting export without fixtures:', corsError);
+        
+        // Temporarily hide fixtures
+        updateViewConfig({ showFixtures: false });
+        
+        // Wait for next frame to ensure re-render
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        
+        // Try export again
+        const dataURL = stage.toDataURL({
+          mimeType: 'image/png',
+          quality: 1,
+          pixelRatio: 2,
+        });
+        
+        // Restore fixtures visibility
+        updateViewConfig({ showFixtures: originalShowFixtures });
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log(`Layout exported as ${filename} (without fixtures due to CORS restrictions)`);
+        alert('Layout exported successfully! Note: Some decorative elements were excluded due to security restrictions.');
+      }
+      
+    } catch (error) {
+      // Restore fixtures visibility in case of any error
+      updateViewConfig({ showFixtures: originalShowFixtures });
+      
+      console.error('Failed to export layout:', error);
+      alert('Failed to export layout. Please try again.');
+    }
+  }, [layout, viewConfig.showFixtures]);
+
+  // Register export function globally for store access
+  useEffect(() => {
+    (window as any).__layoutCanvasExport = exportCanvasAsImage;
+    
+    // Cleanup on unmount
+    return () => {
+      delete (window as any).__layoutCanvasExport;
+    };
+  }, [exportCanvasAsImage]);
+
   // PERFORMANCE: Batch state updates to prevent multiple re-renders
   const updateCanvasTransform = useCallback((newScale: number, newPosition: { x: number; y: number }, isDragging?: boolean) => {
     requestAnimationFrame(() => {
@@ -128,7 +211,6 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     
     const cullPercentage = totalStalls > 0 ? ((totalStalls - visibleStalls) / totalStalls * 100).toFixed(1) : 0;
     
-    console.log(`🎯 Performance: ${visibleStalls}/${totalStalls} stalls rendered (${cullPercentage}% culled, scale: ${canvas.scale.toFixed(2)})`);
     
     return { totalStalls, visibleStalls, cullPercentage };
   }, [layout?.halls, viewportBounds, canvas.scale]);
@@ -254,9 +336,6 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     updateCanvasTransform(canvas.scale, newPosition, false);
 
     // Performance monitoring for drag operations
-    if (ENABLE_PERF_MONITORING && dragDuration > 0) {
-      console.log(`🎯 Drag completed in ${dragDuration.toFixed(2)}ms`);
-    }
   }, [canvas.scale, updateCanvasTransform]);
 
   // Mobile touch handlers for pinch-to-zoom
@@ -354,9 +433,6 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     // Performance monitoring for touch operations
     if (ENABLE_PERF_MONITORING) {
       const touchDuration = performance.now() - touchStartTime.current;
-      if (touchDuration > 0) {
-        console.log(`🎯 Touch interaction completed in ${touchDuration.toFixed(2)}ms`);
-      }
     }
   }, []);
 
@@ -498,14 +574,12 @@ const LayoutCanvas = memo(function LayoutCanvas() {
         onClick={handleStageClick}
         // PERFORMANCE: Critical Konva performance settings for ultra-smooth interactions
         perfectDrawEnabled={false}        // Disable pixel-perfect drawing for speed
-        hitGraphEnabled={false}           // Disable hit graph for better performance
         clearBeforeDraw={true}            // Clear canvas before each frame for consistency
         imageSmoothingEnabled={false}     // Disable image smoothing for speed
       >
         <Layer
           // PERFORMANCE: Layer-specific optimizations for ultra-smooth rendering
           perfectDrawEnabled={false}
-          hitGraphEnabled={false}
           clearBeforeDraw={true}
           imageSmoothingEnabled={false}
           listening={!canvas.isDragging}  // Disable event listening during drag for speed
@@ -651,17 +725,6 @@ const LayoutCanvas = memo(function LayoutCanvas() {
             toggleStallSelection, 
             setHoveredStall
           ])}
-
-          {/* Amenities */}
-          {layout.halls.map(hall =>
-            (hall.amenities || []).map(amenity => (
-              <AmenityRenderer
-                key={amenity.id || amenity._id || Math.random()}
-                amenity={amenity}
-                viewConfig={viewConfig}
-              />
-            ))
-          )}
 
           {/* Fixtures */}
           {(layout.fixtures || []).map(fixture => (

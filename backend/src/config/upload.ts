@@ -179,9 +179,9 @@ const uploadMultiple = multer({
 // Image optimization settings
 const optimizationSettings = {
   logos: {
-    width: 200,
-    height: 200,
-    quality: 80
+    width: 400,    // Allow larger width for crisp display
+    height: 200,   // Reasonable height limit
+    quality: 95    // Higher quality to prevent blur
   },
   sponsors: {
     width: 150,
@@ -256,6 +256,16 @@ async function processImage(
     console.log('[Image Processing] Warning: HEIC file received on server. Client-side conversion may have failed:', file.originalname);
     // Skip processing HEIC files on server since they should be converted client-side
     return;
+  }
+  
+  // Skip processing for logos if they're already reasonably sized
+  if (type === 'logos') {
+    const stats = fs.statSync(file.path);
+    // Skip processing if logo is under 1MB (likely already good quality)
+    if (stats.size < 1024 * 1024) {
+      console.log('[Image Processing] Skipping logo optimization - file size acceptable:', file.originalname, `(${Math.round(stats.size / 1024)}KB)`);
+      return;
+    }
   }
   
   const { width, height, quality } = settings;

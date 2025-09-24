@@ -18,7 +18,7 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
 
   // Create internal grid lines similar to old frontend
   const gridLines = useMemo(() => {
-    if (!viewConfig.showGrid) return [];
+    if (!viewConfig.showHallGrids) return [];
     
     const lines: JSX.Element[] = [];
     const majorGridSize = 1; // 1 meter major grid
@@ -34,6 +34,7 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
           strokeWidth={1 / scale}
           dash={[2 / scale, 2 / scale]}
           listening={false}
+          perfectDrawEnabled={false}  // PERFORMANCE: Disable pixel-perfect drawing
         />
       );
     }
@@ -48,6 +49,7 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
           strokeWidth={0.5 / scale}
           dash={[1 / scale, 3 / scale]}
           listening={false}
+          perfectDrawEnabled={false}  // PERFORMANCE: Disable pixel-perfect drawing
         />
       );
     }
@@ -62,6 +64,7 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
           strokeWidth={1 / scale}
           dash={[2 / scale, 2 / scale]}
           listening={false}
+          perfectDrawEnabled={false}  // PERFORMANCE: Disable pixel-perfect drawing
         />
       );
     }
@@ -76,15 +79,19 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
           strokeWidth={0.5 / scale}
           dash={[1 / scale, 3 / scale]}
           listening={false}
+          perfectDrawEnabled={false}  // PERFORMANCE: Disable pixel-perfect drawing
         />
       );
     }
 
     return lines;
-  }, [x, y, width, height, scale, viewConfig.showGrid]);
+  }, [x, y, width, height, scale, viewConfig.showHallGrids]);
 
   return (
-    <Group>
+    <Group 
+      perfectDrawEnabled={false}  // PERFORMANCE: Disable pixel-perfect drawing for entire group
+      listening={false}           // PERFORMANCE: Disable event listening for hall background
+    >
       {/* Hall background rectangle */}
       <Rect
         x={x}
@@ -102,19 +109,23 @@ export default function HallRenderer({ hall, viewConfig, scale = 1 }: HallRender
       />
       
       {/* Internal grid lines */}
-      {gridLines}
+      <Group
+        perfectDrawEnabled={false}  // PERFORMANCE: Optimize grid rendering
+        listening={false}           // PERFORMANCE: Grid is non-interactive
+      >
+        {gridLines}
+      </Group>
 
-      {/* Hall name - centered */}
+      {/* Hall name - positioned outside the hall at top-left */}
       <Text
-        x={x}
-        y={y + height / 2 - 7 / scale}
-        width={width}
+        x={x - 5 / scale}  // 5 pixels outside the left edge
+        y={y - 20 / scale} // 20 pixels above the hall boundary
         text={hall.name}
         fontSize={14 / scale}
         fontFamily="Inter, Arial, sans-serif"
         fontStyle="bold"
         fill="#000000"
-        align="center"
+        align="left"
         listening={false}
       />
     </Group>

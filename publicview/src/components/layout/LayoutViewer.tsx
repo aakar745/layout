@@ -198,7 +198,7 @@ export default function LayoutViewer({
         <div className="flex flex-col lg:grid lg:grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-6 mt-4 sm:mt-6 lg:mt-8">
           {/* Mobile: Sidebar first, Desktop: Canvas first */}
           <div className="order-2 lg:order-1 xl:col-span-4">
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-white rounded-md shadow-lg overflow-hidden">
               {/* Controls */}
               <LayoutControls />
               
