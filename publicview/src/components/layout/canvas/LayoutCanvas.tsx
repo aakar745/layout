@@ -22,6 +22,7 @@ const ZOOM_FACTOR = 1.15; // Match old frontend zoom factor
 // Performance optimization constants
 const VIEWPORT_CULLING_BUFFER = 100; // Extra pixels around viewport to render
 const EVENT_THROTTLE_MS = 16; // ~60fps event throttling
+const DRAG_THROTTLE_MS = 8;   // Ultra-smooth drag throttling (120fps for drag operations)
 
 // Performance monitoring (optional debug feature)
 const ENABLE_PERF_MONITORING = process.env.NODE_ENV === 'development';
@@ -46,8 +47,10 @@ const LayoutCanvas = memo(function LayoutCanvas() {
   
   // Performance: throttling refs for event handling
   const lastUpdateTime = useRef<number>(0);
+  const lastDragUpdateTime = useRef<number>(0);  // Separate throttling for drag events
   const isDragging = useRef<boolean>(false);
   const dragStartTime = useRef<number>(0);
+  const pendingDragUpdate = useRef<boolean>(false);  // Prevent multiple drag updates
   
   // Mobile touch handling refs
   const lastTouchDistance = useRef<number>(0);
@@ -67,6 +70,18 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     setHoveredStall,
     clearSelection
   } = useLayoutStore();
+
+  // PERFORMANCE: Batch state updates to prevent multiple re-renders
+  const updateCanvasTransform = useCallback((newScale: number, newPosition: { x: number; y: number }, isDragging?: boolean) => {
+    requestAnimationFrame(() => {
+      // Batch all canvas updates in a single call to prevent multiple re-renders
+      updateCanvasState({
+        scale: newScale,
+        position: newPosition,
+        ...(isDragging !== undefined && { isDragging })
+      });
+    });
+  }, [updateCanvasState]);
 
   // Performance: Calculate viewport bounds for culling (Phase 3: Ultra-aggressive during interactions)
   const viewportBounds = useMemo(() => {
@@ -211,21 +226,18 @@ const LayoutCanvas = memo(function LayoutCanvas() {
       y: pointer.y - mousePointTo.y * newScale,
     };
 
-    // PERFORMANCE: Use requestAnimationFrame for smooth zoom updates
-    requestAnimationFrame(() => {
-      setScale(newScale);
-      setPosition(newPosition);
-    });
-  }, [canvas.scale, canvas.position, setScale, setPosition]);
+    // PERFORMANCE: Batch all updates in single call for ultra-smooth zoom
+    updateCanvasTransform(newScale, newPosition);
+  }, [canvas.scale, canvas.position, updateCanvasTransform]);
 
   // Phase 3: Enhanced drag handling for smooth performance with 1000+ stalls
   const handleDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     isDragging.current = true;
     dragStartTime.current = performance.now();
     
-    // Phase 3: Reduce rendering quality during drag for smooth interaction
-    updateCanvasState({ isDragging: true });
-  }, [updateCanvasState]);
+    // PERFORMANCE: Batch drag start state update
+    updateCanvasTransform(canvas.scale, canvas.position, true);
+  }, [canvas.scale, canvas.position, updateCanvasTransform]);
 
   const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     const stage = e.target;
@@ -233,22 +245,19 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     
     isDragging.current = false;
     
-    // PERFORMANCE: Use requestAnimationFrame for smooth drag end
-    requestAnimationFrame(() => {
-      // Phase 3: Restore full quality after drag completes
-      updateCanvasState({ isDragging: false });
-      
-      setPosition({
-        x: stage.x(),
-        y: stage.y()
-      });
-    });
+    // PERFORMANCE: Batch all drag end updates in single call for ultra-smooth finish
+    const newPosition = {
+      x: stage.x(),
+      y: stage.y()
+    };
+    
+    updateCanvasTransform(canvas.scale, newPosition, false);
 
     // Performance monitoring for drag operations
     if (ENABLE_PERF_MONITORING && dragDuration > 0) {
       console.log(`🎯 Drag completed in ${dragDuration.toFixed(2)}ms`);
     }
-  }, [setPosition, updateCanvasState]);
+  }, [canvas.scale, updateCanvasTransform]);
 
   // Mobile touch handlers for pinch-to-zoom
   const getTouchDistance = (touches: TouchList) => {
@@ -330,15 +339,12 @@ const LayoutCanvas = memo(function LayoutCanvas() {
         y: pointer.y - mousePointTo.y * newScale,
       };
 
-      // PERFORMANCE: Use requestAnimationFrame for smooth updates
-      requestAnimationFrame(() => {
-        setScale(newScale);
-        setPosition(newPosition);
-      });
+      // PERFORMANCE: Batch all touch updates in single call for ultra-smooth pinch-zoom
+      updateCanvasTransform(newScale, newPosition);
       
       lastTouchDistance.current = currentDistance;
     }
-  }, [canvas.scale, canvas.position, setScale, setPosition]);
+  }, [canvas.scale, canvas.position, updateCanvasTransform]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     if (!isMobile.current) return;
@@ -472,10 +478,38 @@ const LayoutCanvas = memo(function LayoutCanvas() {
         draggable
         onWheel={handleWheel}
         onDragStart={handleDragStart}
+        onDragMove={useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
+          // PERFORMANCE: Ultra-smooth drag with intelligent throttling
+          const now = performance.now();
+          if (now - lastDragUpdateTime.current < DRAG_THROTTLE_MS || pendingDragUpdate.current) return;
+          
+          lastDragUpdateTime.current = now;
+          pendingDragUpdate.current = true;
+          
+          const stage = e.target;
+          requestAnimationFrame(() => {
+            // Only update position during drag, not full canvas state (for ultra-smooth performance)
+            const newPosition = { x: stage.x(), y: stage.y() };
+            updateCanvasState({ position: newPosition });
+            pendingDragUpdate.current = false;
+          });
+        }, [])}
         onDragEnd={handleDragEnd}
         onClick={handleStageClick}
+        // PERFORMANCE: Critical Konva performance settings for ultra-smooth interactions
+        perfectDrawEnabled={false}        // Disable pixel-perfect drawing for speed
+        hitGraphEnabled={false}           // Disable hit graph for better performance
+        clearBeforeDraw={true}            // Clear canvas before each frame for consistency
+        imageSmoothingEnabled={false}     // Disable image smoothing for speed
       >
-        <Layer>
+        <Layer
+          // PERFORMANCE: Layer-specific optimizations for ultra-smooth rendering
+          perfectDrawEnabled={false}
+          hitGraphEnabled={false}
+          clearBeforeDraw={true}
+          imageSmoothingEnabled={false}
+          listening={!canvas.isDragging}  // Disable event listening during drag for speed
+        >
           {/* Exhibition Space Background */}
           {layout.dimensions && (
             <Group>
@@ -606,7 +640,17 @@ const LayoutCanvas = memo(function LayoutCanvas() {
                 />
               ))
             );
-          }, [layout.halls, viewportBounds, canvas.selectedStalls, canvas.hoveredStall, canvas.scale, viewConfig, toggleStallSelection, setHoveredStall])}
+          }, [
+            layout.halls, 
+            viewportBounds, 
+            canvas.selectedStalls, 
+            canvas.hoveredStall, 
+            canvas.scale, 
+            canvas.isDragging,  // PERFORMANCE: Only recalculate stalls when drag state changes
+            viewConfig, 
+            toggleStallSelection, 
+            setHoveredStall
+          ])}
 
           {/* Amenities */}
           {layout.halls.map(hall =>
