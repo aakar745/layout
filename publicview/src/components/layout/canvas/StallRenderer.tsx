@@ -23,6 +23,8 @@ interface StallRendererProps {
   scale?: number;
   hallX?: number;
   hallY?: number;
+  // Phase 3: Simplified interactions at distance
+  allowInteractions?: boolean;
 }
 
 // Exact colors from old frontend
@@ -61,7 +63,8 @@ export default function StallRenderer({
   onHover, 
   scale = 1,
   hallX = 0,
-  hallY = 0
+  hallY = 0,
+  allowInteractions = true
 }: StallRendererProps) {
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const { isAuthenticated, openLoginModal } = useAuthStore();
@@ -107,16 +110,21 @@ export default function StallRenderer({
     onSelect(stallId);
   }, [stall.id, stall._id, stall.status, stall.stallNumber, isAuthenticated, openLoginModal, onSelect]);
 
+  // Phase 3: Simplified interactions at distance for smooth performance
   const handleMouseEnter = useCallback(() => {
+    if (!allowInteractions) return; // Skip interactions when zoomed out
+    
     const stallId = stall.id || stall._id || '';
     onHover(stallId);
     setTooltipVisible(true);
-  }, [stall.id, stall._id, onHover]);
+  }, [stall.id, stall._id, onHover, allowInteractions]);
 
   const handleMouseLeave = useCallback(() => {
+    if (!allowInteractions) return; // Skip interactions when zoomed out
+    
     onHover(null);
     setTooltipVisible(false);
-  }, [onHover]);
+  }, [onHover, allowInteractions]);
 
   // Calculate stall area exactly like old frontend
   const calculateStallArea = () => {
@@ -272,12 +280,12 @@ export default function StallRenderer({
       width={dimensions.width}
       height={dimensions.height}
       opacity={stall.status === 'available' ? 1 : 0.7}
-      cursor={stall.status === 'available' ? 'pointer' : 'default'}
-      onClick={stall.status === 'available' ? handleClick : undefined}
-      onTap={stall.status === 'available' ? handleClick : undefined}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      listening={true} // Always listen for hover events to show tooltips
+      cursor={stall.status === 'available' && allowInteractions ? 'pointer' : 'default'}
+      onClick={stall.status === 'available' && allowInteractions ? handleClick : undefined}
+      onTap={stall.status === 'available' && allowInteractions ? handleClick : undefined}
+      onMouseEnter={allowInteractions ? handleMouseEnter : undefined}
+      onMouseLeave={allowInteractions ? handleMouseLeave : undefined}
+      listening={allowInteractions} // Phase 3: Disable listening when interactions not allowed
     >
       {/* Shape renderer (exactly like old frontend) */}
       {renderStallShape()}

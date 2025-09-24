@@ -134,6 +134,8 @@ export interface CanvasState {
   selectedStalls: string[];
   hoveredStall: string | null;
   isSelecting: boolean;
+  // Phase 3: Drag state for performance optimizations
+  isDragging?: boolean;
   selectionBox?: {
     startX: number;
     startY: number;

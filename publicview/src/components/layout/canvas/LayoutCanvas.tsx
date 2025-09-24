@@ -46,6 +46,8 @@ const LayoutCanvas = memo(function LayoutCanvas() {
   
   // Performance: throttling refs for event handling
   const lastUpdateTime = useRef<number>(0);
+  const isDragging = useRef<boolean>(false);
+  const dragStartTime = useRef<number>(0);
   
   const {
     layout,
@@ -61,20 +63,21 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     clearSelection
   } = useLayoutStore();
 
-  // Performance: Calculate viewport bounds for culling
+  // Performance: Calculate viewport bounds for culling (Phase 3: Aggressive during drag)
   const viewportBounds = useMemo(() => {
     if (!viewport.width || !viewport.height || !canvas.scale) {
       return { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
     }
     
-    const buffer = VIEWPORT_CULLING_BUFFER;
+    // Phase 3: Aggressive culling during drag operations for smooth interaction
+    const buffer = canvas.isDragging ? VIEWPORT_CULLING_BUFFER * 0.5 : VIEWPORT_CULLING_BUFFER;
     return {
       left: (-canvas.position.x - buffer) / canvas.scale,
       top: (-canvas.position.y - buffer) / canvas.scale, 
       right: (-canvas.position.x + viewport.width + buffer) / canvas.scale,
       bottom: (-canvas.position.y + viewport.height + buffer) / canvas.scale
     };
-  }, [canvas.position.x, canvas.position.y, canvas.scale, viewport.width, viewport.height]);
+  }, [canvas.position.x, canvas.position.y, canvas.scale, canvas.isDragging, viewport.width, viewport.height]);
 
   // Performance: Monitor rendering statistics (development only)
   const performanceStats = useMemo(() => {
@@ -185,14 +188,34 @@ const LayoutCanvas = memo(function LayoutCanvas() {
     setPosition(newPosition);
   }, [canvas.scale, canvas.position, setScale, setPosition]);
 
-  // Handle pan/drag
+  // Phase 3: Enhanced drag handling for smooth performance with 1000+ stalls
+  const handleDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
+    isDragging.current = true;
+    dragStartTime.current = performance.now();
+    
+    // Phase 3: Reduce rendering quality during drag for smooth interaction
+    updateCanvasState({ isDragging: true });
+  }, [updateCanvasState]);
+
   const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
     const stage = e.target;
+    const dragDuration = performance.now() - dragStartTime.current;
+    
+    isDragging.current = false;
+    
+    // Phase 3: Restore full quality after drag completes
+    updateCanvasState({ isDragging: false });
+    
     setPosition({
       x: stage.x(),
       y: stage.y()
     });
-  }, [setPosition]);
+
+    // Performance monitoring for drag operations
+    if (ENABLE_PERF_MONITORING && dragDuration > 0) {
+      console.log(`🎯 Drag completed in ${dragDuration.toFixed(2)}ms`);
+    }
+  }, [setPosition, updateCanvasState]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -283,6 +306,7 @@ const LayoutCanvas = memo(function LayoutCanvas() {
         scaleY={canvas.scale}
         draggable
         onWheel={handleWheel}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleStageClick}
       >
@@ -346,53 +370,63 @@ const LayoutCanvas = memo(function LayoutCanvas() {
             ))
           )}
 
-          {/* Stalls (Performance: Only render visible stalls) */}
-          {layout.halls.map(hall =>
-            (hall.stalls || [])
-              .filter(stall => {
-                // Performance: Viewport culling - only render visible stalls
-                const hallX = hall.dimensions.x || 0;
-                const hallY = hall.dimensions.y || 0;
-                return isStallInViewport(stall, viewportBounds, hallX, hallY);
-              })
-              .map(stall => {
-                // Use consistent ID: backend always provides 'id' field
-                const stallId = stall.id || stall._id || '';
-                if (!stallId) {
-                  console.warn('Stall missing ID:', stall);
-                  return null;
-                }
-                
-                // Use old frontend pattern - pass hall position to StallRenderer
-                const hallX = hall.dimensions.x || 0;
-                const hallY = hall.dimensions.y || 0;
-                
-                // Keep stall dimensions structure exactly like old frontend
-                const stallWithDimensions = {
+          {/* Phase 3: Batch Rendering by Status for 1000+ stalls */}
+          {useMemo(() => {
+            // Get all visible stalls first
+            const visibleStalls = layout.halls.flatMap(hall => {
+              const hallX = hall.dimensions.x || 0;
+              const hallY = hall.dimensions.y || 0;
+              
+              return (hall.stalls || [])
+                .filter(stall => isStallInViewport(stall, viewportBounds, hallX, hallY))
+                .map(stall => ({
                   ...stall,
+                  hallX,
+                  hallY,
+                  stallId: stall.id || stall._id || '',
                   dimensions: {
                     ...stall.dimensions,
                     x: stall.position?.x || stall.dimensions?.x || 0,
                     y: stall.position?.y || stall.dimensions?.y || 0
                   }
-                };
-                
-                return (
-                  <StallRenderer
-                    key={stallId}
-                    stall={stallWithDimensions}
-                    isSelected={canvas.selectedStalls.includes(stallId)}
-                    isHovered={canvas.hoveredStall === stallId}
-                    viewConfig={viewConfig}
-                    onSelect={toggleStallSelection}
-                    onHover={setHoveredStall}
-                    scale={canvas.scale}
-                    hallX={hallX}
-                    hallY={hallY}
-                  />
-                );
-              })
-          )}
+                }))
+                .filter(stall => stall.stallId); // Remove invalid stalls
+            });
+
+            // Phase 3: Batch by status for better GPU utilization
+            const stallBatches = {
+              available: [] as any[],
+              booked: [] as any[],
+              reserved: [] as any[],
+              unavailable: [] as any[]
+            };
+
+            visibleStalls.forEach(stall => {
+              if (stallBatches[stall.status as keyof typeof stallBatches]) {
+                stallBatches[stall.status as keyof typeof stallBatches].push(stall);
+              }
+            });
+
+            // Render batches in optimal order (available first for better UX)
+            return ['available', 'booked', 'reserved', 'unavailable'].flatMap(status =>
+              stallBatches[status as keyof typeof stallBatches].map(stall => (
+                <StallRenderer
+                  key={stall.stallId}
+                  stall={stall}
+                  isSelected={canvas.selectedStalls.includes(stall.stallId)}
+                  isHovered={canvas.hoveredStall === stall.stallId}
+                  viewConfig={viewConfig}
+                  onSelect={toggleStallSelection}
+                  onHover={setHoveredStall}
+                  scale={canvas.scale}
+                  hallX={stall.hallX}
+                  hallY={stall.hallY}
+                  // Phase 3: Simplified interactions at distance
+                  allowInteractions={canvas.scale > 0.3}
+                />
+              ))
+            );
+          }, [layout.halls, viewportBounds, canvas.selectedStalls, canvas.hoveredStall, canvas.scale, viewConfig, toggleStallSelection, setHoveredStall])}
 
           {/* Amenities */}
           {layout.halls.map(hall =>
