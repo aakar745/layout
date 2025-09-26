@@ -5,6 +5,14 @@ import Konva from 'konva';
 import StallRenderer from '../layout/StallRenderer';
 import { calculateStallArea } from '../../../utils/stallUtils';
 
+// Phase 2: Level-of-Detail (LOD) thresholds for performance optimization
+const LOD_THRESHOLDS = {
+  HIGH_DETAIL: 0.8,     // Full detail - shadows, perfect text, all effects
+  MEDIUM_DETAIL: 0.4,   // Medium detail - text visible, reduced shadows  
+  LOW_DETAIL: 0.2,      // Low detail - basic shapes only
+  MINIMAL_DETAIL: 0.1   // Minimal - simple rectangles, no text
+};
+
 // Extend the StallType to include optional properties
 interface ExtendedStallType extends StallType {
   hallName?: string;
@@ -47,19 +55,42 @@ const Stall: React.FC<StallProps> = ({
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Detect mobile for optimizations
+  // PERFORMANCE: Cache mobile detection to prevent repeated calculations  
+  const isMobileDevice = useMemo(() => {
+    return typeof window !== 'undefined' && 
+      (/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(navigator.userAgent.toLowerCase()) || 
+       'ontouchstart' in window || 
+       window.innerWidth <= 768);
+  }, []);
+
+  // Phase 2: Determine Level-of-Detail based on current scale (Mobile optimized)
+  const lodLevel = useMemo(() => {
+    // Mobile gets more aggressive LOD to maintain 60fps
+    const thresholds = isMobileDevice ? {
+      HIGH_DETAIL: 1.2,     // Mobile: Higher threshold for high detail
+      MEDIUM_DETAIL: 0.6,   // Mobile: Higher threshold for medium detail  
+      LOW_DETAIL: 0.3,      // Mobile: Higher threshold for low detail
+      MINIMAL_DETAIL: 0.1   // Same minimal threshold
+    } : LOD_THRESHOLDS;
+    
+    if (scale >= thresholds.HIGH_DETAIL) return 'HIGH';
+    if (scale >= thresholds.MEDIUM_DETAIL) return 'MEDIUM';
+    if (scale >= thresholds.LOW_DETAIL) return 'LOW';
+    return 'MINIMAL';
+  }, [scale, isMobileDevice]);
+
+  // Performance: LOD-based feature flags
+  const shouldShowText = lodLevel !== 'MINIMAL';
+  const shouldShowShadows = lodLevel === 'HIGH' || lodLevel === 'MEDIUM';
+  const shouldShowTooltips = lodLevel !== 'MINIMAL' && !isLargeDataset;
+  const allowInteractions = scale > 0.3; // Phase 3: Simplified interactions at distance
+
+  // Detect mobile for optimizations - only when needed
   useEffect(() => {
     if (isLargeDataset) return; // Skip unnecessary effects for large datasets
     
-    setIsMobile(window.innerWidth < 768);
-    
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isLargeDataset]);
+    setIsMobile(isMobileDevice);
+  }, [isLargeDataset, isMobileDevice]);
   
   // Optimize tooltip visibility with debouncing - disabled for large datasets
   useEffect(() => {
@@ -197,17 +228,19 @@ const Stall: React.FC<StallProps> = ({
     }
   }, [onSelect, isDragging]);
   
-  // Optimize hover behavior especially for mobile - simplified for large datasets
+  // Phase 3: Simplified interactions at distance for smooth performance  
   const handleMouseEnter = useCallback(() => {
+    if (!allowInteractions) return; // Skip interactions when zoomed out
     if (isLargeDataset) return; // Disable hover for large datasets
     if ((isMobile && !isStallSelected) || isDragging) return;
     setIsHovered(true);
-  }, [isMobile, isStallSelected, isDragging, isLargeDataset]);
+  }, [allowInteractions, isLargeDataset, isMobile, isStallSelected, isDragging]);
   
   const handleMouseLeave = useCallback(() => {
+    if (!allowInteractions) return; // Skip interactions when zoomed out
     if (isLargeDataset) return; // Disable hover for large datasets
     setIsHovered(false);
-  }, [isLargeDataset]);
+  }, [allowInteractions, isLargeDataset]);
 
   const defaultDimensions = {
     x: 0,
@@ -259,10 +292,10 @@ const Stall: React.FC<StallProps> = ({
       onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       opacity={stall.status === 'available' ? 1 : 0.7}
-      cursor={stall.status === 'available' ? 'pointer' : 'default'}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      listening={isDragging ? false : (!isMobile || stall.status === 'available')} // Disable listening during drag
+      cursor={stall.status === 'available' && allowInteractions ? 'pointer' : 'default'}
+      onMouseEnter={allowInteractions ? handleMouseEnter : undefined}
+      onMouseLeave={allowInteractions ? handleMouseLeave : undefined}
+      listening={allowInteractions} // Phase 3: Disable listening when interactions not allowed
       transformsEnabled={isDragging ? 'position' : (isMobile ? 'position' : 'all')} // Simplify transforms during drag
     >
       <StallRenderer
@@ -270,46 +303,46 @@ const Stall: React.FC<StallProps> = ({
         fill={isStallSelected ? "rgba(24, 144, 255, 0.1)" : getStatusFillColor(stall.status)}
         stroke={isStallSelected ? "#1890ff" : getStatusColor(stall.status)}
         strokeWidth={isStallSelected ? 2 / scale : 1 / scale}
-        shadowColor={isLargeDataset ? "transparent" : "rgba(0,0,0,0.1)"}
-        shadowBlur={isLargeDataset ? 0 : (isDragging ? 0 : (isMobile ? 2 : 3))} // Disable shadows for large datasets
-        shadowOffset={{ x: 1, y: 1 }}
-        shadowOpacity={isLargeDataset ? 0 : (isDragging ? 0 : 0.3)} // Disable shadows for large datasets
+        // Phase 2: More aggressive shadow culling for better performance
+        shadowColor={shouldShowShadows && scale > 0.8 ? "rgba(0,0,0,0.1)" : undefined}
+        shadowBlur={shouldShowShadows && scale > 0.8 ? 3 : 0}
+        shadowOffset={shouldShowShadows && scale > 0.8 ? { x: 1, y: 1 } : undefined}
+        shadowOpacity={shouldShowShadows && scale > 0.8 ? 0.3 : 0}
         rotation={stallRotation}
-        perfectDrawEnabled={!isDragging && !isLargeDataset} // Disable perfect drawing for large datasets
+        perfectDrawEnabled={false} // Phase 1: Disable pixel-perfect drawing (invisible difference)
         transformsEnabled={isDragging ? 'position' : 'all'} // Simplify transforms during drag
-        cornerRadius={isLargeDataset ? 0 : 0.05} // Remove corner radius for large datasets
+        cornerRadius={0.05} // Sharp rectangles for performance
       />
-      <Text
-        text={stall.number}
-        fontSize={Math.min(dimensions.width, dimensions.height) * (isLargeDataset ? 0.2 : 0.25)} // Smaller text for large datasets
-        fill="#000000"
-        width={dimensions.width}
-        height={dimensions.height}
-        align="center"
-        verticalAlign="middle"
-        transformsEnabled="position"
-        perfectDrawEnabled={!isDragging && !isLargeDataset} // Disable perfect drawing for large datasets
-        fontStyle={isLargeDataset ? "normal" : "bold"} // Normal weight for large datasets
-        listening={false} // Text doesn't need to listen for events
-        visible={!isLargeDataset || dimensions.width > 2} // Hide text for small stalls in large datasets
-      />
+      {/* Phase 2: Stall number text (only show when readable and enabled) */}
+      {shouldShowText && (
+        <Text
+          text={stall.number}
+          fontSize={Math.min(dimensions.width, dimensions.height) * 0.25}
+          fill="#000000"
+          width={dimensions.width}
+          height={dimensions.height}
+          align="center"
+          verticalAlign="middle"
+          fontStyle="bold"
+          listening={false} // Performance: Text doesn't need event listeners
+        />
+      )}
       
-      {/* Only show selection indicator when not dragging and not in large dataset mode */}
-      {isStallSelected && !isDragging && !isLargeDataset && (
+      {/* Selection indicator (always show when selected for UX) */}
+      {isStallSelected && (
         <Circle
           x={dimensions.width - 2}
           y={2}
-          radius={Math.min(0.8, dimensions.width * 0.05)} // Smaller radius that scales with stall size
+          radius={Math.min(0.8, dimensions.width * 0.05)}
           fill="#1890ff"
           stroke="#ffffff"
           strokeWidth={0.2 / scale}
-          transformsEnabled="position"
-          listening={false} // Circle doesn't need to listen for events
+          listening={false} // Performance: Selection indicator doesn't need events
         />
       )}
 
-      {/* Only show tooltip when not dragging and not in large dataset mode */}
-      {tooltipVisible && !isDragging && !isLargeDataset && (
+      {/* Phase 2: Tooltip (only show when scale allows) */}
+      {tooltipVisible && shouldShowTooltips && (
         <Label
           x={dimensions.width / 2}
           y={-5 / scale} // Scale the vertical offset
@@ -330,12 +363,12 @@ const Stall: React.FC<StallProps> = ({
           <Text
             text={tooltipText}
             fontFamily="Arial"
-            fontSize={Math.max(16 / scale, Math.min(22 / scale, (dimensions.width * 0.25) / scale))} // Further increased font size
-            padding={12 / scale} // Further increased padding
+            fontSize={Math.max(16 / scale, Math.min(22 / scale, (dimensions.width * 0.25) / scale))}
+            padding={12 / scale}
             fill="white"
             align="center"
-            width={Math.max(100 / scale, (tooltipText.length * 10) / scale)} // Further increased width
-            listening={false}
+            width={Math.max(100 / scale, (tooltipText.length * 10) / scale)}
+            listening={false} // Performance: Tooltip text doesn't need events
           />
         </Label>
       )}

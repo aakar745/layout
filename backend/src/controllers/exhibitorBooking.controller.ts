@@ -147,15 +147,22 @@ export const createExhibitorBooking = async (req: Request, res: Response) => {
 
     // Emit real-time stall booking updates to all viewers of this exhibition
     try {
-      const { emitStallBooked } = require('../services/socket.service');
+      const { emitStallBooked, emitStallStatusChanged, emitBookingCreated } = require('../services/socket.service');
       const updatedStalls = await Stall.find({ _id: { $in: stallIds } });
       updatedStalls.forEach(stall => {
+        // 🚀 FIX: Emit stallStatusChanged for public view consistency (same as admin bookings)
+        emitStallStatusChanged(exhibition._id, stall);
+        
+        // Keep original stallBooked event for any legacy handlers
         emitStallBooked(exhibition._id, stall, {
           companyName: exhibitor.companyName,
           customerName: exhibitor.contactPerson,
           bookingId: booking._id
         });
       });
+
+      // 🚀 NEW: Emit booking created event for real-time admin panel updates
+      emitBookingCreated(exhibition._id, booking, 'exhibitor');
     } catch (socketError) {
       console.error('Error emitting stall booking updates:', socketError);
       // Don't fail the booking if socket emission fails

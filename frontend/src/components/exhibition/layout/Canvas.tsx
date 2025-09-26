@@ -12,6 +12,13 @@ import Stall from '../public_view/Stall';
 import { KonvaEventObject } from 'konva/lib/Node';
 import Konva from 'konva';
 
+// Performance optimization constants - Phase 1: Zero-Risk Optimizations
+const VIEWPORT_CULLING_BUFFER = 100; // Extra pixels around viewport to render
+const EVENT_THROTTLE_MS = 16; // ~60fps event throttling  
+const DRAG_THROTTLE_MS = 8;   // Ultra-smooth drag throttling (120fps for drag operations)
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 20;
+
 interface CanvasProps {
   width: number;   // Canvas width in pixels
   height: number;  // Canvas height in pixels
@@ -80,6 +87,12 @@ const Canvas: React.FC<CanvasProps> = ({
   const [isExhibitionFormVisible, setIsExhibitionFormVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [originalPixelRatio, setOriginalPixelRatio] = useState<number | undefined>(undefined);
+
+  // Performance: throttling refs for event handling - Phase 1 optimizations
+  const lastUpdateTime = useRef<number>(0);
+  const lastDragUpdateTime = useRef<number>(0);
+  const pendingDragUpdate = useRef<boolean>(false);
+  const isDraggingRef = useRef<boolean>(false);
   
   useEffect(() => {
     const checkMobile = () => {
@@ -94,63 +107,86 @@ const Canvas: React.FC<CanvasProps> = ({
     };
   }, []);
 
-  // Calculate which elements are visible in the current viewport
-  const getVisibleBounds = useCallback(() => {
-    if (!stageRef.current) return null;
-    
-    const stage = stageRef.current;
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    
-    // Get stage bounds in world coordinates
-    const topLeft = transform.point({ x: 0, y: 0 });
-    const bottomRight = transform.point({ 
-      x: stage.width(), 
-      y: stage.height() 
-    });
-    
-    // Add padding for smooth scrolling
-    const padding = Math.max(exhibitionWidth, exhibitionHeight) * 0.1;
-    
-    return {
-      left: topLeft.x - padding,
-      top: topLeft.y - padding,
-      right: bottomRight.x + padding,
-      bottom: bottomRight.y + padding
-    };
-  }, [exhibitionWidth, exhibitionHeight]);
-
-  // Check if an element is visible in the viewport
-  const isElementVisible = useCallback((x: number, y: number, width: number, height: number) => {
-    const bounds = getVisibleBounds();
-    if (!bounds) return true; // Render all if bounds can't be calculated
-    
-    return !(
-      x + width < bounds.left ||
-      x > bounds.right ||
-      y + height < bounds.top ||
-      y > bounds.bottom
-    );
-  }, [getVisibleBounds]);
-
-  // Memoize visible stalls calculation
-  const visibleStalls = useMemo(() => {
-    if (!stalls || stalls.length === 0) return stalls;
-    
-    // For stall manager mode with many stalls, use viewport culling
-    if (isStallMode && stalls.length > 50) {
-      return stalls.filter(stall => {
-        const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
-        if (!hall) return false;
-        
-        const x = hall.dimensions.x + stall.dimensions.x;
-        const y = hall.dimensions.y + stall.dimensions.y;
-        
-        return isElementVisible(x, y, stall.dimensions.width, stall.dimensions.height);
-      });
+  // Phase 1: Enhanced viewport culling system - ultra-optimized for 1000+ stalls  
+  const viewportBounds = useMemo(() => {
+    if (!width || !height || !scale) {
+      return { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
     }
     
-    return stalls;
-  }, [stalls, halls, isStallMode, isElementVisible]);
+    // PERFORMANCE: Ultra-aggressive culling during interactions for 0-lag performance
+    let buffer = VIEWPORT_CULLING_BUFFER;
+    
+    if (isDragging || isDraggingRef.current) {
+      // During drag: 80% less buffer for ultra-smooth performance 
+      buffer = VIEWPORT_CULLING_BUFFER * 0.2;
+    } else if (scale < 0.5) {
+      // At low zoom: smaller buffer since objects are tiny anyway
+      buffer = VIEWPORT_CULLING_BUFFER * 0.5;
+    } else if (isMobile) {
+      // Mobile: Always use smaller buffer for better performance
+      buffer = VIEWPORT_CULLING_BUFFER * 0.7;
+    }
+    
+    return {
+      left: (-position.x - buffer) / scale,
+      top: (-position.y - buffer) / scale, 
+      right: (-position.x + width + buffer) / scale,
+      bottom: (-position.y + height + buffer) / scale
+    };
+  }, [position.x, position.y, scale, isDragging, width, height, isMobile]);
+
+  // Check if a stall is in viewport - optimized version
+  const isStallInViewport = useCallback((stall: StallType, hallX = 0, hallY = 0) => {
+    const stallLeft = (stall.dimensions?.x || 0) + hallX;
+    const stallTop = (stall.dimensions?.y || 0) + hallY;
+    const stallRight = stallLeft + (stall.dimensions?.width || 0);
+    const stallBottom = stallTop + (stall.dimensions?.height || 0);
+    
+    return !(stallRight < viewportBounds.left || 
+             stallLeft > viewportBounds.right ||
+             stallBottom < viewportBounds.top ||
+             stallTop > viewportBounds.bottom);
+  }, [viewportBounds]);
+
+  // Phase 3: Smart stall batching and viewport culling for 1000+ stalls
+  const { visibleStalls, stallBatches } = useMemo(() => {
+    // Phase 3: Batch by status for better GPU utilization
+    const batches = {
+      available: [] as StallType[],
+      booked: [] as StallType[],
+      reserved: [] as StallType[],
+      unavailable: [] as StallType[]
+    };
+    
+    if (!stalls || stalls.length === 0) return { visibleStalls: stalls || [], stallBatches: batches };
+    
+    // Always use viewport culling for stall mode with 50+ stalls
+    const useViewportCulling = stalls.length > 50;
+    
+    const visible = useViewportCulling ? stalls.filter(stall => {
+      const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
+      if (!hall) return false;
+      
+      return isStallInViewport(stall, hall.dimensions.x, hall.dimensions.y);
+    }) : stalls;
+
+    // MOBILE PERFORMANCE: Limit stalls during interactions for 0-lag performance  
+    const maxStallsForSmoothInteraction = isMobile ? 500 : 1000;
+    const isInteracting = isDragging || isDraggingRef.current;
+    
+    const finalStalls = isInteracting && visible.length > maxStallsForSmoothInteraction
+      ? visible.slice(0, maxStallsForSmoothInteraction)
+      : visible;
+
+    finalStalls.forEach(stall => {
+      const status = stall.status || 'unavailable';
+      if (batches[status as keyof typeof batches]) {
+        batches[status as keyof typeof batches].push(stall);
+      }
+    });
+
+    return { visibleStalls: finalStalls, stallBatches: batches };
+  }, [stalls, halls, isStallInViewport, isMobile, isDragging]);
 
   // Optimize rendering for large datasets
   const shouldOptimizeForLargeDataset = stalls?.length > 100;
@@ -175,8 +211,15 @@ const Canvas: React.FC<CanvasProps> = ({
     [updateViewport]
   );
 
+  // Phase 1: Ultra-smooth wheel zoom with throttling for 1000+ stalls
   const handleWheel = useCallback((e: any) => {
     e.evt.preventDefault();
+    
+    // Performance: Throttle zoom events to ~60fps
+    const now = performance.now();
+    if (now - lastUpdateTime.current < EVENT_THROTTLE_MS) return;
+    lastUpdateTime.current = now;
+    
     if (!stageRef.current) return;
 
     const stage = stageRef.current;
@@ -190,19 +233,21 @@ const Canvas: React.FC<CanvasProps> = ({
 
     const scaleBy = 1.15;
     const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    const limitedScale = Math.min(Math.max(0.1, newScale), 20);
+    const limitedScale = Math.min(Math.max(MIN_SCALE, newScale), MAX_SCALE);
+
+    if (limitedScale === oldScale) return; // No change needed
 
     const newPos = {
       x: pointer.x - mousePointTo.x * limitedScale,
       y: pointer.y - mousePointTo.y * limitedScale,
     };
 
-    setScale(limitedScale);
-    setPosition(newPos);
-    
-    // Update viewport for culling
-    debouncedUpdateViewport();
-  }, [scale, debouncedUpdateViewport]);
+    // Batch state updates for ultra-smooth zoom
+    requestAnimationFrame(() => {
+      setScale(limitedScale);
+      setPosition(newPos);
+    });
+  }, [scale]);
 
   const handleZoomIn = useCallback(() => {
     if (!stageRef.current) return;
@@ -263,93 +308,65 @@ const Canvas: React.FC<CanvasProps> = ({
     }
   }, [originalPixelRatio, isMobile]);
 
+  // Phase 1: Enhanced drag start for ultra-smooth performance
   const handleDragStart = useCallback((e: any) => {
     if (e.target === stageRef.current) {
+      isDraggingRef.current = true;
       setContextMenu({ ...contextMenu, visible: false });
       setIsDragging(true);
       
       optimizeForDragging(true);
       
       if (layerRef.current) {
-        if (isPublicView) {
-          const cacheConfig = isMobile ? 
-            { x: -10, y: -10, width: width + 20, height: height + 20 } : 
-            undefined;
-          layerRef.current.cache(cacheConfig);
-        }
-        
         layerRef.current.listening(false);
         
-        if (isPublicView) {
-          if (stageRef.current) {
-            const container = stageRef.current.container();
-            container.style.cursor = 'grabbing';
-            container.classList.add('dragging');
-            
-            stageRef.current.batchDraw();
-            
-            const nodes = layerRef.current.getChildren();
-            nodes.forEach((node: any) => {
-              if (node.shadowForStrokeEnabled) {
-                node._savedShadowForStroke = node.shadowForStrokeEnabled();
-                node.shadowForStrokeEnabled(false);
-              }
-              if (node.perfectDrawEnabled) {
-                node._savedPerfectDraw = node.perfectDrawEnabled();
-                node.perfectDrawEnabled(false);
-              }
-              if (node.cache && !node.isCached && node.width && node.height) {
-                node._dragCached = true;
-                try {
-                  if (isMobile) {
-                    const padding = 10;
-                    node.cache({
-                      offset: padding,
-                      pixelRatio: 0.8
-                    });
-                  } else {
-                    node.cache();
-                  }
-                } catch (e) {
-                  node._dragCached = false;
-                }
-              }
-            });
+        // Phase 1: Disable perfectDrawEnabled for all nodes during drag
+        const nodes = layerRef.current.getChildren();
+        nodes.forEach((node: any) => {
+          if (node.perfectDrawEnabled) {
+            node._savedPerfectDraw = node.perfectDrawEnabled();
+            node.perfectDrawEnabled(false);
           }
-        }
-      }
-    }
-  }, [contextMenu, isPublicView, optimizeForDragging, isMobile, width, height]);
-
-  const handleDragMove = useCallback((e: any) => {
-    if (isPublicView && e.target === stageRef.current) {
-      if (e.evt && e.evt._dragSkipUpdate) {
-        return;
-      }
-      
-      if (e.evt) {
-        e.evt._dragSkipUpdate = true;
-      }
-      
-      if (stageRef.current && layerRef.current) {
-        const renderThreshold = isMobile ? 0.85 : 0.7;
-        if (Math.random() > renderThreshold) {
+          if (node.shadowForStrokeEnabled) {
+            node._savedShadowForStroke = node.shadowForStrokeEnabled();
+            node.shadowForStrokeEnabled(false);
+          }
+        });
+        
+        if (stageRef.current) {
+          const container = stageRef.current.container();
+          container.style.cursor = 'grabbing';
           stageRef.current.batchDraw();
         }
       }
-      
-      return;
     }
-    
-    if (e.target === stageRef.current) {
-      if (isMobile && layerRef.current) {
-        e.cancelBubble = true;
-      }
-    }
-  }, [isMobile, isPublicView]);
+  }, [contextMenu, optimizeForDragging]);
 
+  // Phase 1: Ultra-smooth drag move with intelligent throttling  
+  const handleDragMove = useCallback((e: any) => {
+    if (e.target === stageRef.current) {
+      // PERFORMANCE: Ultra-smooth drag with intelligent throttling
+      const now = performance.now();
+      if (now - lastDragUpdateTime.current < DRAG_THROTTLE_MS || pendingDragUpdate.current) return;
+      
+      lastDragUpdateTime.current = now;
+      pendingDragUpdate.current = true;
+      
+      const stage = e.target;
+      requestAnimationFrame(() => {
+        // Only update position during drag for ultra-smooth performance
+        const newPosition = { x: stage.x(), y: stage.y() };
+        setPosition(newPosition);
+        pendingDragUpdate.current = false;
+      });
+    }
+  }, []);
+
+  // Phase 1: Enhanced drag end with performance restoration
   const handleDragEnd = useCallback((e: any) => {
     if (e.target === stageRef.current) {
+      isDraggingRef.current = false;
+      
       setPosition({
         x: e.target.x(),
         y: e.target.y()
@@ -360,32 +377,22 @@ const Canvas: React.FC<CanvasProps> = ({
       if (layerRef.current) {
         layerRef.current.listening(true);
         
-        if (isPublicView) {
-          layerRef.current.clearCache();
-        }
-        
-        if (isPublicView) {
-          if (stageRef.current) {
-            const container = stageRef.current.container();
-            container.style.cursor = '';
-            container.classList.remove('dragging');
-            
-            const nodes = layerRef.current.getChildren();
-            nodes.forEach((node: any) => {
-              if (node._savedShadowForStroke !== undefined) {
-                node.shadowForStrokeEnabled(node._savedShadowForStroke);
-                delete node._savedShadowForStroke;
-              }
-              if (node._savedPerfectDraw !== undefined) {
-                node.perfectDrawEnabled(node._savedPerfectDraw);
-                delete node._savedPerfectDraw;
-              }
-              if (node._dragCached) {
-                node.clearCache();
-                delete node._dragCached;
-              }
-            });
+        // Phase 1: Restore performance settings
+        const nodes = layerRef.current.getChildren();
+        nodes.forEach((node: any) => {
+          if (node._savedShadowForStroke !== undefined) {
+            node.shadowForStrokeEnabled(node._savedShadowForStroke);
+            delete node._savedShadowForStroke;
           }
+          if (node._savedPerfectDraw !== undefined) {
+            node.perfectDrawEnabled(node._savedPerfectDraw);
+            delete node._savedPerfectDraw;
+          }
+        });
+        
+        if (stageRef.current) {
+          const container = stageRef.current.container();
+          container.style.cursor = '';
         }
       }
       
@@ -396,11 +403,8 @@ const Canvas: React.FC<CanvasProps> = ({
       }, 50);
       
       setIsDragging(false);
-      
-      // Update viewport for culling after drag ends
-      debouncedUpdateViewport();
     }
-  }, [isPublicView, optimizeForDragging, debouncedUpdateViewport]);
+  }, [optimizeForDragging]);
 
   const handleMouseEnter = useCallback(() => {
     setIsStageHovered(true);
@@ -632,14 +636,17 @@ const Canvas: React.FC<CanvasProps> = ({
         y={position.y}
         scaleX={scale}
         scaleY={scale}
-        perfectDrawEnabled={!isDragging && !isPublicView && !shouldOptimizeForLargeDataset}
+        // Phase 1: Critical performance settings for ultra-smooth interactions
+        perfectDrawEnabled={false}        // Disable pixel-perfect drawing for speed
+        clearBeforeDraw={true}            // Clear canvas before each frame for consistency 
+        imageSmoothingEnabled={false}     // Disable image smoothing for speed
         listening={!isDragging}
         pixelRatio={
           shouldOptimizeForLargeDataset 
             ? (isDragging ? 0.5 : 0.8) // Lower quality for large datasets
             : (isDragging ? (isMobile ? 0.8 : 1) : Math.min(1.5, window.devicePixelRatio || 1))
         }
-        dragDistance={isPublicView ? (isMobile ? 5 : 3) : 0}
+        dragDistance={isMobile ? 5 : 3}
       >
         {isPublicView && (
           <FastLayer 
@@ -652,9 +659,11 @@ const Canvas: React.FC<CanvasProps> = ({
 
         <Layer 
           ref={layerRef}
-          imageSmoothingEnabled={!isDragging && !shouldOptimizeForLargeDataset}
-          perfectDrawEnabled={!isDragging && !shouldOptimizeForLargeDataset}
-          listening={!isDragging}
+          // Phase 1: Layer-specific optimizations for ultra-smooth rendering
+          perfectDrawEnabled={false}
+          clearBeforeDraw={true}
+          imageSmoothingEnabled={false}
+          listening={!isDragging}  // Disable event listening during drag for speed
         >
           {!isPublicView && (
             <ExhibitionSpace
@@ -684,28 +693,33 @@ const Canvas: React.FC<CanvasProps> = ({
             />
           ))}
           
-          {visibleStalls.map((stall) => {
-            const stallId = stall._id || stall.id;
-            const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
-            
-            if (!hall) return null;
-            
-            return (
-              <Stall
-                key={stallId}
-                stall={{
-                  ...stall,
-                  _id: stallId,
-                  id: stallId
-                }}
-                hallX={hall.dimensions.x}
-                hallY={hall.dimensions.y}
-                hallWidth={hall.dimensions.width}
-                hallHeight={hall.dimensions.height}
-                scale={scale}
-                isDragging={isDragging && isPublicView}
-              />
-            );
+          {/* Phase 3: Batch Rendering by Status for 1000+ stalls */}
+          {(['available', 'booked', 'reserved', 'unavailable'] as const).flatMap(status => {
+            const batchStalls = stallBatches[status] || [];
+            return batchStalls.map((stall: StallType) => {
+              const stallId = stall._id || stall.id;
+              const hall = halls.find(h => h.id === stall.hallId || h._id === stall.hallId);
+              
+              if (!hall) return null;
+              
+              return (
+                <Stall
+                  key={stallId}
+                  stall={{
+                    ...stall,
+                    _id: stallId,
+                    id: stallId
+                  }}
+                  hallX={hall.dimensions.x}
+                  hallY={hall.dimensions.y}
+                  hallWidth={hall.dimensions.width}
+                  hallHeight={hall.dimensions.height}
+                  scale={scale}
+                  isDragging={isDragging}
+                  isLargeDataset={shouldOptimizeForLargeDataset}
+                />
+              );
+            });
           })}
           
           {/* Sort fixtures by zIndex so higher zIndex appears on top */}

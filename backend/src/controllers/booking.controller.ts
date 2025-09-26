@@ -239,7 +239,7 @@ export const createBooking = async (req: Request, res: Response) => {
 
     // Emit real-time stall booking updates to all viewers of this exhibition
     try {
-      const { emitStallStatusChanged } = require('../services/socket.service');
+      const { emitStallStatusChanged, emitBookingCreated } = require('../services/socket.service');
       
       // Add delay for MongoDB consistency (AtomicBookingService sets status to 'booked')
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -260,6 +260,9 @@ export const createBooking = async (req: Request, res: Response) => {
       bookedStalls.forEach(stall => {
         emitStallStatusChanged(exhibitionId, stall);
       });
+      
+      // 🚀 NEW: Emit booking created event for real-time admin panel updates
+      emitBookingCreated(exhibitionId, booking, 'admin');
       
       console.log(`Real-time admin booking updates emitted for ${bookedStalls.length} stalls`);
     } catch (socketError) {
@@ -771,6 +774,15 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
           // Continue even if notification fails
         }
       }
+    }
+
+    // 🚀 NEW: Emit booking status update event for real-time admin panel updates
+    try {
+      const { emitBookingStatusUpdate } = require('../services/socket.service');
+      emitBookingStatusUpdate(booking.exhibitionId._id || booking.exhibitionId, booking);
+    } catch (socketError) {
+      console.error('Error emitting booking status update:', socketError);
+      // Don't fail the status update if socket emission fails
     }
 
     res.json(booking);

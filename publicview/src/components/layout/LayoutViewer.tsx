@@ -7,7 +7,7 @@ import { useLayoutStore } from '@/store/layoutStore';
 import { useLayoutSocket } from '@/lib/socket/layoutSocket';
 import LayoutHeader from './LayoutHeader';
 import LayoutCanvas from './canvas/LayoutCanvas';
-import LayoutSidebar from './LayoutSidebar';
+import LayoutSelectionBar from './LayoutSelectionBar';
 import LayoutControls from './LayoutControls';
 import LayoutBreadcrumb from './LayoutBreadcrumb';
 import LoadingSpinner from '@/components/ui/loading-spinner';
@@ -39,7 +39,8 @@ export default function LayoutViewer({
     applyStallUpdate,
     applyLayoutUpdate,
     isConnected,
-    stats
+    stats,
+    selectedStalls
   } = useLayoutStore();
   
   const { 
@@ -183,7 +184,7 @@ export default function LayoutViewer({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-16 py-6 sm:py-8 lg:py-10">
         {/* Breadcrumb */}
         <LayoutBreadcrumb exhibition={exhibition} />
 
@@ -194,25 +195,20 @@ export default function LayoutViewer({
           isConnected={isConnected}
         />
 
-        {/* Main layout interface - Mobile optimized */}
-        <div className="flex flex-col lg:grid lg:grid-cols-1 xl:grid-cols-5 gap-4 sm:gap-6 mt-4 sm:mt-6 lg:mt-8">
-          {/* Mobile: Sidebar first, Desktop: Canvas first */}
-          <div className="order-2 lg:order-1 xl:col-span-4">
-            <div className="bg-white rounded-md shadow-lg overflow-hidden">
-              {/* Controls */}
-              <LayoutControls />
-              
-              {/* Interactive Canvas */}
-              <div className="relative">
-                <LayoutCanvas />
-              </div>
-            </div>
-          </div>
+        {/* Selection Bar - Only appears when stalls are selected with proper spacing */}
+        <div className={selectedStalls.length > 0 ? "mt-6 sm:mt-8 lg:mt-10" : ""}>
+          <LayoutSelectionBar exhibition={exhibition} />
+        </div>
 
-          {/* Sidebar - Mobile: Fixed bottom, Desktop: Side panel */}
-          <div className="order-1 lg:order-2 xl:col-span-1">
-            <div className="lg:sticky lg:top-4">
-              <LayoutSidebar exhibition={exhibition} />
+        {/* Main layout interface - Full width canvas with conditional spacing */}
+        <div className={selectedStalls.length > 0 ? "mt-6 sm:mt-8 lg:mt-10" : "mt-6 sm:mt-8 lg:mt-10"}>
+          <div className="bg-white rounded-md shadow-lg overflow-hidden">
+            {/* Controls */}
+            <LayoutControls />
+            
+            {/* Interactive Canvas - Now takes full width */}
+            <div className="relative">
+              <LayoutCanvas />
             </div>
           </div>
         </div>

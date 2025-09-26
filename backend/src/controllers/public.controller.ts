@@ -327,9 +327,13 @@ export const bookPublicStall = async (req: Request, res: Response) => {
 
     // Emit real-time stall booking update to all viewers of this exhibition
     try {
-      const { emitStallBooked } = require('../services/socket.service');
+      const { emitStallBooked, emitStallStatusChanged } = require('../services/socket.service');
       const updatedStall = await Stall.findById(stallId);
       if (updatedStall) {
+        // 🚀 FIX: Emit stallStatusChanged for public view consistency (same as admin bookings)
+        emitStallStatusChanged(exhibition._id, updatedStall);
+        
+        // Keep original stallBooked event for any legacy handlers
         emitStallBooked(exhibition._id, updatedStall, {
           companyName,
           customerName,
@@ -569,9 +573,13 @@ export const bookPublicMultipleStalls = async (req: Request, res: Response) => {
 
     // Emit real-time stall booking updates to all viewers of this exhibition
     try {
-      const { emitStallBooked } = require('../services/socket.service');
+      const { emitStallBooked, emitStallStatusChanged } = require('../services/socket.service');
       const updatedStalls = await Stall.find({ _id: { $in: stallIds } });
       updatedStalls.forEach(stall => {
+        // 🚀 FIX: Emit stallStatusChanged for public view consistency (same as admin bookings)
+        emitStallStatusChanged(exhibition._id, stall);
+        
+        // Keep original stallBooked event for any legacy handlers
         emitStallBooked(exhibition._id, stall, {
           companyName,
           customerName,

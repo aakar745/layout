@@ -58,7 +58,7 @@ const StallRenderer: React.FC<StallRendererProps> = ({
         shadowOffset={shadowOffset}
         shadowOpacity={shadowOpacity}
         rotation={rotation}
-        perfectDrawEnabled={perfectDrawEnabled}
+        perfectDrawEnabled={false} // Phase 1: Disable pixel-perfect drawing for performance
         transformsEnabled={transformsEnabled}
         cornerRadius={cornerRadius}
       />
@@ -137,7 +137,7 @@ const StallRenderer: React.FC<StallRendererProps> = ({
           shadowOffset={shadowOffset}
           shadowOpacity={shadowOpacity}
           rotation={rotation}
-          perfectDrawEnabled={perfectDrawEnabled}
+          perfectDrawEnabled={false} // Phase 1: Disable pixel-perfect drawing for performance
           transformsEnabled={transformsEnabled}
           cornerRadius={cornerRadius}
         />
@@ -156,7 +156,7 @@ const StallRenderer: React.FC<StallRendererProps> = ({
           shadowOffset={shadowOffset}
           shadowOpacity={shadowOpacity}
           rotation={rotation}
-          perfectDrawEnabled={perfectDrawEnabled}
+          perfectDrawEnabled={false} // Phase 1: Disable pixel-perfect drawing for performance
           transformsEnabled={transformsEnabled}
           cornerRadius={cornerRadius}
         />
@@ -177,7 +177,7 @@ const StallRenderer: React.FC<StallRendererProps> = ({
       shadowOffset={shadowOffset}
       shadowOpacity={shadowOpacity}
       rotation={rotation}
-      perfectDrawEnabled={perfectDrawEnabled}
+      perfectDrawEnabled={false} // Phase 1: Disable pixel-perfect drawing for performance
       transformsEnabled={transformsEnabled}
       cornerRadius={cornerRadius}
     />

@@ -32,6 +32,8 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import BookingTable from './BookingTable';
 import { BookingDetailsModal, StatusUpdateModal } from './BookingModals';
+// 🚀 NEW: Import notification service for real-time updates
+import notificationService from '../../../services/notification';
 
 // Inline utility function to calculate stall area
 const calculateStallArea = (dimensions: any) => {
@@ -127,11 +129,85 @@ const StallBookingManager: React.FC = () => {
     fetchStats(filters.exhibition || undefined);
   }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit, filters.exhibition]);
 
+  // 🚀 NEW: Real-time booking updates handler
+  const handleBookingCreated = useCallback((data: any) => {
+    console.log('🆕 [REAL-TIME] New booking created:', data);
+    
+    // Show success message
+    message.success({
+      content: (
+        <div>
+          <strong>New Booking Created!</strong>
+          <br />
+          <span style={{ fontSize: '12px', color: '#666' }}>
+            {data.source === 'exhibitor' ? '🏢 Exhibitor' : '👤 Admin'} booking: {data.companyName} - {data.stallCount} stall(s) - ₹{data.amount?.toLocaleString('en-IN') || '0'}
+          </span>
+        </div>
+      ),
+      duration: 8,
+      style: { marginTop: '60px' }
+    });
+    
+    // Refresh bookings and stats to show the new booking
+    refreshAfterAction();
+  }, [refreshAfterAction]);
+
+  // 🚀 NEW: Real-time booking status update handler
+  const handleBookingStatusUpdate = useCallback((data: any) => {
+    console.log('📋 [REAL-TIME] Booking status updated:', data);
+    
+    const statusEmojis: Record<string, string> = {
+      'approved': '✅',
+      'confirmed': '🎉',
+      'rejected': '❌',
+      'cancelled': '🚫',
+      'pending': '⏳'
+    };
+    
+    const emoji = statusEmojis[data.status] || '📋';
+    const messageType = data.status === 'approved' || data.status === 'confirmed' ? 'success' : 
+                       data.status === 'rejected' || data.status === 'cancelled' ? 'warning' : 'info';
+    
+    // Show status update message
+    message[messageType]({
+      content: (
+        <div>
+          <strong>{emoji} Booking Status Updated</strong>
+          <br />
+          <span style={{ fontSize: '12px', color: '#666' }}>
+            {data.companyName}'s booking has been {data.status}
+          </span>
+        </div>
+      ),
+      duration: 6,
+      style: { marginTop: '60px' }
+    });
+    
+    // Refresh bookings and stats to show the updated status
+    refreshAfterAction();
+  }, [refreshAfterAction]);
+
   // Initial fetch of bookings and stats on component mount
   useEffect(() => {
     fetchBookingsWithPagination(pagination.page, pagination.limit);
     fetchStats(filters.exhibition || undefined);
   }, [fetchBookingsWithPagination, fetchStats, pagination.page, pagination.limit, filters.exhibition]);
+
+  // 🚀 NEW: Setup real-time event listeners for booking updates
+  useEffect(() => {
+    // Register event listeners
+    notificationService.addEventListener('booking_created', handleBookingCreated);
+    notificationService.addEventListener('booking_status_update', handleBookingStatusUpdate);
+    
+    console.log('🔄 [REAL-TIME] Booking management page listeners registered');
+    
+    // Cleanup listeners on unmount
+    return () => {
+      notificationService.removeEventListener('booking_created', handleBookingCreated);
+      notificationService.removeEventListener('booking_status_update', handleBookingStatusUpdate);
+      console.log('🔄 [REAL-TIME] Booking management page listeners cleaned up');
+    };
+  }, [handleBookingCreated, handleBookingStatusUpdate]);
 
   // First, fetch all exhibitions to ensure we have the complete list
   useEffect(() => {

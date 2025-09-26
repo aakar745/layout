@@ -126,6 +126,9 @@ class NotificationService {
       this.socket.on('notification_update', this.handleNotificationUpdate);
       this.socket.on('user_deactivated', this.handleUserDeactivated);
       this.socket.on('service_charge_updated', this.handleServiceChargeUpdate);
+      // 🚀 NEW: Listen for booking events for real-time updates
+      this.socket.on('bookingCreated', this.handleBookingCreated);
+      this.socket.on('bookingStatusUpdate', this.handleBookingStatusUpdate);
     } catch (error) {
       console.error('Error initializing notification socket:', error);
       this.scheduleReconnect();
@@ -257,6 +260,55 @@ class NotificationService {
     
     // Trigger service charge update event for any listeners
     this.triggerEvent('service_charge_updated', data);
+  };
+
+  // 🚀 NEW: Handle booking created events
+  private handleBookingCreated = (data: any) => {
+    console.log('🆕 [SOCKET] Booking created event received:', data);
+    
+    // Trigger booking created event for any listeners
+    this.triggerEvent('booking_created', data);
+    
+    // Show notification to admin users about new booking
+    if (!this.isExhibitor) {
+      const sourceIcon = data.source === 'exhibitor' ? '🏢' : '👤';
+      const sourceText = data.source === 'exhibitor' ? 'Exhibitor' : 'Admin';
+      
+      this.triggerEvent('show_toast', {
+        type: 'info',
+        title: `${sourceIcon} New Booking Created`,
+        message: `${sourceText} booking for ${data.companyName} - ${data.stallCount} stall(s) - ₹${data.amount?.toLocaleString('en-IN') || '0'}`,
+        duration: 8000
+      });
+    }
+  };
+
+  // 🚀 NEW: Handle booking status updates
+  private handleBookingStatusUpdate = (data: any) => {
+    console.log('📋 [SOCKET] Booking status update received:', data);
+    
+    // Trigger booking status update event for any listeners
+    this.triggerEvent('booking_status_update', data);
+    
+    // Show notification about status change
+    const statusEmojis: Record<string, string> = {
+      'approved': '✅',
+      'confirmed': '🎉',
+      'rejected': '❌',
+      'cancelled': '🚫',
+      'pending': '⏳'
+    };
+    
+    const emoji = statusEmojis[data.status] || '📋';
+    const statusText = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+    
+    this.triggerEvent('show_toast', {
+      type: data.status === 'approved' || data.status === 'confirmed' ? 'success' : 
+            data.status === 'rejected' || data.status === 'cancelled' ? 'warning' : 'info',
+      title: `${emoji} Booking ${statusText}`,
+      message: `Booking for ${data.companyName} has been ${data.status}`,
+      duration: 6000
+    });
   };
 
   // Subscribe to notifications

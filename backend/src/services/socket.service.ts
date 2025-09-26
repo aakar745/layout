@@ -287,6 +287,19 @@ export const emitToExhibition = (exhibitionId: string | mongoose.Types.ObjectId,
 };
 
 /**
+ * Emit an event to all users with a specific role
+ * @param role Role name (admins/exhibitors)
+ * @param event Event name
+ * @param data Event data
+ */
+export const emitToRole = (role: 'admins' | 'exhibitors', event: string, data: any) => {
+  if (io) {
+    console.log(`Emitting ${event} to role room: ${role}`);
+    io.to(role).emit(event, data);
+  }
+};
+
+/**
  * Emit stall status change to all viewers of an exhibition
  * @param exhibitionId Exhibition ID
  * @param stallData Updated stall data
@@ -341,4 +354,62 @@ export const emitLayoutUpdate = (exhibitionId: string | mongoose.Types.ObjectId,
   
   emitToExhibition(exhibitionId, 'layoutUpdate', eventData);
   console.log(`Layout update emitted for exhibition ${exhibitionId}`);
+};
+
+/**
+ * Emit booking created event to admins for real-time updates
+ * This is used for both admin and exhibitor bookings
+ * @param exhibitionId Exhibition ID
+ * @param bookingData Booking information
+ * @param bookingSource Source of booking (admin/exhibitor)
+ */
+export const emitBookingCreated = (exhibitionId: string | mongoose.Types.ObjectId, bookingData: any, bookingSource: 'admin' | 'exhibitor') => {
+  const eventData = {
+    exhibitionId: exhibitionId.toString(),
+    bookingId: bookingData._id?.toString() || bookingData.id?.toString(),
+    customerName: bookingData.customerName,
+    companyName: bookingData.companyName,
+    stallCount: bookingData.stallIds?.length || 0,
+    amount: bookingData.amount,
+    status: bookingData.status,
+    source: bookingSource,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Emit to all admins (not exhibition-specific since admins might be managing multiple exhibitions)
+  emitToRole('admins', 'bookingCreated', eventData);
+  
+  // Also emit to exhibition-specific room for anyone viewing that exhibition
+  emitToExhibition(exhibitionId, 'bookingCreated', eventData);
+  
+  console.log(`Booking created event emitted for exhibition ${exhibitionId}, source: ${bookingSource}`);
+};
+
+/**
+ * Emit booking status update event to admins and exhibitors
+ * @param exhibitionId Exhibition ID  
+ * @param bookingData Updated booking information
+ */
+export const emitBookingStatusUpdate = (exhibitionId: string | mongoose.Types.ObjectId, bookingData: any) => {
+  const eventData = {
+    exhibitionId: exhibitionId.toString(),
+    bookingId: bookingData._id?.toString() || bookingData.id?.toString(),
+    status: bookingData.status,
+    customerName: bookingData.customerName,
+    companyName: bookingData.companyName,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Emit to all admins
+  emitToRole('admins', 'bookingStatusUpdate', eventData);
+  
+  // Emit to exhibition room
+  emitToExhibition(exhibitionId, 'bookingStatusUpdate', eventData);
+  
+  // If there's an exhibitor ID, also emit to that specific exhibitor
+  if (bookingData.exhibitorId) {
+    emitToUser(bookingData.exhibitorId, 'bookingStatusUpdate', eventData);
+  }
+  
+  console.log(`Booking status update emitted for exhibition ${exhibitionId}, new status: ${bookingData.status}`);
 }; 
