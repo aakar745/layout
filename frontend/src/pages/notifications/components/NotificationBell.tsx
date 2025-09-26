@@ -176,12 +176,12 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isExhibitor = false
       switch (notification.entityType) {
         case 'Booking':
           url = isExhibitor 
-            ? `/exhibitor/bookings/${notification.entityId}` 
+            ? `${import.meta.env.VITE_PUBLIC_URL || 'http://localhost:3000'}/my-bookings` 
             : `/bookings`; // Main bookings page for admin users
           break;
         case 'Invoice':
           url = isExhibitor 
-            ? `/exhibitor/invoice/${notification.entityId}` 
+            ? `${import.meta.env.VITE_PUBLIC_URL || 'http://localhost:3000'}/my-bookings` 
             : `/invoice/${notification.entityId}`;
           break;
         case 'Exhibition':

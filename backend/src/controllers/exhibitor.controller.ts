@@ -674,7 +674,7 @@ export const updateProfile = async (req: Request, res: Response) => {
  * - limit: Items per page (default: 10)
  * - status: Filter by status (pending, approved, rejected)
  * - isActive: Filter by active status (true, false)
- * - search: Search in company name, contact person, or email
+ * - search: Search in company name, contact person, email, or phone (partial matching)
  * - sortBy: Sort field (createdAt, companyName, status)
  * - sortOrder: Sort direction (asc, desc) - default: desc
  */
@@ -717,9 +717,11 @@ export const getAllExhibitors = async (req: Request, res: Response) => {
       conditions.isActive = isActive === 'true';
     }
     
-    // Search functionality - case insensitive search across multiple fields
+    // Search functionality - case insensitive partial matching across all fields
     if (search && typeof search === 'string' && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const searchTerm = search.trim();
+      const searchRegex = new RegExp(searchTerm, 'i');
+      
       conditions.$or = [
         { companyName: searchRegex },
         { contactPerson: searchRegex },

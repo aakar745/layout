@@ -301,20 +301,8 @@ const StallBookingManager: React.FC = () => {
       }
     }
 
-    // Filter by search text
-    if (filters.search) {
-      const searchText = filters.search.toLowerCase();
-      const searchableText = [
-        booking.companyName,
-        booking.customerName,
-        booking.customerEmail,
-        booking.customerPhone
-      ].join(' ').toLowerCase();
-      
-      if (!searchableText.includes(searchText)) {
-        return false;
-      }
-    }
+    // Filter by search text - handled by backend now, no additional client-side filtering needed
+    // Backend now includes stall number search, so we don't need client-side filtering
 
     return true;
   });

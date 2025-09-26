@@ -30,11 +30,11 @@ const BookingFilters: React.FC<BookingFiltersProps> = ({
     <Card style={{ marginBottom: '24px' }}>
       <Space wrap>
         <Input
-          placeholder="Search by company, customer, email, or phone"
+          placeholder="Search by company, customer, email, phone, or stall number"
           prefix={<SearchOutlined />}
           value={filters.search}
           onChange={e => onFilterChange({ ...filters, search: e.target.value })}
-          style={{ width: 250 }}
+          style={{ width: 280 }}
           allowClear
         />
         <Select

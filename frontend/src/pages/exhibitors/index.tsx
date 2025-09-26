@@ -80,15 +80,26 @@ const ExhibitorManagement: React.FC = () => {
       page: currentPage,
       limit: pageSize,
       status: statusFilter,
-      search: searchText.trim() || undefined,
+      search: searchText.trim() || undefined, // Allow single character searches
       sortBy,
       sortOrder
     }));
   }, [dispatch, currentPage, pageSize, statusFilter, searchText, sortBy, sortOrder]);
 
+  // Debounced search effect for real-time search
+  // Triggers API call after user stops typing for immediate results
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadExhibitors();
+    }, 200); // 200ms debounce delay - very responsive for instant search results
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText]); // Only depend on searchText for debounced search
+
+  // Load exhibitors when other filters change (no debounce needed)
   useEffect(() => {
     loadExhibitors();
-  }, [loadExhibitors]);
+  }, [currentPage, pageSize, statusFilter, sortBy, sortOrder]); // Exclude searchText from here
 
   // Calculate stats whenever pagination total changes
   useEffect(() => {
@@ -266,10 +277,23 @@ const ExhibitorManagement: React.FC = () => {
     }
   };
 
-  // Server-side search handler
-  const handleSearch = (value: string) => {
+  // Real-time search handler (triggers as user types)
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
     setSearchText(value);
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Handle search button click or enter key (for manual search)
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    setCurrentPage(1);
+  };
+  
+  // Handle clear button
+  const handleSearchClear = () => {
+    setSearchText('');
+    setCurrentPage(1);
   };
   
   // Server-side status filter handler
@@ -503,9 +527,12 @@ const ExhibitorManagement: React.FC = () => {
           <Row gutter={[16, 16]} align="middle">
             <Col xs={24} sm={8} md={6} lg={4}>
               <Search
-                placeholder="Search exhibitors"
+                placeholder="Start typing to search exhibitors..."
                 allowClear
+                value={searchText}
+                onChange={handleSearchChange}
                 onSearch={handleSearch}
+                onClear={handleSearchClear}
                 style={{ width: '100%' }}
               />
             </Col>

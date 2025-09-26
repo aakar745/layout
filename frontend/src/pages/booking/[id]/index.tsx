@@ -15,6 +15,7 @@ import { Card, Descriptions, Button, Space, Tag, Table, Typography, Modal, Divid
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../../store/store';
 import { fetchBooking, updateBookingStatus } from '../../../store/slices/bookingSlice';
+import { usePermission } from '../../../hooks/reduxHooks';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -106,6 +107,7 @@ const BookingDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
+  const { hasPermission } = usePermission();
   
   const { currentBooking, loading } = useSelector((state: RootState) => state.booking);
 
@@ -216,18 +218,22 @@ const BookingDetails: React.FC = () => {
               </Button>
               {currentBooking.status === 'pending' && (
                 <>
-                  <Button
-                    type="primary"
-                    onClick={() => showStatusConfirm('confirmed')}
-                  >
-                    Confirm Booking
-                  </Button>
-                  <Button
-                    danger
-                    onClick={() => showStatusConfirm('cancelled')}
-                  >
-                    Cancel Booking
-                  </Button>
+                  {hasPermission('edit_booking') && (
+                    <Button
+                      type="primary"
+                      onClick={() => showStatusConfirm('confirmed')}
+                    >
+                      Confirm Booking
+                    </Button>
+                  )}
+                  {hasPermission('edit_booking') && (
+                    <Button
+                      danger
+                      onClick={() => showStatusConfirm('cancelled')}
+                    >
+                      Cancel Booking
+                    </Button>
+                  )}
                 </>
               )}
             </Space>

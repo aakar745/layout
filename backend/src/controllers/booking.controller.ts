@@ -364,13 +364,22 @@ export const getBookings = async (req: Request, res: Response) => {
       conditions.createdAt = { $lte: new Date(endDate as string) };
     }
     
-    // Search by company name, customer name, or customer email
+    // Search by company name, customer name, customer email, or stall number
     if (search) {
+      // First, find stall IDs that match the search term
+      const matchingStalls = await mongoose.model('Stall').find(
+        { number: { $regex: search, $options: 'i' } },
+        { _id: 1 }
+      );
+      const matchingStallIds = matchingStalls.map(stall => stall._id);
+      
       conditions.$or = [
         { companyName: { $regex: search, $options: 'i' } },
         { customerName: { $regex: search, $options: 'i' } },
         { customerEmail: { $regex: search, $options: 'i' } },
-        { customerPhone: { $regex: search, $options: 'i' } }
+        { customerPhone: { $regex: search, $options: 'i' } },
+        // Include bookings that contain any matching stall IDs
+        { stallIds: { $in: matchingStallIds } }
       ];
     }
     
@@ -1126,13 +1135,22 @@ export const exportBookings = async (req: Request, res: Response) => {
       }
     }
     
-    // Search filter
+    // Search filter - include stall numbers
     if (search) {
+      // First, find stall IDs that match the search term
+      const matchingStalls = await mongoose.model('Stall').find(
+        { number: { $regex: search, $options: 'i' } },
+        { _id: 1 }
+      );
+      const matchingStallIds = matchingStalls.map(stall => stall._id);
+      
       conditions.$or = [
         { customerName: { $regex: search, $options: 'i' } },
         { customerEmail: { $regex: search, $options: 'i' } },
         { customerPhone: { $regex: search, $options: 'i' } },
-        { companyName: { $regex: search, $options: 'i' } }
+        { companyName: { $regex: search, $options: 'i' } },
+        // Include bookings that contain any matching stall IDs
+        { stallIds: { $in: matchingStallIds } }
       ];
     }
 
