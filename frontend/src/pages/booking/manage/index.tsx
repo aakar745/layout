@@ -539,14 +539,16 @@ const StallBookingManager: React.FC = () => {
               >
                 Export
               </Button>
-              <Button
-                type="primary"
-                size="large"
-                icon={<PlusOutlined />}
-                onClick={() => navigate('/bookings/create')}
-              >
-                Create Booking
-              </Button>
+              {hasPermission('create_booking') && (
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={<PlusOutlined />}
+                  onClick={() => navigate('/bookings/create')}
+                >
+                  Create Booking
+                </Button>
+              )}
             </Space>
           </Col>
         </Row>

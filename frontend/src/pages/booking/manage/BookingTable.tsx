@@ -831,7 +831,7 @@ Exhibition Management Team`;
                   disabled: isSendingWhatsApp || (record.status !== 'approved' && record.status !== 'confirmed'),
                   onClick: () => handleSendWhatsAppInvoice(record)
                 },
-                {
+                ...(props.hasPermission('edit_booking') ? [{
                   key: 'updateStatus',
                   icon: <CheckCircleOutlined />,
                   label: 'Update Status',
@@ -841,8 +841,8 @@ Exhibition Management Team`;
                     props.setRejectionReasonText(record.rejectionReason || '');
                     props.setIsStatusModalVisible(true);
                   }
-                },
-                ...(props.hasPermission('delete_bookings') ? [{
+                }] : []),
+                ...(props.hasPermission('bookings_delete') ? [{
                   key: 'delete',
                   icon: <DeleteOutlined />,
                   label: 'Delete',

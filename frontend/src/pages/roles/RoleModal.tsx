@@ -43,11 +43,11 @@ const AVAILABLE_PERMISSIONS = [
   { key: 'edit_stall_types', label: 'Edit Stall Types', group: 'Stall Types' },
   { key: 'delete_stall_types', label: 'Delete Stall Types', group: 'Stall Types' },
   
-  // Fix format inconsistency for bookings
+  // Fix format inconsistency for bookings - FIXED TO MATCH BACKEND
   { key: 'view_bookings', label: 'View Bookings', group: 'Bookings' },
-  { key: 'create_bookings', label: 'Create Bookings', group: 'Bookings' },
-  { key: 'edit_bookings', label: 'Edit Bookings', group: 'Bookings' },
-  { key: 'delete_bookings', label: 'Delete Bookings', group: 'Bookings' },
+  { key: 'create_booking', label: 'Create Bookings', group: 'Bookings' },
+  { key: 'edit_booking', label: 'Edit Bookings', group: 'Bookings' },
+  { key: 'bookings_delete', label: 'Delete Bookings', group: 'Bookings' },
   
   // Fix format inconsistency for amenities
   { key: 'view_amenities', label: 'View Amenities', group: 'Amenities' },

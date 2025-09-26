@@ -398,6 +398,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       'stall/list': 'view_stalls',
       'stall-types': 'view_stall_types',
       'bookings': 'view_bookings',
+      'bookings/create': 'create_booking',
       'amenities': 'view_amenities',
       'letters': 'view_letters',
       'invoices': 'view_invoices',
