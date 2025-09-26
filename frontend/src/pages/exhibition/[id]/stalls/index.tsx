@@ -523,7 +523,11 @@ const StallManager: React.FC = () => {
             visible={isStallFormVisible}
             stall={selectedStall}
             hall={selectedHall}
-            exhibition={currentExhibition}
+            exhibition={{
+              ...currentExhibition,
+              // CRITICAL FIX: Include current stalls from Redux store for positioning logic
+              stalls: stalls || []
+            }}
             onCancel={handleFormClose}
             onSubmit={handleStallSubmit}
             onDelete={selectedStall ? () => handleDeleteStall(selectedStall.id || selectedStall._id!) : undefined}
